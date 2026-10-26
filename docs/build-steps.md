@@ -55,7 +55,7 @@ pnpm format:check
 | 7 | `services/control-plane`: Fastify `/health`, tests, log redaction | done · `f03f422` · Claude |
 | 8 | Minimal `workspace/agent` and `packages/engine` | done · `c30c1c0` · Claude |
 | 9 | Playwright smoke test | done · `9f4245f` · Claude |
-| 10 | GitHub Actions CI, open the PR, branch protection | **next** |
+| 10 | GitHub Actions CI, open the PR, branch protection | done · `a3247c7` · Claude · ⚠ CI can't run until the GitHub account billing lock is resolved (`docs/upgrade-later.md` item 8) |
 | 11 | Cloudflare Pages: account, previews per PR, URL comment, smoke test on preview | *planned* |
 | 12 | Fly.io: Dockerfile, `fly.toml`, deploy on merge, staging deploy | *planned* |
 | 13 | ADRs, `STATUS.md`, `CHANGELOG.md`, phase report, merge | *planned* |
@@ -1644,3 +1644,13 @@ gh pr checks --watch                    # follow both jobs live in the terminal
 - Never print secrets in `run:` steps. GitHub masks registered secrets, but derived values (substrings, base64) aren't masked.
 
 **Commit:** `ci: add GitHub Actions workflow for checks and e2e`
+
+**Done notes (step 10):**
+- Workflow committed (`a3247c7`), branch pushed, PR #1 opened: https://github.com/ArmaanAhuja-7777/Glassbox/pull/1
+- Branch protection: option 3 (not enforced), and the free plan blocked it while the repo was private.
+- **Blocked:** GitHub Actions jobs don't start ("account is locked due to a billing issue"), on private *and* public repos. Diagnosis: `gh run view <id>` showed only "workflow file issue"; a one-line probe workflow failed the same way, which ruled out our file; the check-run **annotations** (`gh api repos/<owner>/<repo>/check-runs/<id>/annotations`) gave the real reason. Lesson: when a run fails in 0–4 seconds with no steps, look at annotations, not logs.
+- Until resolved, run the CI checks locally:
+
+```fish
+pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e
+```
