@@ -2011,3 +2011,54 @@ open https://<branch-with-dashes>-flowcanvas.ahujaarmaan7777.workers.dev  # any 
 docker build -f services/control-plane/Dockerfile --build-arg FLOWCANVAS_COMMIT=(git rev-parse HEAD) -t flowcanvas-control-plane .
 docker run --rm -p 127.0.0.1:8095:8080 flowcanvas-control-plane          # then: curl http://127.0.0.1:8095/health
 ```
+
+---
+
+## Phase 1a — Design system in code
+
+**Build:** Graphite tokens (muted palette, Slate scale, text styles, radii, spacing) generated from the Figma variables into CSS variables; base components: Button, Tag, Input, Toggle, Menu, Tooltip, Tabs, Panel, Flow node, in dark and light; component catalogue (Storybook).
+**Done when:** Each component matches its Figma counterpart in a side-by-side screenshot test.
+**Try it:** Open the component catalogue from the CI report, flip dark and light, compare with the Figma Components page.
+
+### Expected outcome
+
+When phase 1a is done you can:
+- Open a **component catalogue (Storybook)** in the browser, locally and at a free Cloudflare URL (the stand-in for "from the CI report" while Actions are blocked).
+- Browse all nine components with every variant and state (hover, focus, disabled, selected, changed states), switch **dark ↔ light** with one toggle, and see accessibility checks per component.
+- Open a **side-by-side comparison report**: each component's rendering next to its Figma reference, with a pixel-difference score that must stay under an agreed tolerance.
+- See the **version page restyled** with Graphite tokens (near-black canvas, Inter and JetBrains Mono), and its existing tests still green.
+- Change a colour in the token source, regenerate, and watch every component update. No hard-coded colours, sizes, radii or fonts anywhere in components (enforced by a lint rule).
+
+### Concepts this phase introduces (primers come with each step)
+
+- **Design tokens.** Named design decisions (`surface/canvas`, `state/added/solid`, `radius/node`) stored as data, in the W3C Design Tokens (DTCG) JSON format, and generated into CSS custom properties and typed TypeScript constants. Docs: https://www.designtokens.org/
+- **Theming with CSS custom properties.** Dark and light are two sets of values for the same variable names, switched by a `data-theme` attribute on `<html>`, with `prefers-color-scheme` as the default.
+- **CSS Modules.** Component-scoped class names, compiled by Vite, with zero runtime cost. They work with our strict CSP: no injected `<style>` tags, unlike CSS-in-JS libraries.
+- **Accessible primitives.** Menus and tooltips need keyboard handling, focus management and ARIA. We'll use a well-tested headless primitives library for those parts (choice and ADR in the relevant step) and style it ourselves.
+- **Self-hosted fonts.** Inter and JetBrains Mono served from our own origin (Fontsource packages), as the CSP's `font-src 'self'` requires; no Google Fonts requests.
+- **Storybook.** A workshop for components in isolation: one "story" per state, controls to tweak props, a dark/light toolbar, and the accessibility addon. Builds to static files, hosted free on Cloudflare.
+- **Visual regression testing.** Playwright screenshots each story and compares it to a reference image within a tolerance. Exact pixel equality with Figma is impossible (fonts and anti-aliasing render differently), so the report shows both side by side plus the difference.
+
+### Figma reference and its limits
+
+- The Figma file's **components** are `Tag` (7 tones), `Button` (4 kinds) and `Flow node` (9 states), from `docs/reference/figma-scripts/flowcanvas-screens.js`.
+- Input, Toggle, Menu, Tooltip, Tabs and Panel exist in Figma only as parts of **screens**, so their references are crops of those screens.
+- **Light theme isn't in Figma** (decision A1). This phase proposes light values for approval before they're used.
+- **Token source:** Figma's Variables REST API needs an Enterprise plan, so it isn't free. Free route: a hand-written seed JSON with the decided values (decision A3), checked against the Figma file and the generator scripts' `HEX` map. Reading Figma variables directly can use the Figma connector in Claude Code, or an export plugin.
+
+### Steps (planned)
+
+| # | Step | Status |
+| --- | --- | --- |
+| 1 | Token source (DTCG JSON seed) + `tools/figma-tokens` generator → `packages/tokens` (CSS variables + typed TS), with tests | *planned* |
+| 2 | Light theme proposal: values + contrast checks, **for the owner's approval** | *planned* |
+| 3 | `packages/ui` foundation: CSS Modules, global styles, self-hosted fonts, theme switching, reduced motion, "no raw values" lint rule | *planned* |
+| 4 | Storybook: setup, dark/light toolbar, accessibility addon, local run | *planned* |
+| 5 | Button and Tag (the Figma components) | *planned* |
+| 6 | Input and Toggle | *planned* |
+| 7 | Tabs and Panel | *planned* |
+| 8 | Menu and Tooltip (headless accessible primitives; ADR) | *planned* |
+| 9 | Flow node (all change states, selected, analysing) | *planned* |
+| 10 | Figma references + Playwright visual comparison with a side-by-side report | *planned* |
+| 11 | Version page restyled with tokens; Storybook deployed to a free Cloudflare URL | *planned* |
+| 12 | Close phase 1a: ADRs, architecture, status, changelog, report, merge | *planned* |
