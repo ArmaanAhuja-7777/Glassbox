@@ -39,7 +39,7 @@ pnpm format:check
 | Web app runs locally | `pnpm dev` → http://localhost:5173 | heading **Flowcanvas** and `0.1.0 · <short commit>` matching `git rev-parse --short HEAD`; `pnpm test` → web: 2 passed |
 | Control plane runs locally | `pnpm dev`, then `curl http://127.0.0.1:8080/health` | `{"status":"ok","version":"0.1.0","commit":"<git rev-parse HEAD>"}`; `pnpm test` → control-plane: 3 passed (incl. secret-redaction canary) |
 | End-to-end test | `pnpm test:e2e` (first time: `pnpm --filter @flowcanvas/e2e exec playwright install chromium`) | real Chromium opens the production build: `1 passed`; `E2E_EXPECTED_COMMIT=deadbeef00 pnpm test:e2e` must fail |
-| PR preview URL | step 11 | *pending* |
+| PR preview URL | `https://phase-1-project-skeleton-flowcanvas.ahujaarmaan7777.workers.dev` (branch alias, always the latest push) or `https://<first 8 chars of version id>-flowcanvas.ahujaarmaan7777.workers.dev` (one version) | **Flowcanvas** and `0.1.0 · <PR head commit>`; `curl -sI <url>` shows `content-security-policy`; `E2E_BASE_URL=<url> E2E_EXPECTED_COMMIT=(git rev-parse HEAD) pnpm --filter @flowcanvas/e2e test:e2e` → 1 passed |
 | Staging and `/health` | step 12 | *pending* |
 
 ### Steps
@@ -56,7 +56,7 @@ pnpm format:check
 | 8 | Minimal `workspace/agent` and `packages/engine` | done · `c30c1c0` · Claude |
 | 9 | Playwright smoke test | done · `9f4245f` · Claude |
 | 10 | GitHub Actions CI, open the PR, branch protection | done · `a3247c7` · Claude · ⚠ CI can't run until the GitHub account billing lock is resolved (`docs/upgrade-later.md` item 8) |
-| 11 | Cloudflare (Workers static assets): previews per PR, smoke test on preview | repo part done · `6359831` · Claude; waiting for the owner's Cloudflare setup and first deploy |
+| 11 | Cloudflare (Workers static assets): previews per PR, smoke test on preview | done · `6359831` · Claude (repo) + owner (Cloudflare setup) · verified on preview of `be3cf59` |
 | 12 | Fly.io: Dockerfile, `fly.toml`, deploy on merge, staging deploy | *planned* |
 | 13 | ADRs, `STATUS.md`, `CHANGELOG.md`, phase report, merge | *planned* |
 
@@ -1801,3 +1801,10 @@ E2E_BASE_URL=http://127.0.0.1:8787 pnpm --filter @flowcanvas/e2e test:e2e   # 1 
 **Done notes (step 11, Cloudflare setup):**
 - The first Cloudflare build runs on the production branch `main` and **fails with `ERR_PNPM_NO_PKG_MANIFEST`**. That's expected until phase 1 is merged: `main` only contains the step 1 docs. The same log confirms the environment works (Node 24.22.1 picked up; `SKIP_DEPENDENCY_INSTALL` respected).
 - Cloudflare only builds on pushes it sees **after** the repo is connected. A branch pushed earlier needs a new commit (or a manual build in the dashboard) to get its first preview.
+- **Preview URL formats (Workers):**
+  - *Version preview*: `https://<first 8 characters of the version ID>-flowcanvas.<account-subdomain>.workers.dev`. The full-UUID form shown in some places returns 404.
+  - *Branch alias*: `https://<branch-name-with-slashes-as-dashes>-flowcanvas.<account-subdomain>.workers.dev`, always the branch's latest build. For this PR: `https://phase-1-project-skeleton-flowcanvas.ahujaarmaan7777.workers.dev`.
+  - *Production (staging)*: `https://flowcanvas.ahujaarmaan7777.workers.dev`, live after the first successful build of `main` (step 13).
+  - A brand-new version URL can return 404 for a short while until it propagates.
+- **Where to find them:** Cloudflare dashboard → Workers & Pages → `flowcanvas` → Deployments / Versions, or Settings → Domains & Routes (`*-flowcanvas.<subdomain>.workers.dev`). Workers Builds reports pass/fail on the PR as the check **"Workers Builds: flowcanvas"**, but doesn't post the URL there; see `docs/upgrade-later.md` item 10.
+- **Verified on `be3cf59`** (both preview URLs): HTTP 200; CSP, `nosniff`, `Referrer-Policy` and `Permissions-Policy` present; the bundle carries commit `be3cf59`; SPA fallback returns 200; Playwright `1 passed` with `E2E_EXPECTED_COMMIT` = the PR head. The e2e test also correctly **failed** against the wrong-format URL (404 page): the test catches a broken deployment.
