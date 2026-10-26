@@ -17,8 +17,8 @@ Machine conventions: fish shell, Node from the system (26.x locally; the repo pi
 | 1 | Tooling and repository | done · `7e59ec1` · Claude |
 | 2 | Workspace root | done · `6b074cb` · Claude |
 | 3 | Shared TypeScript config and `packages/graph-model` with its first test | done · `f7b99cd` · Claude |
-| 4 | Turborepo tasks and caching | **next** |
-| 5 | ESLint and Prettier | *planned* |
+| 4 | Turborepo tasks and caching | done · `5a010d9` · Claude |
+| 5 | ESLint and Prettier | **next** |
 | 6 | `apps/web`: Vite + React, version and commit injected at build time, test | *planned* |
 | 7 | `services/control-plane`: Fastify `/health`, tests, log redaction | *planned* |
 | 8 | Minimal `workspace/agent` and `packages/engine` | *planned* |
@@ -451,3 +451,173 @@ pnpm exec turbo run build --dry=json # inspect the task graph and cache status w
 - Running `vitest` directly inside a package bypasses Turbo and its `^build` ordering. If a dependency's `dist/` is stale, build first.
 
 **Commit:** `build: add Turborepo task pipeline`
+
+**Done notes (step 4):**
+- Cache hits restore `dist/` (deleted, rebuilt from cache, 8 files back).
+- Touching `tsconfig.base.json` causes a cache miss.
+- Telemetry status: Disabled.
+- Quick-check answer: changing **only a test file** in `graph-model` still invalidates `graph-model#build`. Turbo hashes all files in the package by default, regardless of what `tsc` compiles. It could be narrowed with `"inputs": ["$TURBO_DEFAULT$", "!src/**/*.test.ts"]` on `build`; not done yet, since the build is fast.
+
+### Step 5 — ESLint and Prettier
+
+**Goal:** every package is linted with type-aware rules through `pnpm lint` (via Turbo), and the whole repo has one consistent format enforced by `pnpm format:check`, ready to become CI gates in step 10.
+
+**Concepts:**
+- **Linter vs formatter.** ESLint finds *problems* (bugs, unsafe patterns). Prettier only decides *layout* (quotes, wrapping, commas). Keeping them separate means style never shows up as a lint error. `eslint-config-prettier` switches off the few ESLint rules that would fight Prettier. Docs: https://prettier.io/docs/integrating-with-linters
+- **Flat config (`eslint.config.js`).**
+  - ESLint 9+ uses one JavaScript file that exports an array of config objects. Later objects override earlier ones for the files they match.
+  - `defineConfig()` (from `eslint/config`) gives typing and supports `extends` inside an object.
+  - `globalIgnores()` excludes paths everywhere.
+  - `typescript-eslint`'s older `tseslint.config()` helper is deprecated in favour of `defineConfig()`.
+  - Docs: https://eslint.org/docs/latest/use/configure/configuration-files
+- **Where ESLint finds the config.** ESLint 10 looks for `eslint.config.js` starting from each linted file's folder and walking up. A package running `eslint .` finds the one root config; there's no per-package copy.
+- **Type-aware linting.** `strictTypeChecked` rules use the TypeScript type checker, not just syntax. Examples:
+  - `no-floating-promises`: an unawaited promise silently swallows errors.
+  - `require-await`
+  - `no-unnecessary-condition`
+  - `no-non-null-assertion`
+
+  `projectService: true` lets each file use its nearest `tsconfig.json`. Plain `.js` config files have no types, so `disableTypeChecked` turns those rules off for `**/*.js`. Docs: https://typescript-eslint.io/getting-started/typed-linting
+- **Which rule sets.** `strictTypeChecked` is the opinionated bug-catching set. `stylisticTypeChecked` covers consistent TypeScript idioms (for example, prefer `interface` for object types). Both are recommended for new projects by the typescript-eslint team. Docs: https://typescript-eslint.io/users/configs
+- **Prettier settings.** We keep the defaults except single quotes, 100-column lines and trailing commas everywhere (smaller diffs). `.prettierignore` skips generated files, the lockfile, the reference docs, and Markdown, because the docs' hand-aligned tables would be rewritten. Docs: https://prettier.io/docs/options
+- **Why Prettier runs at the root and not through Turbo.** It is fast, has no package dependencies, and one `prettier --check .` covers config files outside packages too (`turbo.json`, `pnpm-workspace.yaml`, workflows later).
+
+**`pnpm-workspace.yaml`:** catalog becomes (Prettier will turn the double quotes into single quotes):
+
+```yaml
+catalog:
+  '@eslint/js': 10.0.1
+  eslint: 10.13.0
+  eslint-config-prettier: 10.1.8
+  prettier: 3.9.10
+  turbo: 2.11.10
+  typescript: 6.0.3
+  typescript-eslint: 8.72.0
+  vitest: 5.0.5
+```
+
+**Root `package.json`:** add scripts and dev dependencies:
+
+```json
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "prettier": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
+  }
+```
+
+The config file at the root imports `@eslint/js`, `typescript-eslint` and `eslint-config-prettier`, so they are root dev dependencies. pnpm's strict `node_modules` only lets a file import what its own `package.json` declares.
+
+**`packages/graph-model/package.json`:** add a `lint` script and `eslint` (each package runs its own `eslint` binary):
+
+```json
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+```
+
+**`eslint.config.js`** (repo root):
+
+```js
+// @ts-check
+import js from '@eslint/js';
+import prettier from 'eslint-config-prettier';
+import { defineConfig, globalIgnores } from 'eslint/config';
+import tseslint from 'typescript-eslint';
+
+export default defineConfig([
+  globalIgnores(['**/dist/', '**/coverage/', '**/.turbo/', 'docs/reference/']),
+  js.configs.recommended,
+  tseslint.configs.strictTypeChecked,
+  tseslint.configs.stylisticTypeChecked,
+  {
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
+    files: ['**/*.js'],
+    extends: [tseslint.configs.disableTypeChecked],
+  },
+  prettier,
+]);
+```
+
+- `// @ts-check` makes your editor type-check this JavaScript file, catching config typos.
+- Order matters: recommended rules, then strict and stylistic, then parser options, then the `.js` exception, then `prettier` **last** so it can switch off conflicting rules.
+
+**`.prettierrc.json`:**
+
+```json
+{
+  "singleQuote": true,
+  "printWidth": 100,
+  "trailingComma": "all"
+}
+```
+
+**`.prettierignore`:**
+
+```
+dist/
+coverage/
+.turbo/
+pnpm-lock.yaml
+docs/reference/
+*.md
+```
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm format          # rewrites files to Prettier style (pnpm-workspace.yaml gets single quotes)
+pnpm format:check    # "All matched files use Prettier code style!"
+pnpm lint            # turbo → @flowcanvas/graph-model:lint → eslint . → no problems
+```
+
+**Verify:** prove the type-aware rules are really on. Add `packages/graph-model/src/bad.ts`:
+
+```ts
+export async function load(): Promise<number> {
+  return 1;
+}
+export function run(): void {
+  load();
+}
+```
+
+`pnpm lint` should report **`@typescript-eslint/require-await`** and **`@typescript-eslint/no-floating-promises`**, both of which need type information. Delete the file and lint is clean again.
+
+**Editor (optional):** install the VS Code extensions "ESLint" (`dbaeumer.vscode-eslint`) and "Prettier" (`esbenp.prettier-vscode`), and turn on "Format on save". You then see the same results as CI while typing.
+
+**Gotchas:**
+- `Parsing error: … was not found by the project service` means the file isn't in any `tsconfig.json` `include`. Add it to a tsconfig, or lint it as plain JS.
+- Running `eslint` from the root with no config file found means an ESLint version mismatch or a missing root dev dependency.
+- If `pnpm format` reformats a file you didn't mean to touch, add it to `.prettierignore`. Don't fight Prettier with manual layout.
+- Lint errors are fixed in code. Disable a rule only with a comment that explains why (`// eslint-disable-next-line rule-name -- reason`).
+
+**Commit:** `chore: add ESLint (type-aware) and Prettier`
