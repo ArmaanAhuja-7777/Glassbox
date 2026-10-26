@@ -24,6 +24,10 @@ export default defineConfig({
   define: {
     __FLOWCANVAS_BUILD__: JSON.stringify(buildInfo),
   },
+  build: {
+    // Never inline fonts as data: URLs; the Content-Security-Policy only allows fonts from our own origin.
+    assetsInlineLimit: (file) => (file.endsWith('.woff2') ? false : undefined),
+  },
   test: {
     environment: 'jsdom',
   },

@@ -3,11 +3,11 @@
     "family": {
       "$type": "fontFamily",
       "sans": {
-        "$value": ["Inter", "system-ui", "sans-serif"],
+        "$value": ["Inter Variable", "Inter", "system-ui", "sans-serif"],
         "$description": "Interface text"
       },
       "mono": {
-        "$value": ["JetBrains Mono", "ui-monospace", "monospace"],
+        "$value": ["JetBrains Mono Variable", "JetBrains Mono", "ui-monospace", "monospace"],
         "$description": "Code, paths, routes, prompts, IDs"
       }
     },

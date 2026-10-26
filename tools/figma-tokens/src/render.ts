@@ -218,9 +218,18 @@ export function renderCss(set: TokenSet): string {
     const lines = theme.tokens.flatMap((token) => declarations(token, known));
     const selector =
       index === 0 ? `:root,\n[data-theme='${theme.name}']` : `[data-theme='${theme.name}']`;
-    parts.push(
-      block(selector, lines, [`color-scheme: ${theme.name === 'light' ? 'light' : 'dark'};`]),
-    );
+    const scheme = [`color-scheme: ${theme.name === 'light' ? 'light' : 'dark'};`];
+    parts.push(block(selector, lines, scheme));
+    // A non-default light theme also follows the operating system's preference, as long as the user
+    // hasn't chosen a theme explicitly (data-theme set). Pure CSS, so there's no flash before JS runs.
+    if (index > 0 && theme.name === 'light') {
+      const inner = block(':root:not([data-theme])', lines, scheme)
+        .trimEnd()
+        .split('\n')
+        .map((line) => `  ${line}`)
+        .join('\n');
+      parts.push(`@media (prefers-color-scheme: light) {\n${inner}\n}\n`);
+    }
   });
   return parts.join('\n');
 }

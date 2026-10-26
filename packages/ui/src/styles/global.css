@@ -1,0 +1,52 @@
+/* Global foundation for every Flowcanvas surface. Import once per app: `import '@flowcanvas/ui/styles.css'`. */
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+@import '@flowcanvas/tokens/tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  background: var(--color-surface-canvas);
+  color: var(--color-text-primary);
+  font-family: var(--text-body-font-family);
+  font-size: var(--text-body-font-size);
+  font-weight: var(--text-body-font-weight);
+  line-height: var(--text-body-line-height);
+  letter-spacing: var(--text-body-letter-spacing);
+  -webkit-font-smoothing: antialiased;
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--text-mono-font-family);
+  font-size: var(--text-mono-font-size);
+  line-height: var(--text-mono-line-height);
+}
+
+/* One focus style everywhere: a 2 px accent ring, offset from the element, only for keyboard focus. */
+:focus-visible {
+  outline: var(--border-width-focus) solid var(--color-accent-solid);
+  outline-offset: var(--space-2);
+}
+
+/* "Reduce motion": every duration token becomes 0 ms, so components keep the same end states without animating. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-hover: 0ms;
+    --duration-panel: 0ms;
+    --duration-appear: 0ms;
+    --duration-camera: 0ms;
+    --duration-shimmer: 0ms;
+  }
+}

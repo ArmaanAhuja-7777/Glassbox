@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@flowcanvas/graph-model": "workspace:*",
+    "@flowcanvas/ui": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },

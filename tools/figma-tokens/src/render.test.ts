@@ -34,6 +34,17 @@ describe('renderCss', () => {
     );
   });
 
+  it('lets a light theme follow the system preference unless a theme is set explicitly', () => {
+    const css = renderCss(set({}, ['dark', dark], ['light', light]));
+    expect(css).toContain(
+      '@media (prefers-color-scheme: light) {\n  :root:not([data-theme]) {\n    color-scheme: light;\n    --color-surface-canvas: #fcfcfd;\n  }\n}',
+    );
+  });
+
+  it('does not add a system-preference block when there is no light theme', () => {
+    expect(renderCss(set({}, ['dark', dark]))).not.toContain('prefers-color-scheme');
+  });
+
   it('expands typography into one variable per property and resolves references', () => {
     const css = renderCss(
       set(
