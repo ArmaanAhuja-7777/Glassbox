@@ -1,15 +1,20 @@
 packages:
-  - "apps/*"
-  - "services/*"
-  - "workspace/*"
-  - "packages/*"
-  - "packages/connectors/*"
-  - "tools/*"
-  - "e2e"
+  - 'apps/*'
+  - 'services/*'
+  - 'workspace/*'
+  - 'packages/*'
+  - 'packages/connectors/*'
+  - 'tools/*'
+  - 'e2e'
 
 engineStrict: true
 
 catalog:
+  '@eslint/js': 10.0.1
+  eslint: 10.13.0
+  eslint-config-prettier: 10.1.8
+  prettier: 3.9.10
   turbo: 2.11.10
   typescript: 6.0.3
+  typescript-eslint: 8.72.0
   vitest: 5.0.5
