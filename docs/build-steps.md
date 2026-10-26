@@ -2052,7 +2052,7 @@ When phase 1a is done you can:
 | --- | --- | --- |
 | 1 | Token source (DTCG JSON seed) + `tools/figma-tokens` generator → `packages/tokens` (CSS variables + typed TS), with tests | done · `c9ffb4c` · Claude |
 | 2 | Light theme proposal: values + contrast checks, **for the owner's approval** | approved by owner · done · `02ae155` · Claude |
-| 3 | `packages/ui` foundation: CSS Modules, global styles, self-hosted fonts, theme switching, reduced motion, "no raw values" lint rule | *planned* |
+| 3 | `packages/ui` foundation: CSS Modules, global styles, self-hosted fonts, theme switching, reduced motion, "no raw values" lint rule | **next** |
 | 4 | Storybook: setup, dark/light toolbar, accessibility addon, local run | *planned* |
 | 5 | Button and Tag (the Figma components) | *planned* |
 | 6 | Input and Toggle | *planned* |
@@ -2901,3 +2901,471 @@ pnpm format && pnpm lint && pnpm typecheck && pnpm test
 
 **Commit:** `feat(tokens): add Graphite light theme`
 
+
+### Step 1a.3 — `packages/ui` foundation
+
+**Goal:** create the component package `@flowcanvas/ui` with everything components will stand on:
+- global styles from tokens only
+- self-hosted fonts
+- theme switching (explicit choice, or following the operating system)
+- reduced motion
+- a CSS lint rule that rejects raw colours and sizes
+
+The web app uses the global styles from now on, which proves the foundation works in a real build under the strict CSP.
+
+**Expected outcome:**
+- `pnpm dev` shows the version page in **Inter** on the Graphite canvas. With the operating system in light mode it shows the **light** theme automatically.
+- `pnpm lint` now also runs Stylelint on every CSS file in `packages/ui` and rejects raw values (8 kinds verified).
+- 7 new tests: 5 for theme utilities, 2 for the generator's system-preference block.
+- No console errors or CSP violations in either theme (verified under Cloudflare's runtime).
+
+**Concepts:**
+- **A source package, not a compiled one.**
+  - `@flowcanvas/ui` exports its TypeScript and CSS **source** (`"exports": { ".": "./src/index.ts" }`).
+  - Its only consumers (the web app, and Storybook from step 4) are built by Vite, which compiles TSX and CSS Modules anyway.
+  - Compiling it separately would mean a library build that extracts CSS, for no gain.
+  - It's still type-checked, linted and tested like every package.
+  - A deliberate exception to ADR 0001's "compiled packages", recorded as ADR 0007 at phase end.
+- **CSS custom properties as the theme mechanism.** Components write `var(--color-surface-raised)`. The value depends on which block in `tokens.css` applies:
+  - `:root` / `[data-theme='dark']` → dark
+  - `[data-theme='light']` → light
+  - no `data-theme` + OS in light mode → light, through `@media (prefers-color-scheme: light) { :root:not([data-theme]) … }`
+
+  The last rule is new in the generator this step. "Follow the system" works in pure CSS, so there's no flash of the wrong theme while JavaScript loads. Docs: https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-color-scheme
+- **Theme preference.**
+  - `useThemePreference()` returns `'dark' | 'light' | 'system'` plus a setter.
+  - It sets or removes `data-theme` on `<html>` and remembers the choice in `localStorage`.
+  - Storage can be missing or throw (private windows, blocked site data), so reads fall back to `'system'` and writes fail silently.
+  - The toggle UI arrives in Storybook (step 4) and the settings screen (phase 36a).
+- **Self-hosted fonts (Fontsource).**
+  - `@fontsource-variable/inter` and `@fontsource-variable/jetbrains-mono` ship the font files plus `@font-face` CSS, split by alphabet (`unicode-range`) so a browser only downloads what a page uses.
+  - They register as **"Inter Variable"** and **"JetBrains Mono Variable"**, so the font tokens list those names first.
+  - Licence: SIL Open Font License (free to ship).
+  - Serving fonts from our own origin is what the CSP's `font-src 'self'` requires (no Google Fonts).
+  - Docs: https://fontsource.org/docs/getting-started/install
+- **Vite inlines small files as `data:` URLs, and the CSP blocks that for fonts.**
+  - Vite turns assets under 4 kB into inline `data:` URLs. One tiny font subset was inlined, and the browser refused it ("Loading the font 'data:font/woff2…' violates … font-src 'self'").
+  - Fix: `build.assetsInlineLimit` returns `false` for `.woff2`, so fonts are always separate files. The CSP stays strict.
+  - Docs: https://vite.dev/config/build-options.html#build-assetsinlinelimit
+- **Reduced motion.** Under `@media (prefers-reduced-motion: reduce)` every duration token becomes `0ms`. Components animate with tokens, so they jump straight to the same end state. One rule, no per-component work. Docs: https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion
+- **One focus style.** `:focus-visible` shows a 2 px accent ring offset from the element, only for keyboard focus (not mouse clicks). Rule from the Graphite accessibility section.
+- **Stylelint: "design tokens only", enforced.** Stylelint is ESLint for CSS. Our config uses only built-in rules:
+  - no hex colours, no named colours, no `rgb()`/`hsl()`/…
+  - no units on font, line-height, letter-spacing, radius, padding/margin/gap/inset, outline width/offset, box-shadow and motion properties, so they must be `var(--…)` or `0`
+  - no numeric `font-weight` and no literal `font-family`
+
+  `0`, `transparent`, `inherit` and `currentColor` stay allowed. CLAUDE.md §4 rule 9 ("no hard-coded colours, sizes, radii or fonts") is now a failing lint, not a review comment. Docs: https://stylelint.io/user-guide/rules
+- **Testing hooks.** `renderHook` from Testing Library runs a hook inside a tiny test component; `act()` flushes React updates before asserting.
+
+**`pnpm-workspace.yaml`:** add to the catalog:
+
+```yaml
+  '@fontsource-variable/inter': 5.3.0
+  '@fontsource-variable/jetbrains-mono': 5.3.0
+  stylelint: 17.16.0
+```
+
+**Root `package.json`:** add `"stylelint": "catalog:"` to `devDependencies` (so editors find it).
+
+**`packages/tokens/source/base.tokens.json`:** the font families become:
+
+```json
+"sans": { "$value": ["Inter Variable", "Inter", "system-ui", "sans-serif"] },
+"mono": { "$value": ["JetBrains Mono Variable", "JetBrains Mono", "ui-monospace", "monospace"] }
+```
+
+then run `pnpm --filter @flowcanvas/tokens generate`.
+
+**`tools/figma-tokens/src/render.ts`:** after pushing each theme block, a non-default `light` theme also gets the system-preference block:
+
+```ts
+  set.themes.forEach((theme, index) => {
+    const lines = theme.tokens.flatMap((token) => declarations(token, known));
+    const selector =
+      index === 0 ? `:root,\n[data-theme='${theme.name}']` : `[data-theme='${theme.name}']`;
+    const scheme = [`color-scheme: ${theme.name === 'light' ? 'light' : 'dark'};`];
+    parts.push(block(selector, lines, scheme));
+    // A non-default light theme also follows the operating system's preference, as long as the user
+    // hasn't chosen a theme explicitly (data-theme set). Pure CSS, so there's no flash before JS runs.
+    if (index > 0 && theme.name === 'light') {
+      const inner = block(':root:not([data-theme])', lines, scheme)
+        .trimEnd()
+        .split('\n')
+        .map((line) => `  ${line}`)
+        .join('\n');
+      parts.push(`@media (prefers-color-scheme: light) {\n${inner}\n}\n`);
+    }
+  });
+```
+
+Two generator tests are added: the media block exists with `:root:not([data-theme])` when there is a light theme, and is absent otherwise.
+
+**`stylelint.config.js`** (repo root):
+
+```js
+// Component and global CSS may only use design tokens for colour, type, spacing, radius, shadow and motion.
+// Raw values are rejected, so a token change reaches every component.
+/** @type {import('stylelint').Config} */
+export default {
+  ignoreFiles: ['**/dist/**', 'packages/tokens/css/**'],
+  rules: {
+    'color-no-hex': true,
+    'color-named': 'never',
+    'function-disallowed-list': [
+      'rgb',
+      'rgba',
+      'hsl',
+      'hsla',
+      'hwb',
+      'lab',
+      'lch',
+      'oklab',
+      'oklch',
+    ],
+    'declaration-property-unit-allowed-list': {
+      '/^font/': [],
+      'line-height': [],
+      'letter-spacing': [],
+      '/radius$/': [],
+      '/^(padding|margin|gap|row-gap|column-gap|inset)/': [],
+      '/^outline-(width|offset)$/': [],
+      'box-shadow': [],
+      '/^(transition|animation)/': [],
+    },
+    'declaration-property-value-disallowed-list': {
+      'font-weight': ['/^\\d/'],
+      'font-family': ['/^(?!var\\(|inherit)/'],
+    },
+  },
+};
+```
+
+**`packages/ui/package.json`:**
+
+```json
+{
+  "name": "@flowcanvas/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/styles/global.css"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint . && stylelint \"src/**/*.css\""
+  },
+  "dependencies": {
+    "@flowcanvas/tokens": "workspace:*",
+    "@fontsource-variable/inter": "catalog:",
+    "@fontsource-variable/jetbrains-mono": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "eslint": "catalog:",
+    "jsdom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "stylelint": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}
+```
+
+**`packages/ui/tsconfig.json`:**
+
+```json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2024", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "noEmit": true
+  },
+  "include": ["src", "vitest.config.ts"]
+}
+```
+
+**`packages/ui/vitest.config.ts`:**
+
+```ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    environment: 'jsdom',
+  },
+});
+```
+
+**`packages/ui/src/styles/global.css`:**
+
+```css
+/* Global foundation for every Flowcanvas surface. Import once per app: `import '@flowcanvas/ui/styles.css'`. */
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+@import '@flowcanvas/tokens/tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  background: var(--color-surface-canvas);
+  color: var(--color-text-primary);
+  font-family: var(--text-body-font-family);
+  font-size: var(--text-body-font-size);
+  font-weight: var(--text-body-font-weight);
+  line-height: var(--text-body-line-height);
+  letter-spacing: var(--text-body-letter-spacing);
+  -webkit-font-smoothing: antialiased;
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--text-mono-font-family);
+  font-size: var(--text-mono-font-size);
+  line-height: var(--text-mono-line-height);
+}
+
+/* One focus style everywhere: a 2 px accent ring, offset from the element, only for keyboard focus. */
+:focus-visible {
+  outline: var(--border-width-focus) solid var(--color-accent-solid);
+  outline-offset: var(--space-2);
+}
+
+/* "Reduce motion": every duration token becomes 0 ms, so components keep the same end states without animating. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-hover: 0ms;
+    --duration-panel: 0ms;
+    --duration-appear: 0ms;
+    --duration-camera: 0ms;
+    --duration-shimmer: 0ms;
+  }
+}
+```
+
+**`packages/ui/src/theme.ts`:**
+
+```ts
+import { useCallback, useEffect, useState } from 'react';
+
+export type ThemePreference = 'dark' | 'light' | 'system';
+
+export const THEME_STORAGE_KEY = 'flowcanvas-theme';
+
+function isThemePreference(value: unknown): value is ThemePreference {
+  return value === 'dark' || value === 'light' || value === 'system';
+}
+
+/** Reads the saved preference. Storage can be missing or throw (private mode, blocked site data), so fall back to "system". */
+export function readThemePreference(
+  storage: Pick<Storage, 'getItem'> | undefined,
+): ThemePreference {
+  try {
+    const stored = storage?.getItem(THEME_STORAGE_KEY);
+    return isThemePreference(stored) ? stored : 'system';
+  } catch {
+    return 'system';
+  }
+}
+
+export function saveThemePreference(
+  storage: Pick<Storage, 'setItem'> | undefined,
+  preference: ThemePreference,
+): void {
+  try {
+    storage?.setItem(THEME_STORAGE_KEY, preference);
+  } catch {
+    // Not being able to remember the choice is fine; the theme still applies for this page.
+  }
+}
+
+/**
+ * Applies a preference to the document. "dark"/"light" set data-theme; "system" removes it, so the
+ * CSS follows prefers-color-scheme (see the generated tokens.css).
+ */
+export function applyThemePreference(root: HTMLElement, preference: ThemePreference): void {
+  if (preference === 'system') {
+    delete root.dataset.theme;
+  } else {
+    root.dataset.theme = preference;
+  }
+}
+
+function browserStorage(): Storage | undefined {
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+/** React hook: the current preference and a setter that applies and remembers it. */
+export function useThemePreference(): [ThemePreference, (preference: ThemePreference) => void] {
+  const [preference, setPreferenceState] = useState<ThemePreference>(() =>
+    readThemePreference(browserStorage()),
+  );
+
+  useEffect(() => {
+    applyThemePreference(document.documentElement, preference);
+  }, [preference]);
+
+  const setPreference = useCallback((next: ThemePreference) => {
+    saveThemePreference(browserStorage(), next);
+    setPreferenceState(next);
+  }, []);
+
+  return [preference, setPreference];
+}
+```
+
+**`packages/ui/src/index.ts`:**
+
+```ts
+export {
+  applyThemePreference,
+  readThemePreference,
+  saveThemePreference,
+  THEME_STORAGE_KEY,
+  useThemePreference,
+  type ThemePreference,
+} from './theme';
+```
+
+**`packages/ui/src/theme.test.ts`:**
+
+```ts
+import { act, cleanup, renderHook } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import {
+  applyThemePreference,
+  readThemePreference,
+  saveThemePreference,
+  THEME_STORAGE_KEY,
+  useThemePreference,
+} from './theme';
+
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+  delete document.documentElement.dataset.theme;
+});
+
+const throwingStorage = {
+  getItem: () => {
+    throw new Error('blocked');
+  },
+  setItem: () => {
+    throw new Error('blocked');
+  },
+};
+
+describe('readThemePreference', () => {
+  it('returns a saved preference', () => {
+    localStorage.setItem(THEME_STORAGE_KEY, 'light');
+    expect(readThemePreference(localStorage)).toBe('light');
+  });
+
+  it('falls back to "system" for missing, invalid or unreadable storage', () => {
+    expect(readThemePreference(localStorage)).toBe('system');
+    localStorage.setItem(THEME_STORAGE_KEY, 'purple');
+    expect(readThemePreference(localStorage)).toBe('system');
+    expect(readThemePreference(throwingStorage)).toBe('system');
+    expect(readThemePreference(undefined)).toBe('system');
+  });
+});
+
+describe('saveThemePreference', () => {
+  it('ignores storage that throws', () => {
+    expect(() => {
+      saveThemePreference(throwingStorage, 'dark');
+    }).not.toThrow();
+  });
+});
+
+describe('applyThemePreference', () => {
+  it('sets data-theme for an explicit choice and removes it for "system"', () => {
+    const root = document.documentElement;
+    applyThemePreference(root, 'light');
+    expect(root.dataset.theme).toBe('light');
+    applyThemePreference(root, 'system');
+    expect(root.dataset.theme).toBeUndefined();
+  });
+});
+
+describe('useThemePreference', () => {
+  it('applies and remembers a new preference', () => {
+    const { result } = renderHook(() => useThemePreference());
+    expect(result.current[0]).toBe('system');
+
+    act(() => {
+      result.current[1]('dark');
+    });
+
+    expect(result.current[0]).toBe('dark');
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
+  });
+});
+```
+
+**`apps/web`:**
+- `package.json`: add `"@flowcanvas/ui": "workspace:*"` to `dependencies`.
+- `src/main.tsx`: first line `import '@flowcanvas/ui/styles.css';`.
+- `vite.config.ts`: add
+
+```ts
+  build: {
+    // Never inline fonts as data: URLs; the Content-Security-Policy only allows fonts from our own origin.
+    assetsInlineLimit: (file) => (file.endsWith('.woff2') ? false : undefined),
+  },
+```
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm exec turbo run build --filter=@flowcanvas/figma-tokens && pnpm --filter @flowcanvas/tokens generate
+pnpm format && pnpm lint && pnpm typecheck && pnpm test && pnpm build   # 13 / 13 / 12 / 7 tasks
+pnpm dev                                                                # http://localhost:5173
+```
+
+**Run and check it:**
+1. `pnpm dev`, open http://localhost:5173: Inter on the near-black canvas. Devtools → Elements → `<body>` shows `font-family: var(--text-body-font-family)` resolving to "Inter Variable".
+2. Switch your OS (or devtools → Rendering → "Emulate CSS prefers-color-scheme: light"): the page turns light without reloading.
+3. In the devtools console, run `document.documentElement.dataset.theme = 'dark'`: dark again even with the OS in light. Run `delete document.documentElement.dataset.theme`: follows the OS again.
+4. **Prove the lint rule:** add `color: #ff0000;` to any `.css` file in `packages/ui/src` and run `pnpm --filter @flowcanvas/ui lint`: "Disallowed hex color". Remove it.
+5. `pnpm build`, then `pnpm exec wrangler dev`: the production build under Cloudflare's runtime with the CSP. The console has no errors, and `E2E_BASE_URL=http://127.0.0.1:8787 pnpm --filter @flowcanvas/e2e test:e2e` passes.
+
+**Gotchas:**
+- **Fonts fall back to system fonts:** check the family name. Fontsource variable fonts are "Inter Variable", not "Inter".
+- **"violates … font-src 'self'" in the console:** a font was inlined as `data:`; keep the `assetsInlineLimit` rule.
+- **Stylelint complains about a legitimate raw value** (for example a 1 px hairline): add a token, or use a narrowly scoped `/* stylelint-disable-next-line rule -- reason */`. Never turn the rule off globally.
+- **Never read `localStorage` without `try/catch`.** Some browsers throw on access when site data is blocked.
+
+**Commit:** `feat(ui): add design-system foundation with global styles, fonts, themes and token-only CSS lint`
