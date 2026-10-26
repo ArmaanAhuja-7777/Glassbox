@@ -41,7 +41,7 @@ pnpm format:check
 | End-to-end test | `pnpm test:e2e` (first time: `pnpm --filter @flowcanvas/e2e exec playwright install chromium`) | real Chromium opens the production build: `1 passed`; `E2E_EXPECTED_COMMIT=deadbeef00 pnpm test:e2e` must fail |
 | PR preview URL | `https://phase-1-project-skeleton-flowcanvas.ahujaarmaan7777.workers.dev` (branch alias, always the latest push) or `https://<first 8 chars of version id>-flowcanvas.ahujaarmaan7777.workers.dev` (one version) | **Flowcanvas** and `0.1.0 · <PR head commit>`; `curl -sI <url>` shows `content-security-policy`; `E2E_BASE_URL=<url> E2E_EXPECTED_COMMIT=(git rev-parse HEAD) pnpm --filter @flowcanvas/e2e test:e2e` → 1 passed |
 | Staging (web) | step 13: `https://flowcanvas.ahujaarmaan7777.workers.dev` after merge | *pending* |
-| Control plane in a container | step 12: `docker run` locally, then `curl /health` | *pending* |
+| Control plane in a container | `docker build -f services/control-plane/Dockerfile --build-arg FLOWCANVAS_COMMIT=(git rev-parse HEAD) -t flowcanvas-control-plane .`, then `docker run -d --name flowcanvas-cp -p 127.0.0.1:8095:8080 flowcanvas-control-plane` and `curl http://127.0.0.1:8095/health` | version `0.1.0` and the built commit; `docker exec flowcanvas-cp id -un` → `node`; `docker stop` → exit 0 |
 
 ### Steps
 
@@ -58,7 +58,7 @@ pnpm format:check
 | 9 | Playwright smoke test | done · `9f4245f` · Claude |
 | 10 | GitHub Actions CI, open the PR, branch protection | done · `a3247c7` · Claude · ⚠ CI can't run until the GitHub account billing lock is resolved (`docs/upgrade-later.md` item 8) |
 | 11 | Cloudflare (Workers static assets): previews per PR, smoke test on preview | done · `6359831` · Claude (repo) + owner (Cloudflare setup) · verified on preview of `be3cf59` |
-| 12 | Control-plane Docker image, built and run locally (Fly.io deploy deferred: `docs/upgrade-later.md` item 12) | done · `17b96b7` · Claude · image verified in scratch; repo image build running |
+| 12 | Control-plane Docker image, built and run locally (Fly.io deploy deferred: `docs/upgrade-later.md` item 12) | done · `17b96b7` · Claude · repo image verified (`/health` reports `17b96b7`, non-root, clean shutdown) |
 | 13 | ADRs, `ARCHITECTURE.md`, `STATUS.md`, `CHANGELOG.md`, phase report, merge, staging live | **next** |
 
 ### Step 1 — Tooling and repository
