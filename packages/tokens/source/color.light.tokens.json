@@ -1,0 +1,150 @@
+{
+  "$description": "Graphite light theme (proposal, phase 1a step 2). Same roles as dark; contrast checked by packages/tokens tests.",
+  "color": {
+    "$type": "color",
+    "surface": {
+      "canvas": {
+        "$value": "#FCFCFD"
+      },
+      "panel": {
+        "$value": "#F6F7F9"
+      },
+      "raised": {
+        "$value": "#FFFFFF"
+      },
+      "hover": {
+        "$value": "#EEF0F3"
+      },
+      "selected": {
+        "$value": "#E6E9EE"
+      },
+      "inverse": {
+        "$value": "#1E2228"
+      }
+    },
+    "border": {
+      "subtle": {
+        "$value": "#E3E6EA"
+      },
+      "control": {
+        "$value": "#D2D6DC"
+      },
+      "strong": {
+        "$value": "#B4BAC3"
+      }
+    },
+    "text": {
+      "primary": {
+        "$value": "#16191D"
+      },
+      "secondary": {
+        "$value": "#5C6470"
+      },
+      "tertiary": {
+        "$value": "#868D98"
+      },
+      "on-accent": {
+        "$value": "#FCFCFD"
+      }
+    },
+    "accent": {
+      "solid": {
+        "$value": "#4E6390"
+      },
+      "hover": {
+        "$value": "#43578A"
+      },
+      "tint": {
+        "$value": "#E9EDF5"
+      },
+      "ring": {
+        "$value": "#B8C4DB"
+      },
+      "text": {
+        "$value": "#3D5287"
+      }
+    },
+    "state": {
+      "added": {
+        "solid": {
+          "$value": "#4C8063"
+        },
+        "tint": {
+          "$value": "#E6F0EA"
+        },
+        "text": {
+          "$value": "#2E5E43"
+        }
+      },
+      "modified": {
+        "solid": {
+          "$value": "#957A40"
+        },
+        "tint": {
+          "$value": "#F4EFE2"
+        },
+        "text": {
+          "$value": "#66511F"
+        }
+      },
+      "removed": {
+        "solid": {
+          "$value": "#A0585A"
+        },
+        "tint": {
+          "$value": "#F6E7E7"
+        },
+        "text": {
+          "$value": "#7A393C"
+        }
+      },
+      "affected": {
+        "solid": {
+          "$value": "#7064A0"
+        },
+        "tint": {
+          "$value": "#ECEAF5"
+        },
+        "text": {
+          "$value": "#514585"
+        }
+      },
+      "scope": {
+        "solid": {
+          "$value": "#93607F"
+        },
+        "tint": {
+          "$value": "#F5E8F0"
+        },
+        "text": {
+          "$value": "#6E3C5B"
+        }
+      }
+    },
+    "edge": {
+      "observed": {
+        "$value": "#5C6470"
+      },
+      "default": {
+        "$value": "#868D98"
+      }
+    },
+    "preview": {
+      "surface": {
+        "$value": "#FFFFFF"
+      },
+      "ink": {
+        "$value": "#1F2328"
+      },
+      "muted": {
+        "$value": "#6E7781"
+      },
+      "line": {
+        "$value": "#E5E7EB"
+      },
+      "brand": {
+        "$value": "#1F2328"
+      }
+    }
+  }
+}

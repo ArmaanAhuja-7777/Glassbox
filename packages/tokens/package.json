@@ -15,7 +15,7 @@
     "css"
   ],
   "scripts": {
-    "generate": "figma-tokens --base source/base.tokens.json --theme dark=source/color.dark.tokens.json --css css/tokens.css --ts src/tokens.generated.ts",
+    "generate": "figma-tokens --base source/base.tokens.json --theme dark=source/color.dark.tokens.json --theme light=source/color.light.tokens.json --css css/tokens.css --ts src/tokens.generated.ts",
     "generate:check": "pnpm run generate --check",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",

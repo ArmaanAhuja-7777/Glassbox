@@ -10,7 +10,10 @@ describe('generated token files', () => {
   it('are up to date with the token source (never edited by hand)', async () => {
     const set = await loadTokenSet({
       base: file('source/base.tokens.json').pathname,
-      themes: [['dark', file('source/color.dark.tokens.json').pathname]],
+      themes: [
+        ['dark', file('source/color.dark.tokens.json').pathname],
+        ['light', file('source/color.light.tokens.json').pathname],
+      ],
     });
     expect(await readFile(file('css/tokens.css'), 'utf8')).toBe(renderCss(set));
     expect(await readFile(file('src/tokens.generated.ts'), 'utf8')).toBe(renderTs(set));
