@@ -2106,7 +2106,7 @@ When phase 1a is done you can:
   - The relative-luminance formula is in the test, so the numbers in the Graphite doc are now enforced, and the light theme (step 2) gets checked automatically.
   - Docs: https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html
 - **A small CLI with no dependencies.** `node:util`'s `parseArgs` handles the flags. The package's `bin` field makes `figma-tokens` available to other workspace packages after it's built (Turbo builds it first via `^build`). Docs: https://nodejs.org/api/util.html#utilparseargsconfig
-- **Hidden-class pitfalls avoided.** The generator reads JSON as `unknown` and narrows it with type guards (`isRecord`, `isTokenType`) instead of casting. That's how strict TypeScript plus type-aware lint keep untrusted input honest.
+- **Reading untrusted JSON safely.** The generator reads JSON as `unknown` and narrows it with type guards (`isRecord`, `isTokenType`) instead of casting. That's how strict TypeScript plus type-aware lint keep untrusted input honest.
 
 **Files:**
 - `tools/figma-tokens/`: `package.json`, `tsconfig.json`, `tsconfig.build.json` (same as the control plane's: Node types), `src/parse.ts`, `src/render.ts`, `src/load.ts`, `src/cli.ts`, `src/index.ts`, `src/parse.test.ts`, `src/render.test.ts`
