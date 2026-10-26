@@ -12,13 +12,45 @@ Machine conventions: fish shell, Node from the system (26.x locally; the repo pi
 **Done when:** The staging URL loads the app; every pull request gets its own preview URL.
 **Try it:** Open the staging link; the app loads and shows its version.
 
+### Expected outcome
+
+When phase 1 is done you can:
+
+- Open a **staging URL** in your browser and see a page saying **Flowcanvas**, the version (`0.1.0`) and the commit it was built from. The page is plain and unstyled; the Graphite look arrives in phase 1a.
+- Open any **pull request** on GitHub and find a bot comment with that PR's own **preview URL**, showing the PR's commit.
+- Open the **control plane's `/health`** URL and see the same version and commit as JSON.
+- Run the same app **locally** with one command and see it in your browser at `http://localhost:5173`.
+- Run **all checks** (lint, type-check, unit tests, end-to-end test) locally with one command each, and see them run automatically on every PR.
+
+### Run and check it
+
+*(Filled in as the steps land; complete at step 13.)*
+
+```fish
+pnpm install
+pnpm lint && pnpm typecheck && pnpm test && pnpm build   # all green
+pnpm format:check
+```
+
+| What to check | How | Expected |
+| --- | --- | --- |
+| Code quality gates | the commands above | every task "successful"; `format:check` says all files use Prettier style |
+| Shared package logic | `pnpm test` | `@flowcanvas/graph-model`: 3 tests passed |
+| Web app runs locally | step 6 | *pending* |
+| Control plane runs locally | step 7 | *pending* |
+| End-to-end test | step 9 | *pending* |
+| PR preview URL | step 11 | *pending* |
+| Staging and `/health` | step 12 | *pending* |
+
+### Steps
+
 | # | Step | Status |
 | --- | --- | --- |
 | 1 | Tooling and repository | done · `7e59ec1` · Claude |
 | 2 | Workspace root | done · `6b074cb` · Claude |
 | 3 | Shared TypeScript config and `packages/graph-model` with its first test | done · `f7b99cd` · Claude |
 | 4 | Turborepo tasks and caching | done · `5a010d9` · Claude |
-| 5 | ESLint and Prettier | **next** |
+| 5 | ESLint and Prettier | done · `d88f916` · Claude |
 | 6 | `apps/web`: Vite + React, version and commit injected at build time, test | *planned* |
 | 7 | `services/control-plane`: Fastify `/health`, tests, log redaction | *planned* |
 | 8 | Minimal `workspace/agent` and `packages/engine` | *planned* |
