@@ -52,7 +52,7 @@ pnpm format:check
 | 4 | Turborepo tasks and caching | done · `5a010d9` · Claude |
 | 5 | ESLint and Prettier | done · `d88f916` · Claude |
 | 6 | `apps/web`: Vite + React, version and commit injected at build time, test | done · `3e33324` · Claude |
-| 7 | `services/control-plane`: Fastify `/health`, tests, log redaction | *planned* |
+| 7 | `services/control-plane`: Fastify `/health`, tests, log redaction | **next** |
 | 8 | Minimal `workspace/agent` and `packages/engine` | *planned* |
 | 9 | Playwright smoke test | *planned* |
 | 10 | GitHub Actions CI, open the PR, branch protection | *planned* |
@@ -945,3 +945,283 @@ pnpm --filter @flowcanvas/web preview      # serves the production build at http
 - **Forgetting `afterEach(cleanup)`** makes the second test see two headings and fail with "Found multiple elements".
 
 **Commit:** `feat(web): add Vite React app showing version and commit`
+
+### Step 7 — The control-plane stub (`services/control-plane`)
+
+**Goal:** the first back-end service. It's a Fastify server with a `GET /health` endpoint that returns its status, version and commit, has tests, and has log redaction from day one, so secrets can never reach logs. It becomes the real control plane (accounts, projects, vault) in phase 1c. For now it proves the service pattern and gives staging a back end to check.
+
+**Expected outcome:** `pnpm dev` now starts **both** apps. `curl http://127.0.0.1:8080/health` returns `{"status":"ok","version":"0.1.0","commit":"<your full commit>"}`, and `pnpm test` shows 3 control-plane tests passing, including one that plants fake secrets and proves they never appear in the logs.
+
+**Concepts:**
+- **Fastify.**
+  - A fast, schema-friendly Node HTTP framework with first-class TypeScript types.
+  - Route handlers can simply `return` a value; Fastify serialises it to JSON.
+  - It logs through **pino**, which writes structured JSON log lines (one object per line, easy to search later) and has built-in **redaction**.
+  - Docs: https://fastify.dev/docs/latest/Guides/Getting-Started/ and https://getpino.io/#/docs/redaction
+- **Why redaction now.** Non-negotiable rule 5: secrets are never logged.
+  - `redact` paths (`*.token`, `*.apiKey`, `req.headers.authorization`…) are replaced with `[Redacted]` **before** a line is written. A careless `log.info(config)` can't leak a key.
+  - Phase 1c adds the vault; this guard is already in place when it does.
+  - The `*` wildcard matches one level of nesting (`config.token`), not every depth. Deeper secrets need their own paths. Keep secrets out of log calls anyway: redaction is the safety net, not the plan.
+- **`buildApp()` vs `server.ts`.**
+  - `app.ts` builds and returns the app without listening on a port.
+  - `server.ts` reads config, calls `listen`, and handles shutdown.
+  - Tests import `buildApp` and call routes with **`app.inject()`**, which simulates an HTTP request in-process: no port, no network, fast and deterministic.
+  - Docs: https://fastify.dev/docs/latest/Guides/Testing/
+- **Dependency injection for testability.** `buildApp` receives `buildInfo` and the `logger` options as arguments. Tests pass a fixed build info and a capture stream (a `Writable` that collects log lines into an array), so they can assert on exactly what would be logged.
+- **Canary tests.** Put a fake, unmistakable secret (`CANARY-TOKEN-123`) where a real one could be, then assert it appears nowhere in the output. CLAUDE.md §8 asks for this style of security test on every merge. **Check the test can fail:** remove `redact` and it must go red (verified: it does).
+- **Where the version and commit come from at runtime.**
+  - The version is read from the package's own `package.json`. `src/` and `dist/` both sit one level below it, so `new URL('../package.json', import.meta.url)` works in dev and in production.
+  - All packages share the product version (`0.1.0`, versioned in lockstep).
+  - The commit comes from `FLOWCANVAS_COMMIT` (set by the Docker build in step 12), otherwise `git rev-parse HEAD`, otherwise empty ("unknown"), never invented.
+- **Bind address.** `127.0.0.1` (loopback) by default. `0.0.0.0` listens on every network interface, which on your laptop exposes the server to anyone on your Wi-Fi (seen in testing: it bound to `192.168.1.14`). The container sets `HOST=0.0.0.0` explicitly, because a container must accept traffic from outside itself. Safe by default; open on purpose.
+- **Graceful shutdown.** On `SIGTERM` (sent by Fly.io, Docker or Ctrl+C), `app.close()` stops accepting new connections and lets in-flight requests finish before exiting.
+- **Running TypeScript in dev with `tsx`.**
+  - Node 24 can strip TypeScript types itself, but it won't map our `./app.js` import specifiers to `app.ts`.
+  - `tsx watch src/server.ts` handles that and restarts on every save. Production runs the compiled `dist/server.js` with plain `node`.
+  - Docs: https://tsx.is/
+- **Top-level `await`** in `server.ts` is allowed because the package is ESM (`"type": "module"`) and the target is ES2024.
+
+**`pnpm-workspace.yaml`:** add to the catalog (alphabetical):
+
+```yaml
+  fastify: 5.12.7
+  tsx: 4.23.15
+```
+
+**`services/control-plane/package.json`:**
+
+```json
+{
+  "name": "@flowcanvas/control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@flowcanvas/graph-model": "workspace:*",
+    "fastify": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
+```
+
+**`services/control-plane/tsconfig.json`:** same pattern as `graph-model`, plus Node types:
+
+```json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": ["node"]
+  },
+  "include": ["src"]
+}
+```
+
+**`services/control-plane/tsconfig.build.json`:**
+
+```json
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["src/**/*.test.ts"]
+}
+```
+
+**`services/control-plane/src/build-info.ts`:**
+
+```ts
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import type { BuildInfo } from '@flowcanvas/graph-model';
+
+interface PackageJson {
+  readonly version: string;
+}
+
+function readVersion(): string {
+  // src/ and dist/ both sit one level below package.json, so this works in dev and in production.
+  const packageJsonUrl = new URL('../package.json', import.meta.url);
+  const packageJson = JSON.parse(readFileSync(packageJsonUrl, 'utf8')) as PackageJson;
+  return packageJson.version;
+}
+
+function readCommit(env: NodeJS.ProcessEnv): string {
+  const fromEnv = env.FLOWCANVAS_COMMIT?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return '';
+  }
+}
+
+export function readBuildInfo(env: NodeJS.ProcessEnv = process.env): BuildInfo {
+  return { version: readVersion(), commit: readCommit(env) };
+}
+```
+
+**`services/control-plane/src/app.ts`:**
+
+```ts
+import type { BuildInfo } from '@flowcanvas/graph-model';
+import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
+
+export interface AppOptions {
+  readonly buildInfo: BuildInfo;
+  readonly logger?: FastifyServerOptions['logger'];
+}
+
+// Log fields that may carry secrets. Values are replaced before a log line is written.
+export const REDACTED_LOG_PATHS = [
+  'req.headers.authorization',
+  'req.headers.cookie',
+  '*.password',
+  '*.secret',
+  '*.token',
+  '*.apiKey',
+];
+
+export function buildApp({ buildInfo, logger = true }: AppOptions): FastifyInstance {
+  const app = Fastify({
+    logger:
+      logger === false ? false : { ...(logger === true ? {} : logger), redact: REDACTED_LOG_PATHS },
+  });
+
+  app.get('/health', () => ({
+    status: 'ok',
+    version: buildInfo.version,
+    commit: buildInfo.commit,
+  }));
+
+  return app;
+}
+```
+
+**`services/control-plane/src/server.ts`:**
+
+```ts
+import { buildApp } from './app.js';
+import { readBuildInfo } from './build-info.js';
+
+const port = Number(process.env.PORT ?? 8080);
+// Loopback by default so a dev server is never exposed on the local network; containers set HOST=0.0.0.0.
+const host = process.env.HOST ?? '127.0.0.1';
+
+const app = buildApp({ buildInfo: readBuildInfo() });
+
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.once(signal, () => {
+    app.log.info({ signal }, 'shutting down');
+    void app.close().then(() => process.exit(0));
+  });
+}
+
+try {
+  await app.listen({ port, host });
+} catch (error) {
+  app.log.error(error, 'control plane failed to start');
+  process.exit(1);
+}
+```
+
+**`services/control-plane/src/app.test.ts`:**
+
+```ts
+import { Writable } from 'node:stream';
+import { afterEach, describe, expect, it } from 'vitest';
+import { buildApp } from './app.js';
+
+const buildInfo = { version: '0.1.0', commit: '7e59ec1a2b3c' };
+let app: ReturnType<typeof buildApp> | undefined;
+
+afterEach(async () => {
+  await app?.close();
+  app = undefined;
+});
+
+describe('GET /health', () => {
+  it('returns status, version and commit', async () => {
+    app = buildApp({ buildInfo, logger: false });
+    const response = await app.inject({ method: 'GET', url: '/health' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ status: 'ok', version: '0.1.0', commit: '7e59ec1a2b3c' });
+  });
+
+  it('returns 404 for unknown routes', async () => {
+    app = buildApp({ buildInfo, logger: false });
+    const response = await app.inject({ method: 'GET', url: '/nope' });
+    expect(response.statusCode).toBe(404);
+  });
+});
+
+describe('logging', () => {
+  it('never writes secret values to the log', async () => {
+    const lines: string[] = [];
+    const stream = new Writable({
+      write(chunk: Buffer, _encoding, callback) {
+        lines.push(chunk.toString());
+        callback();
+      },
+    });
+    app = buildApp({ buildInfo, logger: { stream } });
+    await app.ready();
+
+    app.log.info(
+      { config: { token: 'CANARY-TOKEN-123', apiKey: 'CANARY-KEY-456' } },
+      'loaded config',
+    );
+    await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { authorization: 'Bearer CANARY-AUTH-789' },
+    });
+
+    const output = lines.join('');
+    expect(output).toContain('loaded config');
+    expect(output).not.toMatch(/CANARY-/);
+  });
+});
+```
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm lint && pnpm typecheck && pnpm test   # 4 tasks each; control-plane: 3 passed
+pnpm build                                 # services/control-plane/dist/server.js etc.
+pnpm dev                                   # starts web (5173) AND control plane (8080)
+```
+
+**Run and check it:**
+1. With `pnpm dev` running, in another terminal: `curl http://127.0.0.1:8080/health` returns `{"status":"ok","version":"0.1.0","commit":"<git rev-parse HEAD>"}`. The `pnpm dev` terminal shows a JSON log line for the request.
+2. Production mode: `pnpm build`, then `FLOWCANVAS_COMMIT=test123 PORT=8081 pnpm --filter @flowcanvas/control-plane start`, then `curl http://127.0.0.1:8081/health` shows `"commit":"test123"`.
+3. Prove the safety net: in `app.ts`, delete `, redact: REDACTED_LOG_PATHS`, run `pnpm --filter @flowcanvas/control-plane test`, and watch "never writes secret values to the log" **fail**. Restore it.
+4. The startup log says `Server listening at http://127.0.0.1:8080` (loopback only), not your LAN IP.
+
+**Gotchas:**
+- `EADDRINUSE` means port 8080 is taken. Run with `PORT=8090` or stop the other process (`ss -ltnp | grep 8080`).
+- Pino logs are JSON lines, which is good for machines. For humans in dev, pipe through `pino-pretty` later if wanted; don't log with `console.log`.
+- Forgetting `await app.close()` in tests can leave handles open and make Vitest hang or warn.
+- `app.inject()` doesn't open a port. If a test passes but `curl` fails, check `listen()`, `HOST` and `PORT`, not the route.
+- Never put real secrets in tests. Use obvious canaries like `CANARY-…`.
+
+**Commit:** `feat(control-plane): add Fastify health endpoint with log redaction`
