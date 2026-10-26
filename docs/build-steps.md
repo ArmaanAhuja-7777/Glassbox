@@ -53,7 +53,7 @@ pnpm format:check
 | 5 | ESLint and Prettier | done · `d88f916` · Claude |
 | 6 | `apps/web`: Vite + React, version and commit injected at build time, test | done · `3e33324` · Claude |
 | 7 | `services/control-plane`: Fastify `/health`, tests, log redaction | done · `f03f422` · Claude |
-| 8 | Minimal `workspace/agent` and `packages/engine` | **next** |
+| 8 | Minimal `workspace/agent` and `packages/engine` | done · `c30c1c0` · Claude |
 | 9 | Playwright smoke test | *planned* |
 | 10 | GitHub Actions CI, open the PR, branch protection | *planned* |
 | 11 | Cloudflare Pages: account, previews per PR, URL comment, smoke test on preview | *planned* |
