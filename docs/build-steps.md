@@ -58,7 +58,7 @@ pnpm format:check
 | 9 | Playwright smoke test | done · `9f4245f` · Claude |
 | 10 | GitHub Actions CI, open the PR, branch protection | done · `a3247c7` · Claude · ⚠ CI can't run until the GitHub account billing lock is resolved (`docs/upgrade-later.md` item 8) |
 | 11 | Cloudflare (Workers static assets): previews per PR, smoke test on preview | done · `6359831` · Claude (repo) + owner (Cloudflare setup) · verified on preview of `be3cf59` |
-| 12 | Control-plane Docker image, built and run locally (Fly.io deploy deferred: `docs/upgrade-later.md` item 12) | *planned* |
+| 12 | Control-plane Docker image, built and run locally (Fly.io deploy deferred: `docs/upgrade-later.md` item 12) | **next** |
 | 13 | ADRs, `STATUS.md`, `CHANGELOG.md`, phase report, merge | *planned* |
 
 ### Step 1 — Tooling and repository
@@ -1809,3 +1809,112 @@ E2E_BASE_URL=http://127.0.0.1:8787 pnpm --filter @flowcanvas/e2e test:e2e   # 1 
   - A brand-new version URL can return 404 for a short while until it propagates.
 - **Where to find them:** Cloudflare dashboard → Workers & Pages → `flowcanvas` → Deployments / Versions, or Settings → Domains & Routes (`*-flowcanvas.<subdomain>.workers.dev`). Workers Builds reports pass/fail on the PR as the check **"Workers Builds: flowcanvas"**, but doesn't post the URL there; see `docs/upgrade-later.md` item 10.
 - **Verified on `be3cf59`** (both preview URLs): HTTP 200; CSP, `nosniff`, `Referrer-Policy` and `Permissions-Policy` present; the bundle carries commit `be3cf59`; SPA fallback returns 200; Playwright `1 passed` with `E2E_EXPECTED_COMMIT` = the PR head. The e2e test also correctly **failed** against the wrong-format URL (404 page): the test catches a broken deployment.
+
+### Step 12 — The control plane as a Docker image (built and run locally)
+
+**Goal:** package the control plane the way it will run in the cloud, as a small, non-root Docker image that holds only the compiled JavaScript and production dependencies, and prove it works by running it locally. Deploying it to Fly.io needs a payment method, so it's deferred to phase 1c (`docs/upgrade-later.md` item 12). With a working image, that later deploy is essentially `fly deploy`.
+
+**Expected outcome:** `docker build …` produces `flowcanvas-control-plane`. `docker run -p 127.0.0.1:8095:8080 …` serves `{"status":"ok","version":"0.1.0","commit":"<the commit you built>"}` at `http://127.0.0.1:8095/health`. The process runs as user `node`. `docker stop` shuts it down cleanly (log line "shutting down", exit code 0).
+
+**Concepts:**
+- **Why a container.** The image bundles the exact Node version, our compiled code and its production dependencies, and runs identically on a laptop, in CI, on Fly.io or anywhere else. Phase 1d's workspace VMs use the same idea. Docs: https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-an-image/
+- **Multi-stage build.**
+  - Stage `build` has everything needed to *build*: pnpm, dev dependencies, TypeScript, Turbo.
+  - Stage `runtime` starts again from a clean `node:24-slim` and copies in only the result.
+  - Build tools never reach the final image: a smaller image and less attack surface. Verified: no Vitest, TypeScript, tsx or ESLint inside, and `node_modules` is 14 MB.
+  - Docs: https://docs.docker.com/build/building/multi-stage/
+- **The build context is the repo root.** The control plane depends on the workspace package `@flowcanvas/graph-model`, so Docker needs to see the whole workspace: `docker build -f services/control-plane/Dockerfile .` (note the final `.`).
+- **`.dockerignore`.** Like `.gitignore` for the build context: local `node_modules`, `dist`, caches, `.git`, `docs` and **every `.env` file** are never sent into the build. That keeps builds reproducible and secrets out of images. Docs: https://docs.docker.com/build/concepts/context/#dockerignore-files
+- **Installing only what's needed.** `pnpm install --filter @flowcanvas/control-plane...` installs the control plane and everything it depends on (the trailing `...`), not the web app or Playwright.
+- **`pnpm deploy`.** Copies one workspace package into a standalone folder with its **production** dependencies (`--prod`), resolving `workspace:*` links into real copies (here: the compiled `graph-model`). What it copies from our own package is controlled by `"files"` in `package.json`, so we add `"files": ["dist"]` to the control plane; without it, `src/`, tsconfigs and the Dockerfile ended up in the image. Docs: https://pnpm.io/cli/deploy
+- **The commit, baked in at build time.** `--build-arg FLOWCANVAS_COMMIT=…` becomes an `ENV` in the runtime image. The server reports it from `/health`, and git isn't needed inside the image.
+- **Container defaults.**
+  - `HOST=0.0.0.0` (a container must accept connections from outside itself; on your laptop the default stays `127.0.0.1`; see step 7). `-p 127.0.0.1:8095:8080` still publishes it on loopback only.
+  - `NODE_ENV=production`.
+  - `USER node`: the official Node image ships an unprivileged user, and running as root inside a container is an unnecessary risk.
+- **PID 1 and signals.** `CMD ["node", "dist/server.js"]` (exec form, no shell) makes Node process ID 1, so `docker stop`'s SIGTERM reaches our handler directly. Our handler closes Fastify and exits 0. With a shell form (`CMD node dist/server.js`), the signal would hit the shell instead and Docker would kill the process after 10 seconds.
+- **Layer caching.** Each Dockerfile instruction is a cached layer. On this connection the first build took **about 41 minutes**, almost all of it `pnpm install` inside the container with an empty package store. Rebuilds with unchanged dependencies are faster, but because we `COPY . .` before installing, *any* file change re-runs the install today. Fixing that (copy only lockfile and manifests first, `pnpm fetch`, BuildKit cache mounts) is `docs/upgrade-later.md` item 13.
+- **No `buildx` on this machine.** Docker 29 here has no `buildx` plugin, so `docker build` uses the legacy builder. It works (verified), but it's deprecated and can't use BuildKit features like cache mounts. Installing it is free (CachyOS/Arch: `sudo pacman -S docker-buildx`) and part of item 13.
+
+**`services/control-plane/Dockerfile`:**
+
+```dockerfile
+# Build context: the repository root (the control plane depends on workspace packages).
+#   docker build -f services/control-plane/Dockerfile --build-arg FLOWCANVAS_COMMIT=$(git rev-parse HEAD) -t flowcanvas-control-plane .
+
+FROM node:24-slim AS build
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    TURBO_TELEMETRY_DISABLED=1
+RUN corepack enable
+WORKDIR /repo
+COPY . .
+RUN pnpm install --frozen-lockfile --filter @flowcanvas/control-plane...
+RUN pnpm exec turbo run build --filter=@flowcanvas/control-plane
+RUN pnpm --filter @flowcanvas/control-plane deploy --prod /out
+
+FROM node:24-slim AS runtime
+ARG FLOWCANVAS_COMMIT=""
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=8080 \
+    FLOWCANVAS_COMMIT=${FLOWCANVAS_COMMIT}
+WORKDIR /app
+COPY --from=build --chown=node:node /out ./
+USER node
+EXPOSE 8080
+CMD ["node", "dist/server.js"]
+```
+
+**`.dockerignore`** (repo root):
+
+```
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+**/playwright-report
+**/test-results
+.git
+.env
+.env.*
+docs
+```
+
+**`services/control-plane/package.json`:** add after `"type": "module",`:
+
+```json
+  "files": [
+    "dist"
+  ],
+```
+
+**Commands:**
+
+```fish
+pnpm install                      # the "files" change doesn't alter dependencies, but keeps the lockfile check happy
+docker build -f services/control-plane/Dockerfile --build-arg FLOWCANVAS_COMMIT=(git rev-parse HEAD) -t flowcanvas-control-plane .
+docker images flowcanvas-control-plane          # ~344 MB (mostly the node:24-slim base)
+docker run -d --name flowcanvas-cp -p 127.0.0.1:8095:8080 flowcanvas-control-plane
+curl http://127.0.0.1:8095/health               # {"status":"ok","version":"0.1.0","commit":"<full commit>"}
+docker logs flowcanvas-cp                       # JSON log lines (pino), incl. the request
+docker stop flowcanvas-cp                       # log "shutting down"; exit code 0
+docker rm flowcanvas-cp
+```
+
+(fish: `(git rev-parse HEAD)`; bash: `$(git rev-parse HEAD)`.) The first build can take a long time on a slow connection. Watch `docker stats` (the NET I/O column) to see that it's still downloading.
+
+**Run and check it:**
+1. `curl http://127.0.0.1:8095/health` returns version `0.1.0` and the commit you passed as `FLOWCANVAS_COMMIT`.
+2. `docker exec flowcanvas-cp id -un` prints `node` (not root).
+3. `docker exec flowcanvas-cp ls /app` shows only `dist`, `node_modules`, `package.json` (plus pnpm's lockfile and workspace file), with no `src/`.
+4. `docker exec flowcanvas-cp ls /app/node_modules` shows only `@flowcanvas` and `fastify` at the top level. No dev tools.
+5. `docker stop flowcanvas-cp`, then `docker inspect flowcanvas-cp --format '{{.State.ExitCode}}'` prints `0`.
+
+**Gotchas:**
+- **`COPY failed` or "no such file" for `packages/...`:** you ran `docker build` from inside `services/control-plane`. Run it from the repo root with `-f`.
+- **`ERR_PNPM_OUTDATED_LOCKFILE` in the build:** the lockfile doesn't match `package.json`. Run `pnpm install` locally and commit the lockfile.
+- **`curl` can't connect:** check the `-p` mapping (`host:container` = `127.0.0.1:8095:8080`) and `docker logs flowcanvas-cp`.
+- **"commit": ""**: the `--build-arg` was missing or empty.
+- **Never `COPY` a `.env` file or pass secrets as build args.** They're stored in image layers and visible with `docker history`. Runtime secrets come from the secrets vault (phase 1c) as environment variables at *run* time.
+
+**Commit:** `build(control-plane): add Docker image for deployment`
