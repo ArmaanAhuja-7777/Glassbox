@@ -25,6 +25,7 @@ All reference material lives in `docs/reference/`. Screenshots of a clickable pr
 | **Figma file** (`Flowcanvas — Product Design`, https://www.figma.com/design/aV9vPto305pKFPlvWQOBX8) | Variables (tokens), text styles, components (Tag, Button, Flow node), screens 01–31 plus the cloud workspace screens | Pixel reference. Each phase names the screens it implements |
 | **Figma generator scripts** (`docs/reference/figma-scripts/`: `flowcanvas-screens.js`, `flowcanvas-prompting-screens.js`, `flowcanvas-cloud-screens.js`) | The code that generated the Figma file | Exact token values (`HEX` map), text styles, sizes, copy and layout rules; an exact fallback when Figma is ambiguous or unreachable |
 | **Decisions log** (`docs/decisions-log.md`) | Answers to open questions, with dates | Check it before raising a question that may already be settled |
+| **Upgrade later** (`docs/upgrade-later.md`) | Things deliberately deferred (now / later / trigger) | Add an entry whenever we choose a cheaper or simpler option for now; review it at the end of every phase |
 
 **Priority when sources disagree:** Build plan (scope, order, acceptance) → **muted palette as in the Figma file and generator scripts (colour values only)** → Graphite design language (everything visual except colour values: principles, type, spacing, radii, motion, components) → Figma screens → Design brief → Research report. Graphite's own colour section has been updated to the muted values; if any older saturated value appears anywhere, the muted palette wins. If the conflict matters, stop and ask.
 

@@ -72,3 +72,7 @@ Private forks in the owner's org, pinned to exact commits. They are used only in
 ### Working mode (same date)
 
 Teaching mode: the owner types code, config, tests and CI by default; Claude teaches in chat, plans and reviews, and does a step itself when asked. See section 4a of `CLAUDE.md`.
+
+## 26 Oct 2026: branch protection (phase 1, step 10)
+
+The free GitHub plan can't protect branches on private repositories. Decision: **option 3**. CI runs on every PR, and we merge only when it's green and never push to `main` directly. Upgrade to GitHub Pro later. Tracked in `docs/upgrade-later.md` (item 1), which lists every deferred upgrade with its trigger.
