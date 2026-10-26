@@ -1,0 +1,23 @@
+# dependencies and build output
+node_modules/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+
+# tests
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# secrets: never committed (non-negotiable rule 5)
+.env
+.env.*
+!.env.example
+
+# tooling and OS
+.wrangler/
+.DS_Store
+*.log
+.idea/
