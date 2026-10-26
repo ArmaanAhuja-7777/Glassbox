@@ -36,7 +36,7 @@ pnpm format:check
 | --- | --- | --- |
 | Code quality gates | the commands above | every task "successful"; `format:check` says all files use Prettier style |
 | Shared package logic | `pnpm test` | `@flowcanvas/graph-model`: 3 tests passed |
-| Web app runs locally | step 6 | *pending* |
+| Web app runs locally | `pnpm dev` → http://localhost:5173 | heading **Flowcanvas** and `0.1.0 · <short commit>` matching `git rev-parse --short HEAD`; `pnpm test` → web: 2 passed |
 | Control plane runs locally | step 7 | *pending* |
 | End-to-end test | step 9 | *pending* |
 | PR preview URL | step 11 | *pending* |
@@ -51,7 +51,7 @@ pnpm format:check
 | 3 | Shared TypeScript config and `packages/graph-model` with its first test | done · `f7b99cd` · Claude |
 | 4 | Turborepo tasks and caching | done · `5a010d9` · Claude |
 | 5 | ESLint and Prettier | done · `d88f916` · Claude |
-| 6 | `apps/web`: Vite + React, version and commit injected at build time, test | **next** |
+| 6 | `apps/web`: Vite + React, version and commit injected at build time, test | done · `3e33324` · Claude |
 | 7 | `services/control-plane`: Fastify `/health`, tests, log redaction | *planned* |
 | 8 | Minimal `workspace/agent` and `packages/engine` | *planned* |
 | 9 | Playwright smoke test | *planned* |
