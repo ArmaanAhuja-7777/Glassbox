@@ -16,8 +16,8 @@ Machine conventions: fish shell, Node from the system (26.x locally; the repo pi
 | --- | --- | --- |
 | 1 | Tooling and repository | done · `7e59ec1` · Claude |
 | 2 | Workspace root | done · `6b074cb` · Claude |
-| 3 | Shared TypeScript config and `packages/graph-model` with its first test | *planned* |
-| 4 | Turborepo tasks and caching | *planned* |
+| 3 | Shared TypeScript config and `packages/graph-model` with its first test | done · `f7b99cd` · Claude |
+| 4 | Turborepo tasks and caching | **next** |
 | 5 | ESLint and Prettier | *planned* |
 | 6 | `apps/web`: Vite + React, version and commit injected at build time, test | *planned* |
 | 7 | `services/control-plane`: Fastify `/health`, tests, log redaction | *planned* |
@@ -159,3 +159,295 @@ pnpm ls -r --depth -1         # flowcanvas@0.1.0 (PRIVATE)
 - Check `git branch --show-current` before committing.
 
 **Commit:** `chore: set up pnpm workspace root`
+
+### Step 3 — Shared TypeScript config and the first package
+
+**Goal:** one strict TypeScript configuration for the whole repo, and the first real package (`@flowcanvas/graph-model`) that builds, type-checks and has passing tests. It proves the package pattern every later package copies.
+
+**Concepts:**
+- **Why TypeScript 6.0.x, not 7.** TypeScript 7 is the native (Go) compiler. Its JavaScript API is published only as `typescript/unstable/*`, and typescript-eslint supports `typescript <6.1`. Phase 5 needs the stable compiler API, so we pin **6.0.3**, the last JavaScript-implemented line. We revisit when TS 7's API is stable (ADR 0004). Docs: https://www.typescriptlang.org/docs/
+- **pnpm catalogs.** Shared dependency versions are defined once in `pnpm-workspace.yaml` under `catalog:`. Packages write `"typescript": "catalog:"`, so every package uses the same version and an upgrade is a one-line change. Docs: https://pnpm.io/catalogs
+- **`tsconfig.base.json` + `extends`.** Every package inherits the same strict settings and only adds its own paths. Docs: https://www.typescriptlang.org/tsconfig/#extends
+- **Strictness flags beyond `strict`:**
+  - `noUncheckedIndexedAccess`: `arr[i]` is `T | undefined`.
+  - `exactOptionalPropertyTypes`: `{ a?: string }` doesn't accept an explicit `undefined`.
+  - `noImplicitOverride`
+  - `noFallthroughCasesInSwitch`
+
+  They catch whole classes of runtime bugs at compile time. Docs: https://www.typescriptlang.org/tsconfig/#noUncheckedIndexedAccess
+- **`module`/`moduleResolution: nodenext`.** TypeScript follows Node's real ESM rules, so relative imports need the **`.js` extension** (`./build-info.js`) even though the file is `.ts`; the extension names the file that will exist at runtime. The web app overrides this with `bundler` in step 6. Docs: https://www.typescriptlang.org/docs/handbook/modules/theory.html
+- **`verbatimModuleSyntax` + `isolatedModules`.** Type-only imports must say `import type` (or `type` inline), so tools that compile one file at a time (Vite, Vitest, esbuild) can safely drop them.
+- **`types: []`.** No ambient global types (such as `@types/node`) leak into a package unless it opts in. `graph-model` is pure TypeScript and shouldn't see Node globals.
+- **Compiled internal packages.** Each package builds `src/` into `dist/` (JS + `.d.ts`). `exports` points consumers at `dist`, and Turborepo (step 4) builds dependencies first. The alternative, consuming raw `.ts` source, saves a build but forces every consumer (Vite, Node, the Fastify service, Docker images) to transpile other packages' TypeScript. Compiled packages behave the same everywhere. Docs: https://nodejs.org/api/packages.html#package-entry-points
+- **Two tsconfigs per package.** `tsconfig.json` type-checks everything, including tests. `tsconfig.build.json` extends it, excludes tests and emits `dist/`.
+- **Vitest basics.**
+  - `describe` groups tests, `it` is one case, and `expect(x).toBe(y)` asserts.
+  - `vitest run` runs once (CI style). Plain `vitest` watches.
+  - Test files sit next to the code as `*.test.ts`. Imports come from `'vitest'` explicitly; no globals.
+  - Docs: https://vitest.dev/guide/
+- **What makes a good unit test:** the normal case, the edge cases (already-short SHA), and the "honest failure" case (no commit known → say "unknown" instead of inventing one, the product's never-fabricate rule in miniature).
+
+**`pnpm-workspace.yaml`** (append):
+
+```yaml
+
+catalog:
+  typescript: 6.0.3
+  vitest: 5.0.5
+```
+
+**Root `package.json`:** add a dev dependency so editors and root commands use the same TypeScript:
+
+```json
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+```
+
+**`tsconfig.base.json`** (repo root):
+
+```json
+{
+  "compilerOptions": {
+    "target": "es2024",
+    "lib": ["es2024"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": [],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  }
+}
+```
+
+`es2024` is fully supported by Node 24 and current browsers. `declarationMap` lets "go to definition" jump into a package's `.ts` source instead of its `.d.ts`.
+
+**`packages/graph-model/package.json`:**
+
+```json
+{
+  "name": "@flowcanvas/graph-model",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
+```
+
+**`packages/graph-model/tsconfig.json`:**
+
+```json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src"]
+}
+```
+
+**`packages/graph-model/tsconfig.build.json`:**
+
+```json
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["src/**/*.test.ts"]
+}
+```
+
+**`packages/graph-model/src/build-info.ts`:**
+
+```ts
+export interface BuildInfo {
+  readonly version: string;
+  readonly commit: string;
+}
+
+const SHORT_SHA_LENGTH = 7;
+
+export function formatBuildInfo(info: BuildInfo): string {
+  const commit = info.commit.trim();
+  const shown = commit === '' ? 'unknown commit' : commit.slice(0, SHORT_SHA_LENGTH);
+  return `${info.version} · ${shown}`;
+}
+```
+
+**`packages/graph-model/src/index.ts`:**
+
+```ts
+export { formatBuildInfo, type BuildInfo } from './build-info.js';
+```
+
+**`packages/graph-model/src/build-info.test.ts`:**
+
+```ts
+import { describe, expect, it } from 'vitest';
+import { formatBuildInfo } from './build-info.js';
+
+describe('formatBuildInfo', () => {
+  it('shortens a full commit SHA to 7 characters', () => {
+    expect(
+      formatBuildInfo({ version: '0.1.0', commit: '7e59ec1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e' }),
+    ).toBe('0.1.0 · 7e59ec1');
+  });
+
+  it('keeps a commit that is already short', () => {
+    expect(formatBuildInfo({ version: '0.1.0', commit: 'abc12' })).toBe('0.1.0 · abc12');
+  });
+
+  it('says the commit is unknown instead of inventing one', () => {
+    expect(formatBuildInfo({ version: '0.1.0', commit: '  ' })).toBe('0.1.0 · unknown commit');
+  });
+});
+```
+
+**Commands:**
+
+```fish
+pnpm install                                   # adds typescript 6.0.3 and vitest 5.0.5
+pnpm --filter @flowcanvas/graph-model typecheck
+pnpm --filter @flowcanvas/graph-model test     # 1 file, 3 tests passed
+pnpm --filter @flowcanvas/graph-model build    # dist/ gets index.js, index.d.ts, build-info.js, maps
+```
+
+`--filter` runs a script in one workspace package from the repo root. Docs: https://pnpm.io/filtering
+
+**Verify:**
+- Type-check prints nothing (silence means success).
+- Tests: `Tests 3 passed (3)`.
+- `dist/` has no `*.test.*` files.
+- `ls -la packages/graph-model/node_modules` shows `typescript` and `vitest` as **symlinks** into `node_modules/.pnpm/…`: pnpm's content-addressed store.
+- Break something on purpose: change `'unknown commit'` to `'n/a'`, rerun the tests, see one fail with a diff, then revert.
+
+**Gotchas:**
+- Writing `./build-info` without `.js` fails under `nodenext` (`Relative import paths need explicit file extensions`).
+- Exporting a type without `type` under `verbatimModuleSyntax` gives error TS1205/TS1484.
+- `dist/` is git-ignored. Never edit it.
+- `tsc` doesn't delete stale files from `dist/`. If you rename a source file, delete `dist/` before rebuilding (a `clean` task comes later).
+
+**Commit:** `feat(graph-model): add shared TypeScript config and build info formatter`
+
+**Done notes (step 3):** the deliberate-failure check worked (`Expected: "0.1.0 · unknown commit"`, `Received: "0.1.0 · n/a"`). `dist/` stays out of git.
+
+### Step 4 — Turborepo tasks and caching
+
+**Goal:** one command at the root (`pnpm build`, `pnpm test`, `pnpm typecheck`, `pnpm lint`) runs that task in every package, in dependency order, in parallel where possible, and skips work whose inputs haven't changed.
+
+**Concepts:**
+- **Task graph.** Turborepo reads each package's `package.json` dependencies and the task rules in `turbo.json`, then builds a graph of tasks such as `@flowcanvas/web#build` and `@flowcanvas/graph-model#build`. Docs: https://turborepo.dev/docs/crafting-your-repository/configuring-tasks
+- **`dependsOn: ["^build"]`.** The caret means "the `build` task of my **dependencies** first". So `web#typecheck` waits for `graph-model#build`, because `web` imports `graph-model`'s `dist/*.d.ts`. Without the caret (`["build"]`) it would mean "my own build first".
+- **Caching.**
+  - Before running a task, Turbo hashes its inputs: the package's files, the hashes of its dependencies' tasks, the relevant lockfile entries, `globalDependencies`, and any env vars you declare.
+  - If that hash has run before, Turbo **restores the declared `outputs`** (such as `dist/**`) and replays the saved logs instead of running the task ("cache hit, replaying logs", "FULL TURBO").
+  - Tasks with no `outputs` (test, typecheck) cache only their logs and success.
+  - The local cache lives in `.turbo/` (git-ignored). A shared remote cache can come later.
+  - Docs: https://turborepo.dev/docs/crafting-your-repository/caching
+- **`globalDependencies`.** Files outside any package that affect every task. `tsconfig.base.json` sits at the root, so without this line, changing it would **not** invalidate the cache and you'd get stale "passing" results.
+- **Telemetry is off.** Turborepo sends anonymous usage telemetry by default. Our rule is telemetry off by default, for our tools too: disable it once per machine, and in CI with `TURBO_TELEMETRY_DISABLED=1` (step 10). Docs: https://turborepo.dev/docs/telemetry
+- **Running one package.** `pnpm --filter @flowcanvas/graph-model test` runs that package's script directly, without Turbo. `pnpm exec turbo run test --filter=@flowcanvas/graph-model` runs it through Turbo, with its dependencies and cache.
+
+**`pnpm-workspace.yaml`:** add to the catalog (alphabetical):
+
+```yaml
+catalog:
+  turbo: 2.11.10
+  typescript: 6.0.3
+  vitest: 5.0.5
+```
+
+**Root `package.json`:** scripts and dev dependency:
+
+```json
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "turbo run lint"
+  },
+  "devDependencies": {
+    "turbo": "catalog:",
+    "typescript": "catalog:"
+  }
+```
+
+**`turbo.json`** (repo root):
+
+```json
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "globalDependencies": ["tsconfig.base.json"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"]
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    }
+  }
+}
+```
+
+- `$schema` gives editor autocomplete and validation.
+- `lint` depends on `^build` because type-aware ESLint rules (step 5) need dependencies' types.
+- A `dev` task (persistent, uncached) comes in step 6 with the web app.
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm exec turbo telemetry disable    # once per machine
+pnpm build                           # 1 successful, 0 cached
+pnpm build                           # again: 1 cached, ">>> FULL TURBO", a few ms
+pnpm test                            # Tests 3 passed
+pnpm test                            # "cache hit, replaying logs"
+pnpm typecheck
+pnpm lint                            # "0 total": no package has a lint script yet (step 5)
+pnpm exec turbo run build --dry=json # inspect the task graph and cache status without running
+```
+
+**Verify:**
+- The second `pnpm build` is a full cache hit.
+- Delete `packages/graph-model/dist`, then run `pnpm build`. It's still a cache hit, **and `dist/` is back**: Turbo restored the declared outputs from cache.
+- Add a blank line to `tsconfig.base.json` and run `pnpm build`. It should be a cache **miss** (proves `globalDependencies`). Revert the change.
+- `pnpm exec turbo telemetry status` says you've opted out.
+
+**Gotchas:**
+- Forgetting `outputs` on `build` means a cache hit restores **nothing**: logs say success, `dist/` is missing, and the next package fails confusingly.
+- Turbo only sees env vars you declare (`env` / `globalEnv`). From step 6 on, any env var that changes a build output (such as the commit SHA) must be declared, or the cache will serve a build with a stale value.
+- Running `vitest` directly inside a package bypasses Turbo and its `^build` ordering. If a dependency's `dist/` is stale, build first.
+
+**Commit:** `build: add Turborepo task pipeline`
