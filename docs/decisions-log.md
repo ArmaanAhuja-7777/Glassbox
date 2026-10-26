@@ -76,3 +76,13 @@ Teaching mode: the owner types code, config, tests and CI by default; Claude tea
 ## 26 Oct 2026: branch protection (phase 1, step 10)
 
 The free GitHub plan can't protect branches on private repositories. Decision: **option 3**. CI runs on every PR, and we merge only when it's green and never push to `main` directly. Upgrade to GitHub Pro later. Tracked in `docs/upgrade-later.md` (item 1), which lists every deferred upgrade with its trigger.
+
+## 26 Oct 2026: repository made public (phase 1, step 10)
+
+GitHub Actions wouldn't start on the private repository (`startup_failure` on every run, even a one-line workflow) because of an account-level billing issue. The owner chose to **make the repository public for now**, since Actions run unblocked on public repositories. It goes private again once there's enough proprietary work to protect. Tracked in `docs/upgrade-later.md` (item 8).
+
+While public:
+- Anyone can read the code and the docs.
+- No secrets, personal or account details go into the repository.
+- Forks of the AGPL test repos stay out of it (decision A8).
+- Branch protection is available on the free plan (see `docs/upgrade-later.md` item 1).
