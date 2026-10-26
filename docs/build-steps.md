@@ -2051,7 +2051,7 @@ When phase 1a is done you can:
 | # | Step | Status |
 | --- | --- | --- |
 | 1 | Token source (DTCG JSON seed) + `tools/figma-tokens` generator → `packages/tokens` (CSS variables + typed TS), with tests | done · `c9ffb4c` · Claude |
-| 2 | Light theme proposal: values + contrast checks, **for the owner's approval** | *planned* |
+| 2 | Light theme proposal: values + contrast checks, **for the owner's approval** | **next** (waiting for approval) |
 | 3 | `packages/ui` foundation: CSS Modules, global styles, self-hosted fonts, theme switching, reduced motion, "no raw values" lint rule | *planned* |
 | 4 | Storybook: setup, dark/light toolbar, accessibility addon, local run | *planned* |
 | 5 | Button and Tag (the Figma components) | *planned* |
@@ -2813,3 +2813,91 @@ pnpm format && pnpm lint && pnpm typecheck && pnpm test && pnpm build
 - **Shadow colours are taken verbatim** (they can have alpha, like `rgba(0, 0, 0, 0.4)`); every other colour must be 6-digit hex or a reference.
 
 **Commit:** `feat(tokens): add DTCG token source, generator and generated Graphite tokens`
+
+### Step 1a.2 — Light theme proposal (needs the owner's approval)
+
+**Goal:** define the light theme with exactly the same 40 colour roles as dark, prove it meets the same accessibility bar, and get the owner's approval before anything uses it (decision A1: "propose one in phase 1a for my approval").
+
+**Expected outcome:**
+- `packages/tokens/source/color.light.tokens.json` exists.
+- The generated CSS gains a `[data-theme='light']` block.
+- The token tests grow from 15 to **29**: the sync test plus 14 contrast checks **per theme**.
+- A side-by-side preview of both themes for review.
+
+**Concepts:**
+- **Same roles, different values.** Components never say "dark" or "light". They use roles (`surface/raised`, `state/added/text`). A theme is just another set of values for the same names, so adding light needs **no component changes**. The generator refuses a theme that misses or adds a role.
+- **Inverted lightness, same meaning.**
+  - Surfaces step *down* in lightness as they come forward: canvas `#FCFCFD`, panel `#F6F7F9`, nodes `#FFFFFF`.
+  - Text is near-black.
+  - The change-state hues keep their muted character, but their solids and texts are darker so they read on white, and their tints become pale washes.
+- **The primary button in light.** In dark, the primary button is off-white with dark text: the highest-contrast element on a dark screen. An off-white button would disappear on a white screen, so in light, `surface/inverse` is near-black (`#1E2228`) and `text/on-accent` becomes off-white (`#FCFCFD`). Same role ("the one strongest action"), inverted value. **This is the one judgement call to approve.**
+- **The accent stays steel blue,** darkened to `#4E6390` so focus rings and selection outlines keep 3:1+ on white (5.98:1). Off-white text on it is 5.83:1, for the source tag on live frames.
+- **App preview colours are unchanged.** Live frames show the user's own app, which doesn't change with our theme.
+- **Contrast results (WCAG AA), all passing.** Text pairs ≥ 4.5:1: primary on canvas 17.20, secondary on panel 5.58, secondary on selected rows 4.91, on-accent on inverse 15.58, accent text 7.11, the five state text-on-tint pairs 6.44–7.19. Non-text ≥ 3:1: tertiary on nodes 3.35, edges 3.26, accent 5.98, state solids 3.99–5.10.
+- **Following the system setting** (`prefers-color-scheme`) and the theme toggle come in step 3. Until then, light is only active where `data-theme="light"` is set.
+
+**Proposed values (dark → light):**
+
+| Token | Dark (current) | Light (proposed) |
+| --- | --- | --- |
+| `surface/canvas` | `#0B0C0E` | `#FCFCFD` |
+| `surface/panel` | `#111317` | `#F6F7F9` |
+| `surface/raised` | `#181B20` | `#FFFFFF` |
+| `surface/hover` | `#1E2228` | `#EEF0F3` |
+| `surface/selected` | `#252A31` | `#E6E9EE` |
+| `surface/inverse` | `#E6E8EB` | `#1E2228` |
+| `border/subtle` | `#2C323A` | `#E3E6EA` |
+| `border/control` | `#383F49` | `#D2D6DC` |
+| `border/strong` | `#4A525E` | `#B4BAC3` |
+| `text/primary` | `#EDEFF2` | `#16191D` |
+| `text/secondary` | `#A3AAB5` | `#5C6470` |
+| `text/tertiary` | `#6B7380` | `#868D98` |
+| `text/on-accent` | `#0B0C0E` | `#FCFCFD` |
+| `accent/solid` | `#7487AD` | `#4E6390` |
+| `accent/hover` | `#8496BB` | `#43578A` |
+| `accent/tint` | `#182031` | `#E9EDF5` |
+| `accent/ring` | `#34405A` | `#B8C4DB` |
+| `accent/text` | `#A9B7D3` | `#3D5287` |
+| `state/added/solid` | `#6E9C82` | `#4C8063` |
+| `state/added/tint` | `#18221D` | `#E6F0EA` |
+| `state/added/text` | `#9FC2AD` | `#2E5E43` |
+| `state/modified/solid` | `#B39B6B` | `#957A40` |
+| `state/modified/tint` | `#24211A` | `#F4EFE2` |
+| `state/modified/text` | `#D2BE93` | `#66511F` |
+| `state/removed/solid` | `#B07473` | `#A0585A` |
+| `state/removed/tint` | `#261B1B` | `#F6E7E7` |
+| `state/removed/text` | `#CFA09F` | `#7A393C` |
+| `state/affected/solid` | `#8C83B0` | `#7064A0` |
+| `state/affected/tint` | `#1F1D29` | `#ECEAF5` |
+| `state/affected/text` | `#B5AED3` | `#514585` |
+| `state/scope/solid` | `#A97A96` | `#93607F` |
+| `state/scope/tint` | `#251C22` | `#F5E8F0` |
+| `state/scope/text` | `#C9A3BA` | `#6E3C5B` |
+| `edge/observed` | `#A3AAB5` | `#5C6470` |
+| `edge/default` | `#6B7380` | `#868D98` |
+| `preview/surface` | `#FFFFFF` | `#FFFFFF` |
+| `preview/ink` | `#1F2328` | `#1F2328` |
+| `preview/muted` | `#6E7781` | `#6E7781` |
+| `preview/line` | `#E5E7EB` | `#E5E7EB` |
+| `preview/brand` | `#1F2328` | `#1F2328` |
+
+**Files (on approval):**
+- `packages/tokens/source/color.light.tokens.json`: the 40 values above, `$type: color`.
+- `packages/tokens/package.json`: the `generate` script gains `--theme light=source/color.light.tokens.json`.
+- `packages/tokens/src/tokens.test.ts`: the sync test loads both themes. The contrast suite already runs for every theme in `themeValues`.
+- Regenerated `css/tokens.css` and `src/tokens.generated.ts`.
+- `docs/decisions-log.md`: record the approval.
+- `docs/reference/design-language-graphite.md`: replace "Light theme: not yet defined" with the approved values.
+
+**Commands:**
+
+```fish
+pnpm --filter @flowcanvas/tokens generate
+pnpm --filter @flowcanvas/tokens test        # 29 passed
+pnpm format && pnpm lint && pnpm typecheck && pnpm test
+```
+
+**Run and check it:** open the side-by-side preview (local file, path given in chat) and compare buttons, tags, text, flow nodes in every change state, and surfaces. From step 4 the same comparison lives in Storybook with a theme toggle.
+
+**Commit:** `feat(tokens): add Graphite light theme`
+
