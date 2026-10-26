@@ -8,5 +8,8 @@
   "engines": {
     "node": ">=24.11"
   },
-  "scripts": {}
+  "scripts": {},
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
 }
