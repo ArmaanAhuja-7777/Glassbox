@@ -24,7 +24,7 @@ When phase 1 is done you can:
 
 ### Run and check it
 
-*(Filled in as the steps land; complete at step 13.)*
+*Complete. Every row was verified at the end of phase 1 (26–27 Oct 2026).*
 
 ```fish
 pnpm install
@@ -40,7 +40,7 @@ pnpm format:check
 | Control plane runs locally | `pnpm dev`, then `curl http://127.0.0.1:8080/health` | `{"status":"ok","version":"0.1.0","commit":"<git rev-parse HEAD>"}`; `pnpm test` → control-plane: 3 passed (incl. secret-redaction canary) |
 | End-to-end test | `pnpm test:e2e` (first time: `pnpm --filter @flowcanvas/e2e exec playwright install chromium`) | real Chromium opens the production build: `1 passed`; `E2E_EXPECTED_COMMIT=deadbeef00 pnpm test:e2e` must fail |
 | PR preview URL | `https://phase-1-project-skeleton-flowcanvas.ahujaarmaan7777.workers.dev` (branch alias, always the latest push) or `https://<first 8 chars of version id>-flowcanvas.ahujaarmaan7777.workers.dev` (one version) | **Flowcanvas** and `0.1.0 · <PR head commit>`; `curl -sI <url>` shows `content-security-policy`; `E2E_BASE_URL=<url> E2E_EXPECTED_COMMIT=(git rev-parse HEAD) pnpm --filter @flowcanvas/e2e test:e2e` → 1 passed |
-| Staging (web) | step 13: `https://flowcanvas.ahujaarmaan7777.workers.dev` after merge | *pending* |
+| Staging (web) | open `https://flowcanvas.ahujaarmaan7777.workers.dev`; `E2E_BASE_URL=https://flowcanvas.ahujaarmaan7777.workers.dev E2E_EXPECTED_COMMIT=(git rev-parse origin/main) pnpm --filter @flowcanvas/e2e test:e2e` | **Flowcanvas** and `0.1.0 · <main's short commit>`; security headers present; 1 passed |
 | Control plane in a container | `docker build -f services/control-plane/Dockerfile --build-arg FLOWCANVAS_COMMIT=(git rev-parse HEAD) -t flowcanvas-control-plane .`, then `docker run -d --name flowcanvas-cp -p 127.0.0.1:8095:8080 flowcanvas-control-plane` and `curl http://127.0.0.1:8095/health` | version `0.1.0` and the built commit; `docker exec flowcanvas-cp id -un` → `node`; `docker stop` → exit 0 |
 
 ### Steps
@@ -59,7 +59,7 @@ pnpm format:check
 | 10 | GitHub Actions CI, open the PR, branch protection | done · `a3247c7` · Claude · ⚠ CI can't run until the GitHub account billing lock is resolved (`docs/upgrade-later.md` item 8) |
 | 11 | Cloudflare (Workers static assets): previews per PR, smoke test on preview | done · `6359831` · Claude (repo) + owner (Cloudflare setup) · verified on preview of `be3cf59` |
 | 12 | Control-plane Docker image, built and run locally (Fly.io deploy deferred: `docs/upgrade-later.md` item 12) | done · `17b96b7` · Claude · repo image verified (`/health` reports `17b96b7`, non-root, clean shutdown) |
-| 13 | ADRs, `ARCHITECTURE.md`, `STATUS.md`, `CHANGELOG.md`, phase report, merge, staging live | **next** |
+| 13 | ADRs, `ARCHITECTURE.md`, `STATUS.md`, `CHANGELOG.md`, phase report, merge, staging live | done · `1df8872` + merge `9a18708` · Claude · staging verified with Playwright |
 
 ### Step 1 — Tooling and repository
 
@@ -1990,3 +1990,24 @@ E2E_BASE_URL=https://flowcanvas.ahujaarmaan7777.workers.dev E2E_EXPECTED_COMMIT=
 - **Don't delete the phase branch before Cloudflare finishes building `main`.** The branch alias preview stops updating after deletion, which is expected.
 
 **Commit:** `docs: close phase 1 with ADRs, architecture, status, changelog and report`
+
+**Done notes (step 13):**
+- Merged PR #1 as `9a18708` (merge commit, history kept) under the recorded exception: local checks + Cloudflare preview + Playwright green on `1df8872`.
+- Cloudflare deployed `main` to staging; verified HTTP 200, security headers, bundle commit `9a18708`, Playwright 1 passed.
+- Phase 1 status: **in review**, with all Done-when items met. Becomes **accepted** once CI runs green on GitHub (`docs/upgrade-later.md` item 8).
+- Evidence recorded through a follow-up PR (`phase/1-close`), because `main` is changed only through PRs.
+
+**Phase 1 summary: what you can run and check now:**
+
+```fish
+# Locally
+pnpm install
+pnpm dev                                   # http://localhost:5173 and http://127.0.0.1:8080/health
+pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e
+# Deployed
+open https://flowcanvas.ahujaarmaan7777.workers.dev                       # staging (main)
+open https://<branch-with-dashes>-flowcanvas.ahujaarmaan7777.workers.dev  # any PR branch's preview
+# Control plane as it will run in the cloud
+docker build -f services/control-plane/Dockerfile --build-arg FLOWCANVAS_COMMIT=(git rev-parse HEAD) -t flowcanvas-control-plane .
+docker run --rm -p 127.0.0.1:8095:8080 flowcanvas-control-plane          # then: curl http://127.0.0.1:8095/health
+```

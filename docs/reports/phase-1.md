@@ -16,11 +16,11 @@
 | Item | Result | Evidence |
 | --- | --- | --- |
 | Monorepo with web app, workspace agent, engine, control plane, shared types | ✅ | 6 workspace projects (`pnpm ls -r --depth -1`): `@flowcanvas/web`, `control-plane`, `graph-model`, `engine`, `workspace-agent`, `e2e` |
-| React web app deployed to a staging URL | ✅ after merge | `https://flowcanvas.ahujaarmaan7777.workers.dev`, deployed by Cloudflare from `main`; Playwright verification recorded in the follow-up section below |
+| React web app deployed to a staging URL | ✅ | `https://flowcanvas.ahujaarmaan7777.workers.dev`, deployed by Cloudflare from `main`; Playwright verification recorded in the follow-up section below |
 | CI with lint, type checks and tests | ⚠ defined, can't run | `.github/workflows/ci.yml` (format, lint, typecheck, unit, build, e2e). Jobs don't start: "account is locked due to a billing issue". Every check passes locally. `docs/upgrade-later.md` item 8 |
-| Done when: the staging URL loads the app | ✅ after merge | See follow-up section |
+| Done when: the staging URL loads the app | ✅ | Playwright passed against staging at `9a18708` (follow-up section) |
 | Done when: every pull request gets its own preview URL | ✅ (with a gap) | PR #1 has the Cloudflare check "Workers Builds: flowcanvas"; preview `https://phase-1-project-skeleton-flowcanvas.ahujaarmaan7777.workers.dev` (branch alias) and `https://dadc1dc8-flowcanvas.ahujaarmaan7777.workers.dev` (version). Gap: the URL isn't posted on the PR (`docs/upgrade-later.md` item 10) |
-| Try it: staging shows the version | ✅ after merge | See follow-up section |
+| Try it: staging shows the version | ✅ | `0.1.0 · 9a18708` on staging (follow-up section) |
 
 Phase 1 can't be **accepted** until the CI workflow runs green on GitHub (trigger of `docs/upgrade-later.md` item 8).
 
@@ -81,4 +81,13 @@ Recordings and Figma screenshot comparison arrive with phase 1b. This phase has 
 
 ## Follow-up: staging verification after merge
 
-*(Recorded after the merge in a follow-up pull request.)*
+PR #1 was merged on 26 Oct 2026 as merge commit `9a18708` (under the recorded exception). Cloudflare Workers Builds deployed `main` to staging (check "Workers Builds: flowcanvas": success).
+
+| Check | Result |
+| --- | --- |
+| `https://flowcanvas.ahujaarmaan7777.workers.dev` | HTTP 200 |
+| Security headers | `content-security-policy`, `x-content-type-options`, `referrer-policy`, `permissions-policy` present |
+| Commit in the deployed bundle | `9a18708`, equal to `main`'s HEAD |
+| `E2E_BASE_URL=https://flowcanvas.ahujaarmaan7777.workers.dev E2E_EXPECTED_COMMIT=9a18708… pnpm --filter @flowcanvas/e2e test:e2e` | ✓ 1 passed (Chromium) |
+
+**Done when: "the staging URL loads the app": met.** **Try it: "open the staging link; the app loads and shows its version": met.**
