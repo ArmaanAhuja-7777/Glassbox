@@ -1797,3 +1797,7 @@ E2E_BASE_URL=http://127.0.0.1:8787 pnpm --filter @flowcanvas/e2e test:e2e   # 1 
 - **Never put secrets in this Worker's variables.** The browser bundle is public.
 
 **Commit:** `feat(web): deploy to Cloudflare Workers with security headers`
+
+**Done notes (step 11, Cloudflare setup):**
+- The first Cloudflare build runs on the production branch `main` and **fails with `ERR_PNPM_NO_PKG_MANIFEST`**. That's expected until phase 1 is merged: `main` only contains the step 1 docs. The same log confirms the environment works (Node 24.22.1 picked up; `SKIP_DEPENDENCY_INSTALL` respected).
+- Cloudflare only builds on pushes it sees **after** the repo is connected. A branch pushed earlier needs a new commit (or a manual build in the dashboard) to get its first preview.
