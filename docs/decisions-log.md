@@ -72,3 +72,18 @@ Private forks in the owner's org, pinned to exact commits. They are used only in
 ### Working mode (same date)
 
 Teaching mode: the owner types code, config, tests and CI by default; Claude teaches in chat, plans and reviews, and does a step itself when asked. See section 4a of `CLAUDE.md`.
+
+## 26 Oct 2026: branch protection (phase 1, step 10)
+
+The free GitHub plan can't protect branches on private repositories. Decision: **option 3**. CI runs on every PR, and we merge only when it's green and never push to `main` directly. Upgrade to GitHub Pro later. Tracked in `docs/upgrade-later.md` (item 1), which lists every deferred upgrade with its trigger.
+
+## 26 Oct 2026: repository made public; Actions still blocked (phase 1, step 10)
+
+GitHub Actions wouldn't run: on the private repository every run ended in `startup_failure`, even a one-line workflow. The owner made the repository **public**. Runs then *started*, but every job failed with GitHub's annotation "The job was not started because your account is locked due to a billing issue". The lock is account-wide, so visibility doesn't affect it.
+
+Decision: **resolve the billing lock later and continue building now.** Until then:
+- CI checks run locally: `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`.
+- Steps 11 and 12 use paths that don't need GitHub Actions (Cloudflare Pages' own Git integration for PR previews; Fly.io deploys from the owner's machine).
+- Phase 1 can't be fully accepted until the workflow runs green on GitHub.
+
+The repository stays public for now; making it private again is a separate choice. While public, no secrets, personal or account details go into it, and forks of AGPL test repos stay out of it (decision A8). Tracked in `docs/upgrade-later.md` (items 8 and 9).
