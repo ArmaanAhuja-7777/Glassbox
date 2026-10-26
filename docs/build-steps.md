@@ -2050,7 +2050,7 @@ When phase 1a is done you can:
 
 | # | Step | Status |
 | --- | --- | --- |
-| 1 | Token source (DTCG JSON seed) + `tools/figma-tokens` generator → `packages/tokens` (CSS variables + typed TS), with tests | *planned* |
+| 1 | Token source (DTCG JSON seed) + `tools/figma-tokens` generator → `packages/tokens` (CSS variables + typed TS), with tests | **next** |
 | 2 | Light theme proposal: values + contrast checks, **for the owner's approval** | *planned* |
 | 3 | `packages/ui` foundation: CSS Modules, global styles, self-hosted fonts, theme switching, reduced motion, "no raw values" lint rule | *planned* |
 | 4 | Storybook: setup, dark/light toolbar, accessibility addon, local run | *planned* |
@@ -2062,3 +2062,754 @@ When phase 1a is done you can:
 | 10 | Figma references + Playwright visual comparison with a side-by-side report | *planned* |
 | 11 | Version page restyled with tokens; Storybook deployed to a free Cloudflare URL | *planned* |
 | 12 | Close phase 1a: ADRs, architecture, status, changelog, report, merge | *planned* |
+
+### Step 1a.1 — Design tokens: source, generator and generated package
+
+**Goal:** turn the Graphite design decisions into **data** (a token source in the W3C DTCG format), and build a small generator (`tools/figma-tokens`) that writes them out as **CSS custom properties** and **typed TypeScript** in a new package, `@flowcanvas/tokens`. Every component from step 3 on uses only these tokens.
+
+**Expected outcome:**
+- `pnpm --filter @flowcanvas/tokens generate` writes `packages/tokens/css/tokens.css` (126 CSS variables: colours, text styles, spacing, radii, sizes, borders, motion, shadow) and `packages/tokens/src/tokens.generated.ts`.
+- `pnpm test` adds 33 tests: 18 for the generator, plus 15 for the tokens package (generated files in sync with the source, and WCAG contrast checks on the palette).
+- Hand-editing a generated file, or picking a colour with too little contrast, makes a test fail (verified).
+
+**Concepts:**
+- **Design tokens.**
+  - Named design decisions (`color.surface.canvas = #0B0C0E`, `radius.node = 6px`, `text.body = Inter 13/20 400`), stored as data rather than scattered through CSS.
+  - Designers and code share the names; changing one value changes it everywhere.
+  - Docs: https://www.designtokens.org/ (the W3C Design Tokens Community Group format, "DTCG").
+- **The DTCG JSON format.**
+  - Groups are plain objects; a token is an object with `$value`.
+  - `$type` (`color`, `dimension`, `duration`, `fontFamily`, `fontWeight`, `number`, `shadow`, `typography`) can sit on a group and is **inherited** by everything inside it.
+  - Dimensions and durations are objects: `{ "value": 6, "unit": "px" }`.
+  - A value can **reference** another token with `{font.weight.semibold}`. The generator turns that into `var(--font-weight-semibold)`, so there is one source of truth.
+  - Docs: https://www.designtokens.org/tr/drafts/format/
+- **Where the values come from.** Figma's Variables API needs a paid Enterprise plan, and the Figma connector's free quota ran out (`docs/upgrade-later.md` item 14). The source is seeded from the `HEX` map and text styles in `docs/reference/figma-scripts/` (the code that created the Figma file), which are identical in all three scripts and match decision A1.
+- **Base vs theme files.**
+  - `source/base.tokens.json` holds what is the same in every theme: fonts, text styles, spacing, radii, sizes, borders, motion, opacity, shadow.
+  - `source/color.dark.tokens.json` holds the dark colours.
+  - Step 2 adds `color.light.tokens.json`. The generator refuses themes that don't define exactly the same tokens, so light can never miss a colour.
+- **Generated output.**
+  - `css/tokens.css`: base variables on `:root`; the default (dark) theme on `:root` **and** `[data-theme='dark']`; later themes on `[data-theme='…']`. Also `color-scheme`, so native controls (scrollbars, form inputs) match.
+  - `src/tokens.generated.ts`: `vars` (typed references like `vars.color.surface.canvas` → `'var(--color-surface-canvas)'`) and `themeValues` (resolved values per theme, for places that can't read CSS variables, such as the canvas and WebGL in later phases).
+- **Generated files are committed, never edited.** They're committed so reviews show exactly what changed in CSS. A test regenerates them in memory and compares, so a hand edit fails CI (and `generate:check` fails too). They're in `.prettierignore` because their format is the generator's job.
+- **Validation in the generator.**
+  - Colours must be 6-digit hex.
+  - Units: `px`/`rem` for dimensions, `ms`/`s` for durations.
+  - Names: lowercase words with dashes.
+  - References must resolve.
+  - No token may be defined twice.
+  - No two token paths may flatten to the same CSS name (`a.b-c` vs `a-b.c`).
+
+  A bad token fails loudly with its path (`color.a: colors must be 6-digit hex values like #0B0C0E`) instead of producing broken CSS.
+- **Contrast tests (WCAG AA) on the palette itself.**
+  - Text pairs need 4.5:1; meaningful non-text marks (icons, edges, focus rings, state bars) need 3:1.
+  - The relative-luminance formula is in the test, so the numbers in the Graphite doc are now enforced, and the light theme (step 2) gets checked automatically.
+  - Docs: https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html
+- **A small CLI with no dependencies.** `node:util`'s `parseArgs` handles the flags. The package's `bin` field makes `figma-tokens` available to other workspace packages after it's built (Turbo builds it first via `^build`). Docs: https://nodejs.org/api/util.html#utilparseargsconfig
+- **Hidden-class pitfalls avoided.** The generator reads JSON as `unknown` and narrows it with type guards (`isRecord`, `isTokenType`) instead of casting. That's how strict TypeScript plus type-aware lint keep untrusted input honest.
+
+**Files:**
+- `tools/figma-tokens/`: `package.json`, `tsconfig.json`, `tsconfig.build.json` (same as the control plane's: Node types), `src/parse.ts`, `src/render.ts`, `src/load.ts`, `src/cli.ts`, `src/index.ts`, `src/parse.test.ts`, `src/render.test.ts`
+- `packages/tokens/`: `package.json`, `tsconfig.json`, `tsconfig.build.json`, `source/base.tokens.json`, `source/color.dark.tokens.json`, `src/index.ts`, `src/tokens.test.ts`, plus the generated `css/tokens.css` and `src/tokens.generated.ts`
+- `.prettierignore`: add the two generated files
+
+**`tools/figma-tokens/package.json`:**
+
+```json
+{
+  "name": "@flowcanvas/figma-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "figma-tokens": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
+```
+
+**`packages/tokens/package.json`:**
+
+```json
+{
+  "name": "@flowcanvas/tokens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./tokens.css": "./css/tokens.css"
+  },
+  "files": [
+    "dist",
+    "css"
+  ],
+  "scripts": {
+    "generate": "figma-tokens --base source/base.tokens.json --theme dark=source/color.dark.tokens.json --css css/tokens.css --ts src/tokens.generated.ts",
+    "generate:check": "pnpm run generate --check",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@flowcanvas/figma-tokens": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
+```
+
+**`tools/figma-tokens/src/parse.ts`:**
+
+```ts
+// Parses design tokens in the W3C Design Tokens (DTCG) JSON format:
+// groups are plain objects, a token is an object with `$value`, and `$type` is inherited from parent groups.
+
+export type TokenType =
+  | 'color'
+  | 'dimension'
+  | 'duration'
+  | 'fontFamily'
+  | 'fontWeight'
+  | 'number'
+  | 'shadow'
+  | 'typography';
+
+const TOKEN_TYPES: readonly TokenType[] = [
+  'color',
+  'dimension',
+  'duration',
+  'fontFamily',
+  'fontWeight',
+  'number',
+  'shadow',
+  'typography',
+];
+
+export interface Token {
+  readonly path: readonly string[];
+  readonly type: TokenType;
+  readonly value: unknown;
+  readonly description?: string;
+}
+
+export class TokenError extends Error {
+  constructor(path: readonly string[], message: string) {
+    super(`${path.length > 0 ? path.join('.') : '(root)'}: ${message}`);
+    this.name = 'TokenError';
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isTokenType(value: unknown): value is TokenType {
+  return typeof value === 'string' && (TOKEN_TYPES as readonly string[]).includes(value);
+}
+
+const NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+export function parseTokens(document: unknown): Token[] {
+  if (!isRecord(document)) {
+    throw new TokenError([], 'a token file must contain a JSON object');
+  }
+  const tokens: Token[] = [];
+  walk(document, [], undefined, tokens);
+  return tokens;
+}
+
+function walk(
+  node: Record<string, unknown>,
+  path: readonly string[],
+  inheritedType: TokenType | undefined,
+  out: Token[],
+): void {
+  const ownType = node.$type;
+  if (ownType !== undefined && !isTokenType(ownType)) {
+    throw new TokenError(path, `unsupported $type ${JSON.stringify(ownType)}`);
+  }
+  const type = ownType ?? inheritedType;
+
+  if ('$value' in node) {
+    if (type === undefined) {
+      throw new TokenError(path, 'token has no $type (set it on the token or a parent group)');
+    }
+    const description = node.$description;
+    out.push({
+      path,
+      type,
+      value: node.$value,
+      ...(typeof description === 'string' ? { description } : {}),
+    });
+    return;
+  }
+
+  for (const [key, child] of Object.entries(node)) {
+    if (key.startsWith('$')) {
+      continue;
+    }
+    if (!NAME_PATTERN.test(key)) {
+      throw new TokenError([...path, key], 'names must be lowercase words separated by "-"');
+    }
+    if (!isRecord(child)) {
+      throw new TokenError([...path, key], 'expected a group or a token object');
+    }
+    walk(child, [...path, key], type, out);
+  }
+}
+```
+
+**`tools/figma-tokens/src/render.ts`:**
+
+```ts
+import { TokenError, type Token } from './parse.js';
+
+export interface Theme {
+  readonly name: string;
+  readonly tokens: readonly Token[];
+}
+
+export interface TokenSet {
+  /** Tokens that are the same in every theme (type, spacing, radii, motion). */
+  readonly base: readonly Token[];
+  /** One entry per theme. The first theme is the default. */
+  readonly themes: readonly Theme[];
+}
+
+const HEADER =
+  'Generated by @flowcanvas/figma-tokens from packages/tokens/source. Do not edit by hand: change the source and run `pnpm --filter @flowcanvas/tokens generate`.';
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+const REFERENCE = /^\{([a-z0-9-]+(?:\.[a-z0-9-]+)*)\}$/;
+
+export function cssVariableName(path: readonly string[]): string {
+  return `--${path.join('-')}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function reference(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const match = REFERENCE.exec(value);
+  return match?.[1];
+}
+
+function referenceToCss(target: string, known: ReadonlySet<string>, at: readonly string[]): string {
+  if (!known.has(target)) {
+    throw new TokenError(at, `reference {${target}} does not point to a token`);
+  }
+  return `var(${cssVariableName(target.split('.'))})`;
+}
+
+function formatMeasure(value: unknown, units: readonly string[], at: readonly string[]): string {
+  if (isRecord(value) && typeof value.value === 'number' && typeof value.unit === 'string') {
+    if (!units.includes(value.unit)) {
+      throw new TokenError(at, `unit must be one of ${units.join(', ')}`);
+    }
+    return `${String(value.value)}${value.unit}`;
+  }
+  throw new TokenError(at, `expected { "value": number, "unit": ${units.join(' | ')} }`);
+}
+
+function formatFontFamily(value: unknown, at: readonly string[]): string {
+  const families = Array.isArray(value) ? value : [value];
+  return families
+    .map((family) => {
+      if (typeof family !== 'string' || family.trim() === '') {
+        throw new TokenError(at, 'font family names must be non-empty strings');
+      }
+      return /\s/.test(family) ? `'${family}'` : family;
+    })
+    .join(', ');
+}
+
+/** Formats a single (non-composite) value as CSS. */
+function formatValue(
+  type: Token['type'],
+  value: unknown,
+  known: ReadonlySet<string>,
+  at: readonly string[],
+): string {
+  const target = reference(value);
+  if (target !== undefined) {
+    return referenceToCss(target, known, at);
+  }
+  switch (type) {
+    case 'color':
+      if (typeof value !== 'string' || !HEX_COLOR.test(value)) {
+        throw new TokenError(at, 'colors must be 6-digit hex values like #0B0C0E');
+      }
+      return value.toLowerCase();
+    case 'dimension':
+      return formatMeasure(value, ['px', 'rem'], at);
+    case 'duration':
+      return formatMeasure(value, ['ms', 's'], at);
+    case 'fontFamily':
+      return formatFontFamily(value, at);
+    case 'fontWeight':
+    case 'number':
+      if (typeof value !== 'number') {
+        throw new TokenError(at, `expected a number`);
+      }
+      return String(value);
+    case 'shadow': {
+      if (!isRecord(value)) {
+        throw new TokenError(at, 'expected a shadow object');
+      }
+      const parts = [
+        formatValue('dimension', value.offsetX, known, at),
+        formatValue('dimension', value.offsetY, known, at),
+        formatValue('dimension', value.blur, known, at),
+        formatValue('dimension', value.spread, known, at),
+      ];
+      const { color } = value;
+      // Shadow colours may carry alpha, so they're taken verbatim (e.g. rgba(0, 0, 0, 0.4)) unless they're a reference.
+      const colorCss =
+        reference(color) !== undefined
+          ? formatValue('color', color, known, at)
+          : typeof color === 'string'
+            ? color
+            : undefined;
+      if (colorCss === undefined) {
+        throw new TokenError(at, 'shadow color must be a string');
+      }
+      return [...parts, colorCss].join(' ');
+    }
+    case 'typography':
+      throw new TokenError(at, 'typography is a composite token');
+  }
+}
+
+const TYPOGRAPHY_PARTS: readonly (readonly [string, string, Token['type'] | 'lineHeight'])[] = [
+  ['fontFamily', 'font-family', 'fontFamily'],
+  ['fontSize', 'font-size', 'dimension'],
+  ['fontWeight', 'font-weight', 'fontWeight'],
+  ['lineHeight', 'line-height', 'lineHeight'],
+  ['letterSpacing', 'letter-spacing', 'dimension'],
+];
+
+/** Expands one token into CSS custom property declarations (typography becomes one per part). */
+export function declarations(token: Token, known: ReadonlySet<string>): [string, string][] {
+  if (token.type !== 'typography') {
+    return [[cssVariableName(token.path), formatValue(token.type, token.value, known, token.path)]];
+  }
+  const { value } = token;
+  if (!isRecord(value)) {
+    throw new TokenError(token.path, 'expected a typography object');
+  }
+  return TYPOGRAPHY_PARTS.map(([key, suffix, partType]) => {
+    const part = value[key];
+    if (part === undefined) {
+      throw new TokenError(token.path, `typography is missing ${key}`);
+    }
+    const css =
+      partType === 'lineHeight'
+        ? typeof part === 'number'
+          ? String(part)
+          : formatValue('dimension', part, known, token.path)
+        : formatValue(partType, part, known, token.path);
+    return [cssVariableName([...token.path, suffix]), css];
+  });
+}
+
+function checkThemes(set: TokenSet): void {
+  const [first, ...rest] = set.themes;
+  if (first === undefined) {
+    throw new TokenError([], 'at least one theme is required');
+  }
+  const names = (theme: Theme): string[] =>
+    theme.tokens.map((token) => token.path.join('.')).sort();
+  const expected = names(first).join('\n');
+  for (const theme of rest) {
+    if (names(theme).join('\n') !== expected) {
+      throw new TokenError(
+        [],
+        `theme "${theme.name}" must define exactly the same tokens as "${first.name}"`,
+      );
+    }
+  }
+}
+
+function knownNames(set: TokenSet): Set<string> {
+  const all = [...set.base, ...(set.themes[0]?.tokens ?? [])];
+  const known = new Set<string>();
+  for (const token of all) {
+    const name = token.path.join('.');
+    if (known.has(name)) {
+      throw new TokenError(token.path, 'defined more than once');
+    }
+    known.add(name);
+  }
+  return known;
+}
+
+function block(
+  selector: string,
+  lines: readonly [string, string][],
+  extra: readonly string[] = [],
+): string {
+  const body = [...extra, ...lines.map(([name, value]) => `${name}: ${value};`)]
+    .map((line) => `  ${line}`)
+    .join('\n');
+  return `${selector} {\n${body}\n}\n`;
+}
+
+/** Different token paths can flatten to the same CSS name (`a.b-c` and `a-b.c`); refuse that. */
+function checkUniqueCssNames(lines: readonly [string, string][]): void {
+  const seen = new Set<string>();
+  for (const [name] of lines) {
+    if (seen.has(name)) {
+      throw new TokenError([], `two tokens produce the same CSS variable ${name}`);
+    }
+    seen.add(name);
+  }
+}
+
+export function renderCss(set: TokenSet): string {
+  checkThemes(set);
+  const known = knownNames(set);
+  const base = set.base.flatMap((token) => declarations(token, known));
+  checkUniqueCssNames([
+    ...base,
+    ...(set.themes[0]?.tokens ?? []).flatMap((token) => declarations(token, known)),
+  ]);
+  const parts = [`/* ${HEADER} */\n`, block(':root', base)];
+  set.themes.forEach((theme, index) => {
+    const lines = theme.tokens.flatMap((token) => declarations(token, known));
+    const selector =
+      index === 0 ? `:root,\n[data-theme='${theme.name}']` : `[data-theme='${theme.name}']`;
+    parts.push(
+      block(selector, lines, [`color-scheme: ${theme.name === 'light' ? 'light' : 'dark'};`]),
+    );
+  });
+  return parts.join('\n');
+}
+
+interface Tree {
+  [key: string]: Tree | string;
+}
+
+function insert(tree: Tree, path: readonly string[], leaf: string): void {
+  let node = tree;
+  path.forEach((key, index) => {
+    if (index === path.length - 1) {
+      node[key] = leaf;
+      return;
+    }
+    const next = node[key];
+    if (typeof next === 'string') {
+      throw new TokenError(path, 'a token cannot also be a group');
+    }
+    node = next ?? (node[key] = {});
+  });
+}
+
+export function renderTs(set: TokenSet): string {
+  checkThemes(set);
+  const known = knownNames(set);
+  const vars: Tree = {};
+  for (const token of [...set.base, ...(set.themes[0]?.tokens ?? [])]) {
+    for (const [name] of declarations(token, known)) {
+      insert(vars, keyPath(token, name), `var(${name})`);
+    }
+  }
+  const themes: Record<string, Record<string, string>> = {};
+  for (const theme of set.themes) {
+    const values: Record<string, string> = {};
+    for (const token of theme.tokens) {
+      for (const [name, value] of declarations(token, known)) {
+        values[name] = value;
+      }
+    }
+    themes[theme.name] = values;
+  }
+  const themeNames = set.themes.map((theme) => `'${theme.name}'`).join(' | ');
+  return [
+    `// ${HEADER}`,
+    '',
+    '/** CSS custom property references, e.g. `vars.color.surface.canvas` → `var(--color-surface-canvas)`. */',
+    `export const vars = ${JSON.stringify(vars, null, 2)} as const;`,
+    '',
+    '/** Resolved values per theme, for places that cannot read CSS variables (canvas, WebGL). */',
+    `export const themeValues = ${JSON.stringify(themes, null, 2)} as const;`,
+    '',
+    `export type ThemeName = ${themeNames};`,
+    '',
+  ].join('\n');
+}
+
+/** Object path for a declaration: the token path plus, for typography, the camelCase part name. */
+function keyPath(token: Token, cssName: string): string[] {
+  if (token.type !== 'typography') {
+    return [...token.path];
+  }
+  const suffix = cssName.slice(cssVariableName(token.path).length + 1);
+  const camel = suffix.replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase());
+  return [...token.path, camel];
+}
+```
+
+**`tools/figma-tokens/src/load.ts`:**
+
+```ts
+import { readFile } from 'node:fs/promises';
+import { parseTokens, TokenError } from './parse.js';
+import type { TokenSet } from './render.js';
+
+export interface TokenSources {
+  /** JSON file with tokens shared by every theme. */
+  readonly base: string;
+  /** Theme name → JSON file. The first entry is the default theme. */
+  readonly themes: readonly (readonly [name: string, file: string])[];
+}
+
+async function readJson(file: string): Promise<unknown> {
+  const text = await readFile(file, 'utf8');
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (error) {
+    throw new TokenError([], `${file} is not valid JSON: ${(error as Error).message}`);
+  }
+}
+
+export async function loadTokenSet(sources: TokenSources): Promise<TokenSet> {
+  const base = parseTokens(await readJson(sources.base));
+  const themes = await Promise.all(
+    sources.themes.map(async ([name, file]) => ({
+      name,
+      tokens: parseTokens(await readJson(file)),
+    })),
+  );
+  return { base, themes };
+}
+```
+
+**`tools/figma-tokens/src/cli.ts`:**
+
+```ts
+#!/usr/bin/env node
+// Usage:
+//   figma-tokens --base base.tokens.json --theme dark=color.dark.tokens.json --css out.css --ts out.ts [--check]
+// --check writes nothing and exits 1 if the outputs are out of date (for CI and tests).
+
+import { readFile, writeFile } from 'node:fs/promises';
+import { parseArgs } from 'node:util';
+import { loadTokenSet } from './load.js';
+import { renderCss, renderTs } from './render.js';
+
+const { values } = parseArgs({
+  options: {
+    base: { type: 'string' },
+    theme: { type: 'string', multiple: true },
+    css: { type: 'string' },
+    ts: { type: 'string' },
+    check: { type: 'boolean', default: false },
+  },
+});
+
+function fail(message: string): never {
+  process.stderr.write(`figma-tokens: ${message}\n`);
+  process.exit(1);
+}
+
+const { base, css, ts, check } = values;
+if (base === undefined || css === undefined || ts === undefined) {
+  fail('--base, --css and --ts are required');
+}
+const themes = (values.theme ?? []).map((entry): [string, string] => {
+  const [name, file] = entry.split('=');
+  if (name === undefined || file === undefined || name === '' || file === '') {
+    fail(`--theme must look like name=path, got "${entry}"`);
+  }
+  return [name, file];
+});
+
+try {
+  const set = await loadTokenSet({ base, themes });
+  const outputs: [string, string][] = [
+    [css, renderCss(set)],
+    [ts, renderTs(set)],
+  ];
+  if (check) {
+    const stale: string[] = [];
+    for (const [file, content] of outputs) {
+      const current = await readFile(file, 'utf8').catch(() => '');
+      if (current !== content) {
+        stale.push(file);
+      }
+    }
+    if (stale.length > 0) {
+      fail(`out of date: ${stale.join(', ')}. Run the generate script.`);
+    }
+    process.stdout.write('figma-tokens: generated files are up to date\n');
+  } else {
+    await Promise.all(outputs.map(([file, content]) => writeFile(file, content)));
+    process.stdout.write(`figma-tokens: wrote ${outputs.map(([file]) => file).join(', ')}\n`);
+  }
+} catch (error) {
+  fail((error as Error).message);
+}
+```
+
+**`tools/figma-tokens/src/index.ts`:**
+
+```ts
+export { parseTokens, TokenError, type Token, type TokenType } from './parse.js';
+export {
+  cssVariableName,
+  declarations,
+  renderCss,
+  renderTs,
+  type Theme,
+  type TokenSet,
+} from './render.js';
+export { loadTokenSet, type TokenSources } from './load.js';
+```
+
+**`packages/tokens/src/index.ts`:**
+
+```ts
+export { themeValues, vars, type ThemeName } from './tokens.generated.js';
+```
+
+**`packages/tokens/src/tokens.test.ts`:**
+
+```ts
+import { readFile } from 'node:fs/promises';
+import { loadTokenSet, renderCss, renderTs } from '@flowcanvas/figma-tokens';
+import { describe, expect, it } from 'vitest';
+import { themeValues } from './index.js';
+
+const root = new URL('../', import.meta.url);
+const file = (path: string) => new URL(path, root);
+
+describe('generated token files', () => {
+  it('are up to date with the token source (never edited by hand)', async () => {
+    const set = await loadTokenSet({
+      base: file('source/base.tokens.json').pathname,
+      themes: [['dark', file('source/color.dark.tokens.json').pathname]],
+    });
+    expect(await readFile(file('css/tokens.css'), 'utf8')).toBe(renderCss(set));
+    expect(await readFile(file('src/tokens.generated.ts'), 'utf8')).toBe(renderTs(set));
+  });
+});
+
+// WCAG 2.x relative luminance and contrast ratio.
+function luminance(hex: string): number {
+  const channels = [1, 3, 5].map((start) => Number.parseInt(hex.slice(start, start + 2), 16) / 255);
+  const [r = 0, g = 0, b = 0] = channels.map((c) =>
+    c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4,
+  );
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrast(a: string, b: string): number {
+  const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return ((high ?? 0) + 0.05) / ((low ?? 0) + 0.05);
+}
+
+describe.each(Object.entries(themeValues))('%s theme contrast (WCAG AA)', (_theme, values) => {
+  const value = (name: string): string => {
+    const found = (values as Record<string, string>)[`--color-${name}`];
+    if (found === undefined) {
+      throw new Error(`missing token --color-${name}`);
+    }
+    return found;
+  };
+
+  it.each([
+    ['text-primary', 'surface-canvas'],
+    ['text-primary', 'surface-raised'],
+    ['text-secondary', 'surface-panel'],
+    ['text-on-accent', 'surface-inverse'],
+    ['accent-text', 'surface-panel'],
+    ['state-added-text', 'state-added-tint'],
+    ['state-modified-text', 'state-modified-tint'],
+    ['state-removed-text', 'state-removed-tint'],
+    ['state-affected-text', 'state-affected-tint'],
+    ['state-scope-text', 'state-scope-tint'],
+  ])('text %s on %s is at least 4.5:1', (fg, bg) => {
+    expect(contrast(value(fg), value(bg))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it.each([
+    ['text-tertiary', 'surface-raised'],
+    ['edge-default', 'surface-canvas'],
+    ['accent-solid', 'surface-raised'],
+    ['state-removed-solid', 'surface-canvas'],
+  ])('non-text %s on %s is at least 3:1', (fg, bg) => {
+    expect(contrast(value(fg), value(bg))).toBeGreaterThanOrEqual(3);
+  });
+});
+```
+
+**`tools/figma-tokens/src/parse.test.ts` and `render.test.ts`:** 18 tests covering:
+- type inheritance and override
+- missing or unsupported `$type`
+- name rules, and non-object documents
+- `:root` and theme blocks, and later-theme selectors
+- typography expansion with references
+- font-family quoting, shadows
+- invalid hex, invalid units, unresolved references
+- mismatched themes, duplicate tokens, CSS-name clashes
+- TS output
+
+Full code is in the repository.
+
+**`packages/tokens/source/*.tokens.json`:** see the repository. `base.tokens.json` (fonts, 10 text styles, space 2–32, radius control 4 / node 6 / popover 8 / frame 10, sizes, borders, durations 80/160/240/300/1200 ms, ghost opacity 0.4, popover shadow) and `color.dark.tokens.json` (40 colours from the `HEX` map).
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm exec turbo run build --filter=@flowcanvas/figma-tokens   # the generator must be built before it can run
+pnpm --filter @flowcanvas/tokens generate                     # "wrote css/tokens.css, src/tokens.generated.ts"
+pnpm --filter @flowcanvas/tokens generate:check               # "generated files are up to date"
+pnpm format && pnpm lint && pnpm typecheck && pnpm test && pnpm build
+```
+
+**Run and check it:**
+1. Open `packages/tokens/css/tokens.css`: `:root` has `--font-family-sans`, `--text-body-font-size: 13px`, `--radius-node: 6px`…; the dark block has `--color-surface-canvas: #0b0c0e` and the state colours.
+2. `pnpm --filter @flowcanvas/tokens test`: 15 passed (1 sync + 14 contrast).
+3. **Prove the sync guard:** change any value in `css/tokens.css` by hand and run the test. "are up to date with the token source" fails, and `generate:check` prints "out of date". Undo with `generate`.
+4. **Prove the contrast guard:** set `color.text.secondary` to `#3A3F47` in the dark source, run `generate`, then test. "text-secondary on surface-panel is at least 4.5:1" fails. Restore it.
+5. **One change, everywhere:** change `radius.node` to 8 px in the source, run `generate`, and see both the CSS and `themeValues` update. Restore it.
+
+**Gotchas:**
+- **`figma-tokens: command not found`:** the generator isn't built yet. Build `@flowcanvas/figma-tokens` first (Turbo does this automatically for `build`/`test`).
+- **Never edit `css/tokens.css` or `src/tokens.generated.ts`.** Edit `source/*.tokens.json` and regenerate.
+- **Token names must be lowercase-with-dashes** (`on-accent`, not `onAccent`). The generator rejects the rest with the exact path.
+- **Shadow colours are taken verbatim** (they can have alpha, like `rgba(0, 0, 0, 0.4)`); every other colour must be 6-digit hex or a reference.
+
+**Commit:** `feat(tokens): add DTCG token source, generator and generated Graphite tokens`
