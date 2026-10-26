@@ -13,6 +13,7 @@
     "build": "FLOWCANVAS_COMMIT=$(git rev-parse HEAD) turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:e2e": "FLOWCANVAS_COMMIT=$(git rev-parse HEAD) turbo run test:e2e",
     "lint": "turbo run lint",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
