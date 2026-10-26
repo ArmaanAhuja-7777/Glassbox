@@ -51,7 +51,7 @@ pnpm format:check
 | 3 | Shared TypeScript config and `packages/graph-model` with its first test | done · `f7b99cd` · Claude |
 | 4 | Turborepo tasks and caching | done · `5a010d9` · Claude |
 | 5 | ESLint and Prettier | done · `d88f916` · Claude |
-| 6 | `apps/web`: Vite + React, version and commit injected at build time, test | *planned* |
+| 6 | `apps/web`: Vite + React, version and commit injected at build time, test | **next** |
 | 7 | `services/control-plane`: Fastify `/health`, tests, log redaction | *planned* |
 | 8 | Minimal `workspace/agent` and `packages/engine` | *planned* |
 | 9 | Playwright smoke test | *planned* |
@@ -653,3 +653,295 @@ export function run(): void {
 - Lint errors are fixed in code. Disable a rule only with a comment that explains why (`// eslint-disable-next-line rule-name -- reason`).
 
 **Commit:** `chore: add ESLint (type-aware) and Prettier`
+
+### Step 6 — The web app (`apps/web`)
+
+**Goal:** a React app, built with Vite, that shows "Flowcanvas", the version and the exact commit it was built from. It runs locally with `pnpm dev` and has component tests. This is the page staging and previews will serve.
+
+**Expected outcome:** `pnpm dev` and open http://localhost:5173: a plain page with the heading **Flowcanvas** and a line like **0.1.0 · d88f916** (your current commit). It's unstyled on purpose; phase 1a applies the Graphite design.
+
+**Concepts:**
+- **How Vite works.**
+  - In dev, Vite doesn't bundle. The browser loads `index.html`, which imports `/src/main.tsx`, and Vite transforms each file on request (TS/JSX → JS) and serves it as a native ES module. That is why startup is instant and edits hot-reload (HMR) in milliseconds.
+  - `vite build` bundles everything with Rolldown (Vite 8's Rust bundler) into `dist/`, with hashed file names for caching.
+  - `vite preview` serves that `dist/` locally, so you can check the real production output.
+  - Docs: https://vite.dev/guide/why.html and https://vite.dev/guide/
+- **`index.html` is the entry point.** It sits at the package root (not in `public/`). Vite follows its `<script type="module">` to find the app.
+- **`define`: compile-time constants.** `define: { __FLOWCANVAS_BUILD__: JSON.stringify(buildInfo) }` makes Vite replace every `__FLOWCANVAS_BUILD__` in the source with that literal object at build time. Nothing is fetched at runtime; the version is baked into the bundle. The `declare const` in `vite-env.d.ts` tells TypeScript the global exists and what type it has. Docs: https://vite.dev/config/shared-options.html#define
+- **Where the commit comes from.** `vite.config.ts` uses `FLOWCANVAS_COMMIT` if set (CI sets it), otherwise `git rev-parse HEAD`, otherwise an empty string. The shared formatter then shows "unknown commit": we never invent one.
+- **Turbo's strict env mode and the cache.** Turbo 2 passes a task only the env vars it declares, and hashes them. `@flowcanvas/web#build` declares `env: ["FLOWCANVAS_COMMIT"]`, and the root `build` script sets it to the current commit (`FLOWCANVAS_COMMIT=$(git rev-parse HEAD) turbo run build`; pnpm runs scripts with `sh`, so `$(…)` works). A new commit therefore means a new hash and a rebuild of `web` only, while `graph-model` stays cached. Without this, a cached bundle could show an **old** commit, which is exactly the "stale value shown as current" mistake the product forbids. Docs: https://turborepo.dev/docs/crafting-your-repository/using-environment-variables
+- **Package-specific task (`@flowcanvas/web#build`).** It overrides the generic `build` rule for one package only.
+- **The `dev` task.** `persistent: true` (it never exits) and `cache: false` (a running server can't be cached). It still depends on `^build`, so `graph-model` is compiled before Vite starts.
+- **`moduleResolution: bundler`.** The web app is bundled by Vite, not run by Node, so it uses bundler resolution: extensionless relative imports (`./App`) are fine here, unlike the `.js` rule in Node packages. `jsx: react-jsx` uses React's automatic JSX runtime (no `import React` needed). `lib` adds `dom` types. Docs: https://www.typescriptlang.org/docs/handbook/modules/reference.html#bundler
+- **`types: ["vite/client", "node"]`.** `vite/client` types things like `import.meta.env` and asset imports. `node` is there for `vite.config.ts`, which runs in Node. Trade-off: browser code could type-check a Node-only API like `process`. We accept that for now with one tsconfig, rather than splitting `tsconfig.app.json` and `tsconfig.node.json`, because typescript-eslint's project service picks up a single `tsconfig.json` cleanly.
+- **Component tests with Testing Library.**
+  - Vitest runs the test in **jsdom**, a simulated browser DOM in Node (`test.environment: 'jsdom'`).
+  - `render()` mounts the component. `screen.getByRole('heading', { name: 'Flowcanvas' })` finds it the way a user or screen reader would, and **throws** if it isn't there, so the lookup itself is the assertion.
+  - `cleanup` after each test unmounts components, so tests don't leak into each other (automatic only when Vitest globals are on; we keep imports explicit).
+  - Docs: https://testing-library.com/docs/react-testing-library/intro/ and https://testing-library.com/docs/queries/about#priority
+- **Props over globals for testability.** `App` receives `buildInfo` as a prop. Only `main.tsx` reads the global `__FLOWCANVAS_BUILD__`. Tests pass a fixed value, so they don't depend on whichever commit you're on.
+- **Fail loudly at startup.** If `#root` is missing, `main.tsx` throws a clear error instead of rendering nothing silently.
+
+**`pnpm-workspace.yaml`:** the catalog becomes:
+
+```yaml
+catalog:
+  '@eslint/js': 10.0.1
+  '@testing-library/dom': 10.4.2
+  '@testing-library/react': 16.3.3
+  '@types/node': 24.19.2
+  '@types/react': 19.3.0
+  '@types/react-dom': 19.3.0
+  '@vitejs/plugin-react': 6.1.2
+  eslint: 10.13.0
+  eslint-config-prettier: 10.1.8
+  jsdom: 30.1.3
+  prettier: 3.9.10
+  react: 19.3.1
+  react-dom: 19.3.1
+  turbo: 2.11.10
+  typescript: 6.0.3
+  typescript-eslint: 8.72.0
+  vite: 8.3.5
+  vitest: 5.0.5
+```
+
+`@types/node` is pinned to the 24 line to match the Node version we target, not your local 26.
+
+**Root `package.json`:** scripts become:
+
+```json
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "FLOWCANVAS_COMMIT=$(git rev-parse HEAD) turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+```
+
+**`turbo.json`:** add two tasks:
+
+```json
+    "@flowcanvas/web#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "env": ["FLOWCANVAS_COMMIT"]
+    },
+    "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    }
+```
+
+**`apps/web/package.json`:**
+
+```json
+{
+  "name": "@flowcanvas/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@flowcanvas/graph-model": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "eslint": "catalog:",
+    "jsdom": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}
+```
+
+`"@flowcanvas/graph-model": "workspace:*"` links the local package; `*` means "whatever version is in the workspace".
+
+**`apps/web/tsconfig.json`:**
+
+```json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2024", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client", "node"],
+    "noEmit": true
+  },
+  "include": ["src", "vite.config.ts"]
+}
+```
+
+**`apps/web/index.html`:**
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flowcanvas</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+```
+
+**`apps/web/vite.config.ts`:**
+
+```ts
+/// <reference types="vitest/config" />
+import { execFileSync } from 'node:child_process';
+import type { BuildInfo } from '@flowcanvas/graph-model';
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
+import rootPackage from '../../package.json' with { type: 'json' };
+
+function resolveCommit(): string {
+  const fromEnv = process.env.FLOWCANVAS_COMMIT?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  } catch {
+    return '';
+  }
+}
+
+const buildInfo: BuildInfo = { version: rootPackage.version, commit: resolveCommit() };
+
+export default defineConfig({
+  plugins: [react()],
+  define: {
+    __FLOWCANVAS_BUILD__: JSON.stringify(buildInfo),
+  },
+  test: {
+    environment: 'jsdom',
+  },
+});
+```
+
+- `/// <reference types="vitest/config" />` lets the same file hold Vitest's `test` options with types.
+- The version comes from the **root** `package.json`: the product version, one source of truth.
+- `execFileSync('git', [...])` runs git without a shell, so there's no shell-injection surface.
+- If git isn't available (for example, a Docker build without `.git`), the commit is empty and the page says "unknown commit".
+
+**`apps/web/src/vite-env.d.ts`:**
+
+```ts
+/// <reference types="vite/client" />
+
+declare const __FLOWCANVAS_BUILD__: import('@flowcanvas/graph-model').BuildInfo;
+```
+
+**`apps/web/src/App.tsx`:**
+
+```tsx
+import { formatBuildInfo, type BuildInfo } from '@flowcanvas/graph-model';
+
+interface AppProps {
+  readonly buildInfo: BuildInfo;
+}
+
+export function App({ buildInfo }: AppProps) {
+  return (
+    <main>
+      <h1>Flowcanvas</h1>
+      <p>{formatBuildInfo(buildInfo)}</p>
+    </main>
+  );
+}
+```
+
+**`apps/web/src/main.tsx`:**
+
+```tsx
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { App } from './App';
+
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error('Flowcanvas could not start: the #root element is missing from index.html');
+}
+
+createRoot(rootElement).render(
+  <StrictMode>
+    <App buildInfo={__FLOWCANVAS_BUILD__} />
+  </StrictMode>,
+);
+```
+
+`StrictMode` runs extra development-only checks (for example, double-invoking effects to expose missing cleanups). It has no effect in production.
+
+**`apps/web/src/App.test.tsx`:**
+
+```tsx
+import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { App } from './App';
+
+afterEach(cleanup);
+
+describe('App', () => {
+  it('shows the product name', () => {
+    render(<App buildInfo={{ version: '0.1.0', commit: '7e59ec1a2b3c' }} />);
+    expect(screen.getByRole('heading', { name: 'Flowcanvas' })).toBeTruthy();
+  });
+
+  it('shows the version and short commit it was built from', () => {
+    render(<App buildInfo={{ version: '0.1.0', commit: '7e59ec1a2b3c' }} />);
+    expect(screen.getByText('0.1.0 · 7e59ec1')).toBeTruthy();
+  });
+});
+```
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm format
+pnpm lint && pnpm typecheck && pnpm test   # 3 tasks each; tests: graph-model 3 passed, web 2 passed
+pnpm build                                 # web: dist/index.html + dist/assets/index-<hash>.js (~220 kB, ~69 kB gzip)
+pnpm dev                                   # open http://localhost:5173
+pnpm --filter @flowcanvas/web preview      # serves the production build at http://localhost:4173
+```
+
+**Run and check it:**
+1. `pnpm dev`, open http://localhost:5173. You see **Flowcanvas** and **0.1.0 · <your short commit>** (compare with `git rev-parse --short HEAD`).
+2. Edit the `<h1>` text in `App.tsx` and save. The browser updates instantly without a reload (HMR). Revert.
+3. `pnpm build`, then `pnpm build` again: the second is "FULL TURBO". Make a commit and build again: only `@flowcanvas/web#build` re-runs, and `dist` now contains the new commit.
+4. `pnpm --filter @flowcanvas/web preview`, open http://localhost:4173: the production build, same text.
+
+**Gotchas:**
+- **Blank page in the browser?** Open the devtools console. An error such as "#root element is missing" points straight at `index.html`.
+- **`__FLOWCANVAS_BUILD__ is not defined` in the browser** means you ran a build that bypassed `vite.config.ts`. Always build through Vite.
+- **Port 5173 already in use?** Vite picks the next free port and prints it. Read the terminal.
+- **Running `vite build` directly in `apps/web`** skips the root script, so `FLOWCANVAS_COMMIT` isn't set. The config falls back to `git rev-parse`, so the commit is still right, but Turbo's cache wasn't involved.
+- **Forgetting `afterEach(cleanup)`** makes the second test see two headings and fail with "Found multiple elements".
+
+**Commit:** `feat(web): add Vite React app showing version and commit`
