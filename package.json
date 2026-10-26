@@ -25,6 +25,7 @@
     "prettier": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:",
-    "typescript-eslint": "catalog:"
+    "typescript-eslint": "catalog:",
+    "wrangler": "catalog:"
   }
 }
