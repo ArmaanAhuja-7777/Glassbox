@@ -38,7 +38,7 @@ pnpm format:check
 | Shared package logic | `pnpm test` | `@flowcanvas/graph-model`: 3 tests passed |
 | Web app runs locally | `pnpm dev` → http://localhost:5173 | heading **Flowcanvas** and `0.1.0 · <short commit>` matching `git rev-parse --short HEAD`; `pnpm test` → web: 2 passed |
 | Control plane runs locally | `pnpm dev`, then `curl http://127.0.0.1:8080/health` | `{"status":"ok","version":"0.1.0","commit":"<git rev-parse HEAD>"}`; `pnpm test` → control-plane: 3 passed (incl. secret-redaction canary) |
-| End-to-end test | step 9 | *pending* |
+| End-to-end test | `pnpm test:e2e` (first time: `pnpm --filter @flowcanvas/e2e exec playwright install chromium`) | real Chromium opens the production build: `1 passed`; `E2E_EXPECTED_COMMIT=deadbeef00 pnpm test:e2e` must fail |
 | PR preview URL | step 11 | *pending* |
 | Staging and `/health` | step 12 | *pending* |
 
@@ -54,7 +54,7 @@ pnpm format:check
 | 6 | `apps/web`: Vite + React, version and commit injected at build time, test | done · `3e33324` · Claude |
 | 7 | `services/control-plane`: Fastify `/health`, tests, log redaction | done · `f03f422` · Claude |
 | 8 | Minimal `workspace/agent` and `packages/engine` | done · `c30c1c0` · Claude |
-| 9 | Playwright smoke test | *planned* |
+| 9 | Playwright smoke test | **next** |
 | 10 | GitHub Actions CI, open the PR, branch protection | *planned* |
 | 11 | Cloudflare Pages: account, previews per PR, URL comment, smoke test on preview | *planned* |
 | 12 | Fly.io: Dockerfile, `fly.toml`, deploy on merge, staging deploy | *planned* |
@@ -1324,3 +1324,187 @@ pnpm ls -r --depth -1                                    # 6 projects
 - `"files": ["dist"]` was expanded to three lines here because that's how Prettier formats `package.json`. Writing it on one line just gets reformatted by `pnpm format`.
 
 **Commit:** `feat: add minimal engine and workspace-agent packages`
+
+### Step 9 — Playwright end-to-end smoke test (`e2e/`)
+
+**Goal:** the first test that opens a **real browser** (Chromium), loads the production build of the web app, and checks what a person would see. The same test later runs against the PR preview URL (step 11) and staging (step 12). This test is how "the staging URL loads the app and shows its version" gets *proved*, not just claimed.
+
+**Expected outcome:** `pnpm test:e2e` builds the web app, serves it, opens Chromium, and prints `✓ … shows the product name and the version it was built from` with `1 passed`. `pnpm --filter @flowcanvas/e2e exec playwright show-report` opens an HTML report of the run.
+
+**Concepts:**
+- **Unit vs component vs end-to-end tests.**
+  - Unit (graph-model) tests one function.
+  - Component (web, Testing Library + jsdom) renders React in a *simulated* DOM.
+  - End-to-end (Playwright) drives a *real* browser against a *real* server: real bundling, real HTML, real JavaScript execution.
+
+  E2E is the slowest and most realistic, so we keep few of them and make each count. Docs: https://playwright.dev/docs/intro
+- **Locators and auto-waiting.**
+  - `page.getByRole('heading', { name: 'Flowcanvas' })` describes *what* to find, and Playwright re-checks it until it's true or a timeout (5 s by default) runs out.
+  - So `await expect(locator).toBeVisible()` waits for the app to render. No `sleep`, and no flaky timing.
+  - Docs: https://playwright.dev/docs/locators and https://playwright.dev/docs/test-assertions
+- **`webServer`.** With no external URL, Playwright starts `vite preview` on `127.0.0.1:4173`, waits until it answers, runs the tests, then stops it. `reuseExistingServer` (locally only) reuses a preview you already have running. Docs: https://playwright.dev/docs/test-webserver
+- **One test, any environment.**
+  - `E2E_BASE_URL` points the same test at a deployed copy (PR preview, staging); then no local server starts.
+  - `E2E_EXPECTED_COMMIT` makes the test demand the **exact** commit. In CI that's the commit being tested, so a preview showing a stale build fails.
+  - Without it, the test accepts any 7-character hex commit, which still rejects "unknown commit".
+- **Catching JavaScript errors.** `page.on('pageerror', …)` records uncaught exceptions in the page. The test asserts there were none, so a page can't pass by rendering text while throwing in the background.
+- **Traces, videos and reports.**
+  - `trace: 'retain-on-failure'` and `video: 'retain-on-failure'` keep a full recording (DOM snapshots, network, console) and a video of any **failed** test in `e2e/test-results/`.
+  - The HTML report goes to `e2e/playwright-report/`. Both are git-ignored.
+  - Phase 1b switches videos on for every run (the "recorded run" requirement).
+  - Docs: https://playwright.dev/docs/trace-viewer
+- **CI behaviour.** With `CI` set: `forbidOnly` (a forgotten `test.only` fails the run instead of silently skipping the others), 2 retries (absorbs rare network flakiness; repeated failures still fail), and the `github` reporter (annotates failures on the PR).
+- **Browsers are separate downloads.** `@playwright/test` is the library; Chromium itself is installed with `playwright install chromium` into `~/.cache/ms-playwright`. **On CachyOS/Arch:** Playwright prints "your OS is not officially supported … downloading fallback build for ubuntu24.04-x64". That build runs fine here (verified). On CI's Ubuntu runner it's officially supported.
+- **Wiring into Turbo.**
+  - `e2e` lists `@flowcanvas/web` as a dev dependency, so `dependsOn: ["^build"]` builds the web app (and `graph-model`) first.
+  - `cache: false`, because the result depends on a live server and browser, not just files.
+  - The task declares `E2E_BASE_URL`, `E2E_EXPECTED_COMMIT` and `CI`, because Turbo's strict env mode passes only declared vars.
+  - E2E has its own root script, `pnpm test:e2e`, and is **not** part of `pnpm test`, keeping the fast unit loop fast.
+
+**`pnpm-workspace.yaml`:** add to the catalog:
+
+```yaml
+  '@playwright/test': 1.64.1
+```
+
+**Root `package.json`:** add after `"test"`:
+
+```json
+    "test:e2e": "FLOWCANVAS_COMMIT=$(git rev-parse HEAD) turbo run test:e2e",
+```
+
+`FLOWCANVAS_COMMIT` is set for the same reason as in `build`: the web build that the test serves must carry the current commit, and the Turbo hash must change with it.
+
+**`turbo.json`:** add the task:
+
+```json
+    "test:e2e": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "env": ["E2E_BASE_URL", "E2E_EXPECTED_COMMIT", "CI"]
+    }
+```
+
+**`e2e/package.json`:**
+
+```json
+{
+  "name": "@flowcanvas/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@flowcanvas/web": "workspace:*",
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}
+```
+
+**`e2e/tsconfig.json`:**
+
+```json
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["tests", "playwright.config.ts"]
+}
+```
+
+`e2e` sits one level below the root, so it's `../tsconfig.base.json`, not `../../`.
+
+**`e2e/playwright.config.ts`:**
+
+```ts
+import { defineConfig, devices } from '@playwright/test';
+
+// Point the tests at any deployed copy (PR preview, staging) with E2E_BASE_URL.
+// Without it, Playwright serves the local production build of apps/web itself.
+const externalBaseUrl = process.env.E2E_BASE_URL;
+const localPreviewUrl = 'http://127.0.0.1:4173';
+const isCi = Boolean(process.env.CI);
+
+export default defineConfig({
+  testDir: './tests',
+  forbidOnly: isCi,
+  retries: isCi ? 2 : 0,
+  reporter: isCi
+    ? [['github'], ['html', { open: 'never' }]]
+    : [['list'], ['html', { open: 'never' }]],
+  use: {
+    baseURL: externalBaseUrl ?? localPreviewUrl,
+    trace: 'retain-on-failure',
+    video: 'retain-on-failure',
+  },
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  ...(externalBaseUrl
+    ? {}
+    : {
+        webServer: {
+          command:
+            'pnpm --filter @flowcanvas/web exec vite preview --host 127.0.0.1 --port 4173 --strictPort',
+          url: localPreviewUrl,
+          reuseExistingServer: !isCi,
+          timeout: 30_000,
+        },
+      }),
+});
+```
+
+**`e2e/tests/smoke.spec.ts`:**
+
+```ts
+import { expect, test } from '@playwright/test';
+
+test('shows the product name and the version it was built from', async ({ page }) => {
+  const pageErrors: Error[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error));
+
+  await page.goto('/');
+
+  await expect(page).toHaveTitle('Flowcanvas');
+  await expect(page.getByRole('heading', { name: 'Flowcanvas' })).toBeVisible();
+
+  const expectedCommit = process.env.E2E_EXPECTED_COMMIT?.slice(0, 7);
+  const buildLine = expectedCommit ? `0.1.0 · ${expectedCommit}` : /^0\.1\.0 · [0-9a-f]{7}$/;
+  await expect(page.getByText(buildLine)).toBeVisible();
+
+  expect(pageErrors).toEqual([]);
+});
+```
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm --filter @flowcanvas/e2e exec playwright install chromium   # once per machine; ~150 MB to ~/.cache/ms-playwright
+pnpm format
+pnpm lint && pnpm typecheck                                      # now 8 tasks each (e2e lint/typecheck depend on the web build)
+pnpm test:e2e                                                    # builds web, serves it, runs Chromium: 1 passed
+```
+
+**Run and check it:**
+1. `pnpm test:e2e` prints `✓ 1 [chromium] › tests/smoke.spec.ts › shows the product name and the version it was built from` and `1 passed`.
+2. Demand an exact commit: `E2E_EXPECTED_COMMIT=(git rev-parse HEAD) pnpm test:e2e` passes (fish syntax; in bash use `$(…)`).
+3. **Prove it can fail:** `E2E_EXPECTED_COMMIT=deadbeef00 pnpm test:e2e` fails after ~5 s with `waiting for getByText('0.1.0 · deadbee')`. Then open `e2e/test-results/` (a video and a trace of the failure) and `pnpm --filter @flowcanvas/e2e exec playwright show-report`.
+4. Against a running server: with `pnpm dev` running, `E2E_BASE_URL=http://localhost:5173 pnpm --filter @flowcanvas/e2e test:e2e` passes without starting its own server. This is exactly how it will test preview URLs.
+5. Watch it happen: add `--headed` (`pnpm --filter @flowcanvas/e2e exec playwright test --headed`) to see the browser window, or `--ui` for Playwright's interactive runner.
+
+**Gotchas:**
+- `Executable doesn't exist at ~/.cache/ms-playwright/...` means browsers aren't installed. Run the `playwright install chromium` command.
+- Port 4173 busy means another `vite preview` is running. Locally it's reused (`reuseExistingServer`). If it's a *different* app on 4173, stop it.
+- Never use fixed waits (`page.waitForTimeout`). Assert on what the user would see and let auto-waiting do its job.
+- A green unit suite with a red E2E usually means a wiring problem: the build, `define`, `index.html` or the server. Check the trace first.
+- Use `pnpm test:e2e` from the root for a correct build; running `playwright test` inside `e2e/` uses whatever `apps/web/dist` happens to exist.
+
+**Commit:** `test(e2e): add Playwright smoke test for version page`
