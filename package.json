@@ -9,7 +9,8 @@
     "node": ">=24.11"
   },
   "scripts": {
-    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "build": "FLOWCANVAS_COMMIT=$(git rev-parse HEAD) turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "lint": "turbo run lint",
