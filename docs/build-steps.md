@@ -1655,45 +1655,76 @@ gh pr checks --watch                    # follow both jobs live in the terminal
 pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e
 ```
 
-### Step 11 — Cloudflare Pages: a preview URL for every pull request
+### Step 11 — Cloudflare: a preview URL for every pull request
 
-**Goal:** the web app is deployed automatically by Cloudflare Pages. Every push to a PR branch gets its **own preview URL**, posted on the PR, and `main` becomes the **staging** site. This satisfies half of phase 1's Done-when. Because GitHub Actions is blocked on the account (`docs/upgrade-later.md` item 8), we use **Cloudflare's own Git integration**: Cloudflare watches the repo and builds on its servers, so it doesn't need Actions.
+**Goal:** the web app is deployed automatically by Cloudflare. Every push to a PR branch gets its **own preview URL**, posted on the PR, and `main` becomes the **staging** site. This satisfies half of phase 1's Done-when. GitHub Actions is blocked on the account (`docs/upgrade-later.md` item 8), so Cloudflare builds the repo itself (**Workers Builds**, Cloudflare's Git integration).
 
 **Expected outcome:**
-- On PR #1, a **Cloudflare Pages** comment and check appear with a preview link such as `https://<hash>.flowcanvas.pages.dev`, plus a stable branch alias `https://phase-1-project-skeleton.flowcanvas.pages.dev`.
-- Opening it shows **Flowcanvas** and `0.1.0 · <PR head commit>`.
-- After merging to `main`, `https://flowcanvas.pages.dev` (staging) shows the merge commit.
-- The Playwright smoke test passes against the preview URL from your laptop.
+- On PR #1, a Cloudflare check or comment appears with a preview link on `*.workers.dev`.
+- It shows **Flowcanvas** and `0.1.0 · <PR head commit>`, with the security headers.
+- After merging to `main`, the production URL `https://flowcanvas.<your-subdomain>.workers.dev` is staging.
+- The Playwright smoke test passes against the preview from your laptop.
 
 **Concepts:**
-- **Static hosting on a CDN.** Our web app builds to plain files (`index.html` + one JS bundle). Cloudflare Pages copies them to its global network, so there's no server of ours to run. The free plan includes unlimited static requests and 500 builds a month. Docs: https://developers.cloudflare.com/pages/
-- **Git integration vs direct upload.**
-  - *Git integration*: Cloudflare is authorised on the GitHub repo, clones it on every push, runs our build command, and posts the result back to GitHub as a commit status and a PR comment.
-  - *Direct upload*: our own CI builds and uploads with Wrangler.
+- **Workers serving static assets.**
+  - Cloudflare's dashboard now creates projects as **Workers**. A Worker can serve a folder of static files with no code of ours, which is all our web app is (`index.html` + one JS bundle).
+  - Static asset requests are free and unlimited on the free plan.
+  - Older guides use **Cloudflare Pages** for this. Pages still exists, but new projects are steered to Workers, which also leaves room to add server-side code later (the preview proxy, the gateway).
+  - Docs: https://developers.cloudflare.com/workers/static-assets/
+- **`wrangler.jsonc`.** Wrangler is Cloudflare's CLI. Its config file says what to deploy:
+  - `name` must match the Worker name in the dashboard (`flowcanvas`).
+  - `assets.directory` points at the built site (`./apps/web/dist`).
+  - `not_found_handling: "single-page-application"` serves `index.html` for unknown paths, so client-side routes work on reload.
+  - `compatibility_date` pins the runtime behaviour to a date, so Cloudflare upgrades can't change how our Worker behaves.
+  - `preview_urls: true` gives every uploaded version its own URL.
+  - `workers_dev: true` serves the production deployment on `*.workers.dev`.
+  - `send_metrics: false` turns off Wrangler's usage telemetry (our rule: telemetry off).
 
-  We planned direct upload (CI controls everything, and the e2e test runs against the preview automatically). With Actions blocked, Git integration is the way to still get per-PR previews. Moving back to direct upload once Actions work is item 10 in `docs/upgrade-later.md`. Docs: https://developers.cloudflare.com/pages/configuration/git-integration/
-- **Production vs preview deployments.**
-  - The **production branch** (`main`) deploys to `<project>.pages.dev`. That's our **staging** URL (real production comes in phase 44).
-  - Every other branch deploys to a unique `<hash>.<project>.pages.dev`, plus a branch alias `<branch>.<project>.pages.dev` that always points at that branch's latest build.
+  JSONC is JSON that allows comments and trailing commas (Prettier adds them; Wrangler accepts them, verified). Docs: https://developers.cloudflare.com/workers/wrangler/configuration/
+- **Pinning Wrangler.** The dashboard suggests `npx wrangler deploy`, which downloads whatever Wrangler version is current on the day of the build. We add `wrangler` as a pinned root dev dependency (catalog) and use `pnpm exec wrangler …`, so builds are reproducible.
+- **Workers Builds: build, then deploy.** On every push Cloudflare clones the repo and runs three things:
+  - the **build command** (install, then build only the web app)
+  - the **deploy command**, for the production branch `main`
+  - the **non-production branch deploy command**, for every other branch: it uploads a new *version* without making it live, and gives it a **preview URL**
 
-  Docs: https://developers.cloudflare.com/pages/configuration/preview-deployments/
-- **Building a pnpm monorepo on Cloudflare.**
-  - The project's *root directory* stays the repo root (so the workspace, lockfile and `turbo.json` are visible).
-  - The *build output directory* is `apps/web/dist`.
-  - The build command builds **only** the web app and what it depends on: `pnpm build --filter=@flowcanvas/web`. Arguments after a pnpm script name are passed through to `turbo run build`, and `--filter` limits Turbo to that package plus its `^build` dependencies (`graph-model`).
-- **Controlling pnpm and Node in Cloudflare's build image.**
-  - Cloudflare's build image can run its own `pnpm install` with whatever pnpm version it ships, which may not understand our pnpm 12 lockfile. Setting `SKIP_DEPENDENCY_INSTALL=true` turns that off, and our build command installs dependencies itself.
-  - `corepack enable` then provides exactly the `packageManager` version (pnpm 12.15.0), as on your laptop.
-  - Node 24 still bundles Corepack (only Node 25+ dropped it).
+  Cloudflare reports the result on the commit/PR in GitHub. Docs: https://developers.cloudflare.com/workers/ci-cd/builds/
+- **Building a pnpm monorepo there.**
+  - `SKIP_DEPENDENCY_INSTALL=true` stops Cloudflare's own install (its pnpm may not read our pnpm 12 lockfile).
+  - `corepack enable` provides exactly pnpm 12.15.0 (Node 24 still bundles Corepack).
   - `NODE_VERSION=24` pins Node.
+  - `pnpm build --filter=@flowcanvas/web` passes `--filter` through to Turbo, so only the web app and its dependency `graph-model` are built.
+- **The commit shown on the page.** Cloudflare clones with git history, so `git rev-parse HEAD` in our root `build` script returns the commit being deployed. If a preview ever shows "unknown commit", prefix the build with `FLOWCANVAS_COMMIT=$WORKERS_CI_COMMIT_SHA`.
+- **Security headers (`_headers`).** Static assets on Workers honour a `_headers` file in the assets directory. Ours sets a strict **Content-Security-Policy** (only our own scripts, styles and connections; no framing), `nosniff`, a strict `Referrer-Policy` and a `Permissions-Policy`. Vite copies `apps/web/public/*` into `dist/`, so the file lives there. The production `index.html` has no inline scripts or styles (verified), so the strict CSP doesn't block our own code: the Playwright test passes with the CSP applied (verified under `wrangler dev`). Docs: https://developers.cloudflare.com/workers/static-assets/headers/
+- **Previews are public links.** Fine while they only show a version string. Protecting them with Cloudflare Access is `docs/upgrade-later.md` item 11; leave "Protect with Cloudflare Access" **off** for now, because it would also block the Playwright test.
 
-  Docs: https://developers.cloudflare.com/pages/configuration/build-image/
-- **The commit shown on the page.** Cloudflare clones the repo with git history, so our root `build` script's `git rev-parse HEAD` returns the commit being deployed. Cloudflare also exposes it as `CF_PAGES_COMMIT_SHA`, which you can compare against.
-- **Security headers (`_headers`).** Cloudflare Pages reads a `_headers` file from the output directory and adds those HTTP headers to responses. Ours sets a strict **Content-Security-Policy** (only scripts, styles and connections from our own origin, no framing), plus `X-Content-Type-Options: nosniff` and a strict `Referrer-Policy`. CLAUDE.md's engineering standards require a strict CSP. Vite copies `apps/web/public/*` into `dist/`, so the file lives in `public/`. Docs: https://developers.cloudflare.com/pages/configuration/headers/ and https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
-- **Proving the preview.** The Playwright test from step 9 runs against any URL. Point `E2E_BASE_URL` at the preview and `E2E_EXPECTED_COMMIT` at the PR's head commit. A preview still serving an old build fails. If the CSP blocked our own script, the heading would never render and the test would fail too.
-- **Previews are public.** Anyone with a `*.pages.dev` link can open it. Today it only shows a version string. Before previews show real user projects, protect them with Cloudflare Access (free for small teams): `docs/upgrade-later.md` item 11.
+**`pnpm-workspace.yaml`:** add to the catalog:
 
-**Files (repo):**
+```yaml
+  wrangler: 4.153.0
+```
+
+**Root `package.json`:** add to `devDependencies`:
+
+```json
+    "wrangler": "catalog:"
+```
+
+**`wrangler.jsonc`** (repo root):
+
+```jsonc
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "flowcanvas",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./apps/web/dist",
+    "not_found_handling": "single-page-application",
+  },
+  "preview_urls": true,
+  "workers_dev": true,
+  "send_metrics": false,
+}
+```
 
 **`apps/web/public/_headers`:**
 
@@ -1705,55 +1736,46 @@ pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && p
   Permissions-Policy: camera=(), microphone=(), geolocation=()
 ```
 
-- `/*` applies the headers to every path.
-- `frame-ancestors 'none'` stops other sites embedding our app in an iframe (clickjacking).
-- `object-src 'none'` disables plugins.
-- No `'unsafe-inline'`: the production build has no inline scripts or styles. If phase 1a's styling needs inline styles, we revisit this with a decision record.
-- **Locally**, `vite dev` and `vite preview` don't apply `_headers`. Only Cloudflare does, which is why we test the real preview.
+**Cloudflare dashboard (owner does this):** on "Set up your application" (Workers & Pages → Create → import the GitHub repo `ArmaanAhuja-7777/Glassbox`, granting the Cloudflare app access to **only** this repo):
 
-**Setup in Cloudflare (owner does this; Claude guides):**
-1. **Account.** Sign up at https://dash.cloudflare.com/sign-up (the free plan is enough) and verify your email.
-2. **Create the project.** In the dashboard: **Workers & Pages → Create → Pages → Connect to Git**. Authorise the **Cloudflare Pages** GitHub app and grant it access to **only** `ArmaanAhuja-7777/Glassbox` (least privilege).
-3. **Project settings:**
-   - Project name: `flowcanvas`. If it's taken, `flowcanvas-web`; this becomes `<name>.pages.dev`. Never "glassbox".
-   - Production branch: `main`
-   - Framework preset: **None**
-   - Build command: `corepack enable && pnpm install --frozen-lockfile && pnpm build --filter=@flowcanvas/web`
-   - Build output directory: `apps/web/dist`
-   - Root directory (advanced): leave empty (the repo root)
-4. **Environment variables** (Production **and** Preview):
-   - `NODE_VERSION` = `24`
-   - `SKIP_DEPENDENCY_INSTALL` = `true`
-   - `TURBO_TELEMETRY_DISABLED` = `1`
-   - `COREPACK_ENABLE_DOWNLOAD_PROMPT` = `0`
-5. **Preview deployments:** Settings → Builds → Branch control → preview deployments for **all non-production branches** (the default). The PR comment comes from the Cloudflare GitHub app.
-6. Click **Save and Deploy**. The first deployment builds `main`.
+| Field | Value |
+| --- | --- |
+| Project name | `flowcanvas` (must equal `name` in `wrangler.jsonc`) |
+| Build command | `corepack enable && pnpm install --frozen-lockfile && pnpm build --filter=@flowcanvas/web` |
+| Deploy command | `pnpm exec wrangler deploy` |
+| Enable preview builds | **on** |
+| Non-production branch deploy command | `pnpm exec wrangler versions upload` |
+| Protect with Cloudflare Access | **off** (for now; `upgrade-later` item 11) |
+| Advanced → Path (root directory) | `/` |
+| Advanced → API token | "Create new token" (Cloudflare creates a deploy-only token for the build) |
+| Advanced → Variables | `NODE_VERSION` = `24`, `SKIP_DEPENDENCY_INSTALL` = `true`, `TURBO_TELEMETRY_DISABLED` = `1`, `COREPACK_ENABLE_DOWNLOAD_PROMPT` = `0`, `WRANGLER_SEND_METRICS` = `false` |
 
-**Commands (after setup):**
+- The dashboard may suggest `npx wrangler preview` as the preview command. That's Cloudflare's newer "Preview deployments" feature, still **open beta** in Wrangler 4.153. We use the stable `versions upload`, which also produces a preview URL per version.
+- Push the repo changes **before** the first build runs (or click "Retry build" afterwards), otherwise the build can't find `wrangler.jsonc`.
+
+**Commands (local, verify before pushing):**
 
 ```fish
-git push                                        # any push to the PR branch triggers a preview build
-gh pr view 1 --comments                         # the Cloudflare comment with the preview URL
-gh pr checks 1                                  # a "Cloudflare Pages" check appears
-E2E_BASE_URL=https://phase-1-project-skeleton.flowcanvas.pages.dev \
-  E2E_EXPECTED_COMMIT=(git rev-parse HEAD) pnpm --filter @flowcanvas/e2e test:e2e
-curl -sI https://phase-1-project-skeleton.flowcanvas.pages.dev | grep -i content-security-policy
+pnpm install
+pnpm build --filter=@flowcanvas/web
+pnpm exec wrangler deploy --dry-run        # "Read 4 files from the assets directory …/apps/web/dist", no upload
+pnpm exec wrangler dev --port 8787         # Cloudflare's runtime locally, WITH _headers applied
+curl -sI http://127.0.0.1:8787/ | grep -i content-security-policy
+E2E_BASE_URL=http://127.0.0.1:8787 pnpm --filter @flowcanvas/e2e test:e2e   # 1 passed (CSP doesn't break the app)
 ```
 
-(fish: `(git rev-parse HEAD)`; bash: `$(git rev-parse HEAD)`. Use the project name you actually chose.)
-
-**Run and check it:**
-1. PR #1 shows a Cloudflare comment or check with the preview link.
-2. The preview shows **Flowcanvas** and `0.1.0 · <short head commit>`, the same SHA as the PR's latest commit.
-3. The e2e test passes against the preview URL.
-4. `curl -sI <preview URL>` shows the `content-security-policy` header. In the browser, devtools → Console shows no CSP violations.
-5. Push another commit to the PR: a **new** preview URL appears, and the branch alias now shows the new commit.
+**Run and check it (after Cloudflare builds):**
+1. PR #1 shows a Cloudflare check or comment with the preview URL. The Cloudflare dashboard shows the build log and the URLs under the Worker's **Deployments / Versions**.
+2. The preview shows **Flowcanvas** and `0.1.0 · <short PR head commit>`.
+3. `E2E_BASE_URL=<preview URL> E2E_EXPECTED_COMMIT=(git rev-parse HEAD) pnpm --filter @flowcanvas/e2e test:e2e` passes.
+4. `curl -sI <preview URL> | grep -i content-security-policy` shows the header.
+5. Push another commit: a new preview URL appears with the new commit.
 
 **Gotchas:**
-- **Build fails at `pnpm: command not found` or with a lockfile error:** check `SKIP_DEPENDENCY_INSTALL=true` and that the build command starts with `corepack enable`. The build log is under the deployment in the Cloudflare dashboard.
-- **The preview shows "unknown commit":** the build had no git history and no `FLOWCANVAS_COMMIT`. Set the build command to `… && FLOWCANVAS_COMMIT=$CF_PAGES_COMMIT_SHA pnpm build --filter=@flowcanvas/web`.
-- **Blank page on the preview but fine locally:** usually the CSP. Look for "Refused to load …" in the console.
-- **The project name can't be renamed later without a new URL.** Choose carefully.
-- **Never put secrets in Pages environment variables for this app.** Anything the browser bundle reads is public by definition.
+- **Build fails with `pnpm: command not found` or a lockfile error:** check `SKIP_DEPENDENCY_INSTALL=true` and that the build command starts with `corepack enable`.
+- **Deploy fails with "Missing entry-point" or "no assets directory":** `wrangler.jsonc` isn't on the branch yet, or the build didn't produce `apps/web/dist`.
+- **Name mismatch between dashboard and `wrangler.jsonc`:** Cloudflare warns or fails. Keep both `flowcanvas`.
+- **Blank page on the preview:** check the browser console for CSP "Refused to load …" errors.
+- **Never put secrets in this Worker's variables.** The browser bundle is public.
 
-**Commit:** `feat(web): add security headers for Cloudflare Pages`
+**Commit:** `feat(web): deploy to Cloudflare Workers with security headers`
