@@ -1,0 +1,446 @@
+{
+  "font": {
+    "family": {
+      "$type": "fontFamily",
+      "sans": {
+        "$value": ["Inter", "system-ui", "sans-serif"],
+        "$description": "Interface text"
+      },
+      "mono": {
+        "$value": ["JetBrains Mono", "ui-monospace", "monospace"],
+        "$description": "Code, paths, routes, prompts, IDs"
+      }
+    },
+    "weight": {
+      "$type": "fontWeight",
+      "regular": {
+        "$value": 400
+      },
+      "medium": {
+        "$value": 500
+      },
+      "semibold": {
+        "$value": 600
+      }
+    }
+  },
+  "text": {
+    "$type": "typography",
+    "$description": "Text styles from the Figma file (Display \u2026 Mono small)",
+    "display": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": {
+          "value": 24,
+          "unit": "px"
+        },
+        "fontWeight": "{font.weight.semibold}",
+        "lineHeight": {
+          "value": 32,
+          "unit": "px"
+        },
+        "letterSpacing": {
+          "value": -0.36,
+          "unit": "px"
+        }
+      }
+    },
+    "title": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": {
+          "value": 20,
+          "unit": "px"
+        },
+        "fontWeight": "{font.weight.semibold}",
+        "lineHeight": {
+          "value": 28,
+          "unit": "px"
+        },
+        "letterSpacing": {
+          "value": -0.2,
+          "unit": "px"
+        }
+      }
+    },
+    "heading": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": {
+          "value": 15,
+          "unit": "px"
+        },
+        "fontWeight": "{font.weight.semibold}",
+        "lineHeight": {
+          "value": 22,
+          "unit": "px"
+        },
+        "letterSpacing": {
+          "value": -0.15,
+          "unit": "px"
+        }
+      }
+    },
+    "body": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": {
+          "value": 13,
+          "unit": "px"
+        },
+        "fontWeight": "{font.weight.regular}",
+        "lineHeight": {
+          "value": 20,
+          "unit": "px"
+        },
+        "letterSpacing": {
+          "value": 0,
+          "unit": "px"
+        }
+      }
+    },
+    "body-strong": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": {
+          "value": 13,
+          "unit": "px"
+        },
+        "fontWeight": "{font.weight.medium}",
+        "lineHeight": {
+          "value": 20,
+          "unit": "px"
+        },
+        "letterSpacing": {
+          "value": 0,
+          "unit": "px"
+        }
+      }
+    },
+    "small": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": {
+          "value": 12,
+          "unit": "px"
+        },
+        "fontWeight": "{font.weight.regular}",
+        "lineHeight": {
+          "value": 16,
+          "unit": "px"
+        },
+        "letterSpacing": {
+          "value": 0,
+          "unit": "px"
+        }
+      }
+    },
+    "small-strong": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": {
+          "value": 12,
+          "unit": "px"
+        },
+        "fontWeight": "{font.weight.medium}",
+        "lineHeight": {
+          "value": 16,
+          "unit": "px"
+        },
+        "letterSpacing": {
+          "value": 0,
+          "unit": "px"
+        }
+      }
+    },
+    "caption": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": {
+          "value": 11,
+          "unit": "px"
+        },
+        "fontWeight": "{font.weight.medium}",
+        "lineHeight": {
+          "value": 14,
+          "unit": "px"
+        },
+        "letterSpacing": {
+          "value": 0,
+          "unit": "px"
+        }
+      }
+    },
+    "mono": {
+      "$value": {
+        "fontFamily": "{font.family.mono}",
+        "fontSize": {
+          "value": 12,
+          "unit": "px"
+        },
+        "fontWeight": "{font.weight.regular}",
+        "lineHeight": {
+          "value": 18,
+          "unit": "px"
+        },
+        "letterSpacing": {
+          "value": 0,
+          "unit": "px"
+        }
+      }
+    },
+    "mono-small": {
+      "$value": {
+        "fontFamily": "{font.family.mono}",
+        "fontSize": {
+          "value": 11,
+          "unit": "px"
+        },
+        "fontWeight": "{font.weight.regular}",
+        "lineHeight": {
+          "value": 16,
+          "unit": "px"
+        },
+        "letterSpacing": {
+          "value": 0,
+          "unit": "px"
+        }
+      }
+    }
+  },
+  "space": {
+    "$type": "dimension",
+    "$description": "4 px grid",
+    "2": {
+      "$value": {
+        "value": 2,
+        "unit": "px"
+      }
+    },
+    "4": {
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      }
+    },
+    "8": {
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      }
+    },
+    "12": {
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      }
+    },
+    "16": {
+      "$value": {
+        "value": 16,
+        "unit": "px"
+      }
+    },
+    "24": {
+      "$value": {
+        "value": 24,
+        "unit": "px"
+      }
+    },
+    "32": {
+      "$value": {
+        "value": 32,
+        "unit": "px"
+      }
+    }
+  },
+  "radius": {
+    "$type": "dimension",
+    "control": {
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      },
+      "$description": "Buttons, tags, small controls"
+    },
+    "node": {
+      "$value": {
+        "value": 6,
+        "unit": "px"
+      },
+      "$description": "Flow nodes and inputs"
+    },
+    "popover": {
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      },
+      "$description": "Popovers, menus, panels"
+    },
+    "frame": {
+      "$value": {
+        "value": 10,
+        "unit": "px"
+      },
+      "$description": "Live frames"
+    }
+  },
+  "size": {
+    "$type": "dimension",
+    "control": {
+      "sm": {
+        "$value": {
+          "value": 28,
+          "unit": "px"
+        }
+      },
+      "md": {
+        "$value": {
+          "value": 32,
+          "unit": "px"
+        }
+      }
+    },
+    "row": {
+      "compact": {
+        "$value": {
+          "value": 28,
+          "unit": "px"
+        }
+      },
+      "comfortable": {
+        "$value": {
+          "value": 32,
+          "unit": "px"
+        }
+      }
+    },
+    "bar": {
+      "$value": {
+        "value": 40,
+        "unit": "px"
+      },
+      "$description": "Top bar and review bar"
+    },
+    "rail": {
+      "$value": {
+        "value": 44,
+        "unit": "px"
+      }
+    },
+    "icon": {
+      "sm": {
+        "$value": {
+          "value": 16,
+          "unit": "px"
+        }
+      },
+      "md": {
+        "$value": {
+          "value": 18,
+          "unit": "px"
+        }
+      }
+    },
+    "node-width": {
+      "$value": {
+        "value": 216,
+        "unit": "px"
+      }
+    }
+  },
+  "border": {
+    "width": {
+      "$type": "dimension",
+      "default": {
+        "$value": {
+          "value": 1,
+          "unit": "px"
+        }
+      },
+      "selected": {
+        "$value": {
+          "value": 1.5,
+          "unit": "px"
+        }
+      },
+      "focus": {
+        "$value": {
+          "value": 2,
+          "unit": "px"
+        }
+      },
+      "state-bar": {
+        "$value": {
+          "value": 2,
+          "unit": "px"
+        }
+      }
+    }
+  },
+  "duration": {
+    "$type": "duration",
+    "hover": {
+      "$value": {
+        "value": 80,
+        "unit": "ms"
+      }
+    },
+    "panel": {
+      "$value": {
+        "value": 160,
+        "unit": "ms"
+      }
+    },
+    "appear": {
+      "$value": {
+        "value": 240,
+        "unit": "ms"
+      }
+    },
+    "camera": {
+      "$value": {
+        "value": 300,
+        "unit": "ms"
+      }
+    },
+    "shimmer": {
+      "$value": {
+        "value": 1200,
+        "unit": "ms"
+      }
+    }
+  },
+  "opacity": {
+    "$type": "number",
+    "ghost": {
+      "$value": 0.4,
+      "$description": "Removed nodes stay ghosted until review"
+    }
+  },
+  "shadow": {
+    "$type": "shadow",
+    "popover": {
+      "$value": {
+        "color": "rgba(0, 0, 0, 0.4)",
+        "offsetX": {
+          "value": 0,
+          "unit": "px"
+        },
+        "offsetY": {
+          "value": 8,
+          "unit": "px"
+        },
+        "blur": {
+          "value": 24,
+          "unit": "px"
+        },
+        "spread": {
+          "value": 0,
+          "unit": "px"
+        }
+      },
+      "$description": "Popovers only; never nodes or panels"
+    }
+  }
+}
