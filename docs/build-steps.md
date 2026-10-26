@@ -18,7 +18,7 @@ When phase 1 is done you can:
 
 - Open a **staging URL** in your browser and see a page saying **Flowcanvas**, the version (`0.1.0`) and the commit it was built from. The page is plain and unstyled; the Graphite look arrives in phase 1a.
 - Open any **pull request** on GitHub and find a bot comment with that PR's own **preview URL**, showing the PR's commit.
-- Open the **control plane's `/health`** URL and see the same version and commit as JSON.
+- Run the **control plane** in a Docker container locally and see the same version and commit from its `/health` as JSON. (Deploying it to Fly.io is deferred until phase 1c because it needs a payment method; see `docs/upgrade-later.md` item 12.)
 - Run the same app **locally** with one command and see it in your browser at `http://localhost:5173`.
 - Run **all checks** (lint, type-check, unit tests, end-to-end test) locally with one command each, and see them run automatically on every PR.
 
@@ -40,7 +40,8 @@ pnpm format:check
 | Control plane runs locally | `pnpm dev`, then `curl http://127.0.0.1:8080/health` | `{"status":"ok","version":"0.1.0","commit":"<git rev-parse HEAD>"}`; `pnpm test` → control-plane: 3 passed (incl. secret-redaction canary) |
 | End-to-end test | `pnpm test:e2e` (first time: `pnpm --filter @flowcanvas/e2e exec playwright install chromium`) | real Chromium opens the production build: `1 passed`; `E2E_EXPECTED_COMMIT=deadbeef00 pnpm test:e2e` must fail |
 | PR preview URL | `https://phase-1-project-skeleton-flowcanvas.ahujaarmaan7777.workers.dev` (branch alias, always the latest push) or `https://<first 8 chars of version id>-flowcanvas.ahujaarmaan7777.workers.dev` (one version) | **Flowcanvas** and `0.1.0 · <PR head commit>`; `curl -sI <url>` shows `content-security-policy`; `E2E_BASE_URL=<url> E2E_EXPECTED_COMMIT=(git rev-parse HEAD) pnpm --filter @flowcanvas/e2e test:e2e` → 1 passed |
-| Staging and `/health` | step 12 | *pending* |
+| Staging (web) | step 13: `https://flowcanvas.ahujaarmaan7777.workers.dev` after merge | *pending* |
+| Control plane in a container | step 12: `docker run` locally, then `curl /health` | *pending* |
 
 ### Steps
 
@@ -57,7 +58,7 @@ pnpm format:check
 | 9 | Playwright smoke test | done · `9f4245f` · Claude |
 | 10 | GitHub Actions CI, open the PR, branch protection | done · `a3247c7` · Claude · ⚠ CI can't run until the GitHub account billing lock is resolved (`docs/upgrade-later.md` item 8) |
 | 11 | Cloudflare (Workers static assets): previews per PR, smoke test on preview | done · `6359831` · Claude (repo) + owner (Cloudflare setup) · verified on preview of `be3cf59` |
-| 12 | Fly.io: Dockerfile, `fly.toml`, deploy on merge, staging deploy | *planned* |
+| 12 | Control-plane Docker image, built and run locally (Fly.io deploy deferred: `docs/upgrade-later.md` item 12) | *planned* |
 | 13 | ADRs, `STATUS.md`, `CHANGELOG.md`, phase report, merge | *planned* |
 
 ### Step 1 — Tooling and repository
