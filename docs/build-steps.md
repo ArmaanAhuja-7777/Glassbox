@@ -55,7 +55,7 @@ pnpm format:check
 | 7 | `services/control-plane`: Fastify `/health`, tests, log redaction | done · `f03f422` · Claude |
 | 8 | Minimal `workspace/agent` and `packages/engine` | done · `c30c1c0` · Claude |
 | 9 | Playwright smoke test | done · `9f4245f` · Claude |
-| 10 | GitHub Actions CI, open the PR, branch protection | *planned* |
+| 10 | GitHub Actions CI, open the PR, branch protection | **next** |
 | 11 | Cloudflare Pages: account, previews per PR, URL comment, smoke test on preview | *planned* |
 | 12 | Fly.io: Dockerfile, `fly.toml`, deploy on merge, staging deploy | *planned* |
 | 13 | ADRs, `STATUS.md`, `CHANGELOG.md`, phase report, merge | *planned* |
@@ -1508,3 +1508,139 @@ pnpm test:e2e                                                    # builds web, s
 - Use `pnpm test:e2e` from the root for a correct build; running `playwright test` inside `e2e/` uses whatever `apps/web/dist` happens to exist.
 
 **Commit:** `test(e2e): add Playwright smoke test for version page`
+
+### Step 10 — Continuous integration on GitHub Actions, and the phase PR
+
+**Goal:** every push to a pull request and every push to `main` automatically runs format check, lint, type-check, unit tests, build and the Playwright test on a fresh GitHub machine. Results show on the PR, and the Playwright report is downloadable. Then we push the phase branch and open the phase 1 PR, which is where the preview URL (step 11) will appear.
+
+**Expected outcome:** on GitHub, PR "Phase 1 — Project skeleton" shows two green checks: **Lint, typecheck, unit tests, build** and **End-to-end (Playwright)**. The Actions tab shows each step's log, and the e2e run has a `playwright-report` artifact.
+
+**Concepts:**
+- **What CI is for.** Your laptop is one machine with history (installed tools, caches, untracked files). CI runs the same commands on a **clean** machine for every change, so "works on my machine" becomes "works from a fresh clone". It's the gate between a branch and `main`. Docs: https://docs.github.com/en/actions/get-started/understand-github-actions
+- **Workflow anatomy.** A workflow (`.github/workflows/ci.yml`) has:
+  - **triggers** (`on:`)
+  - **jobs**: each runs on its own fresh VM (`runs-on`), and different jobs run in parallel
+  - **steps** inside a job, which run in order and share the machine
+  - steps that either `uses:` a reusable **action** or `run:` a shell command
+
+  Docs: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax
+- **Triggers.** `pull_request` runs for every push to an open PR. `push` to `main` runs after merges, so `main` is always re-verified.
+- **`concurrency` with `cancel-in-progress`.** Pushing again to the same PR cancels the older, now-pointless run. Saves minutes and avoids confusing results.
+- **`permissions: contents: read`.** The workflow's `GITHUB_TOKEN` gets only read access by default (least privilege). Step 11 grants extra permission (PR comments) only to the job that needs it.
+- **Pinning actions to a commit SHA.** `uses: actions/checkout@3d3c…ba90b1 # v7.0.1`, not `@v7`. A tag can be moved to different code by whoever controls the action's repo, which is a known supply-chain attack path. A full commit SHA can't change. The comment keeps it readable. Docs: https://docs.github.com/en/actions/reference/security/secure-use#using-third-party-actions
+- **Setting up the toolchain in CI.**
+  - `pnpm/action-setup` installs the exact pnpm from our `packageManager` field.
+  - `actions/setup-node` installs Node from `.nvmrc` (24) and caches pnpm's store between runs (`cache: pnpm`). That's why `pnpm/action-setup` must come **before** it.
+  - `pnpm install --frozen-lockfile` fails if `package.json` and the lockfile disagree, instead of quietly changing dependencies. It also enforces `engineStrict` (see step 2).
+- **Which commit CI tests and displays.** For `pull_request` events, `actions/checkout` by default checks out a temporary **merge commit** (your branch merged into `main`), which isn't in your branch's history. Our app would then show a SHA nobody recognises, and the e2e test expecting the PR's head commit would fail. We check out `github.event.pull_request.head.sha` instead, so CI tests exactly the commit you pushed, and the page shows the SHA you see on the PR. Trade-off: we don't test the merged result. Keep the branch up to date with `main` before merging (GitHub's "Update branch" button).
+- **Two jobs.** `checks` (fast feedback) and `e2e` (needs a browser) run in parallel on separate machines. A failure in one doesn't hide the other's result.
+- **Browsers in CI.** `playwright install --with-deps chromium` also installs the Linux libraries Chromium needs (via `apt`). Ubuntu is officially supported, so there's no "fallback build" warning there.
+- **Artifacts.** `actions/upload-artifact` saves the Playwright HTML report (and on failure the traces and videos) for 14 days. Download it from the run page. `if: ${{ !cancelled() }}` uploads it even when tests fail, which is exactly when you need it.
+- **`timeout-minutes`.** A hung job is killed after 15 minutes instead of burning up to 6 hours of runner time.
+- **Turbo telemetry off in CI.** `TURBO_TELEMETRY_DISABLED: 1` (our rule; see step 4).
+- **Cost.** Private repos on the free plan get 2,000 Linux runner minutes a month. This workflow uses about 3–5 minutes per push across both jobs.
+- **Branch protection: needs a decision.** "Require status checks to pass before merging" is the normal way to make CI a hard gate. **On a free GitHub account it isn't available for private repositories.** The API answers "Upgrade to GitHub Pro or make this repository public". Options:
+  1. **GitHub Pro** (about $4/month): full branch protection and rulesets on private repos.
+  2. **Make the repository public**: not recommended (proprietary code; the forks' licences).
+  3. **No enforcement for now**: CI still runs and shows red or green on every PR, and we follow the rule "merge only when green, never push to `main` directly". Upgrade later.
+
+  Recommendation: option 3 now, option 1 before anyone else joins the project. Docs: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches
+
+**`.github/workflows/ci.yml`:**
+
+```yaml
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  checks:
+    name: Lint, typecheck, unit tests, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Test the commit that was pushed, not GitHub's temporary merge commit.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @flowcanvas/e2e exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+        env:
+          E2E_EXPECTED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 14
+```
+
+- `${{ … }}` are GitHub expressions, evaluated before the step runs.
+- `github.event.pull_request.head.sha || github.sha` means "the PR's head commit, or, on a push to `main`, the pushed commit".
+- `CI=true` is set automatically on GitHub's runners, so Playwright switches to its CI settings (retries, `forbidOnly`, `github` reporter).
+
+**Commands:** push and open the PR.
+
+```fish
+pnpm format:check                       # the workflow file is YAML, so Prettier checks it too
+git add .github && git commit -m "ci: add GitHub Actions workflow for checks and e2e"
+git push -u origin phase/1-project-skeleton
+gh pr create --base main --head phase/1-project-skeleton --title "Phase 1 — Project skeleton" --body "…"
+gh pr checks --watch                    # follow both jobs live in the terminal
+```
+
+**Run and check it:**
+1. Open the PR on GitHub (`gh pr view --web`). The bottom of the conversation tab shows two checks. Click **Details** for live logs per step.
+2. Both turn green. Locally, `gh run list` shows the run and `gh run view --log-failed` shows only the failing step's log if something breaks.
+3. On the run's summary page, download **playwright-report** and open `index.html`.
+4. **Prove CI can fail:** push a commit that breaks formatting (for example an extra blank line in `turbo.json`). The checks job fails at `pnpm format:check` with the file named. Fix and push again, and it goes green. *Optional, but the best way to trust the gate.*
+
+**Gotchas:**
+- `ERR_PNPM_OUTDATED_LOCKFILE`: you changed a `package.json` without running `pnpm install` locally. Run it and commit `pnpm-lock.yaml`.
+- A job passes locally but fails in CI: look for something your machine has that CI doesn't (an untracked file, a global tool, an env var). This is CI doing its job.
+- Workflow changes only run when the YAML is on the branch being pushed; editing it on `main` doesn't affect an open PR until you update the branch.
+- If a pinned SHA is mistyped, the job fails at "Set up job" with "Unable to resolve action". Copy SHAs exactly.
+- Never print secrets in `run:` steps. GitHub masks registered secrets, but derived values (substrings, base64) aren't masked.
+
+**Commit:** `ci: add GitHub Actions workflow for checks and e2e`
