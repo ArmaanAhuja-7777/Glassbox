@@ -58,8 +58,8 @@ pnpm format:check
 | 9 | Playwright smoke test | done · `9f4245f` · Claude |
 | 10 | GitHub Actions CI, open the PR, branch protection | done · `a3247c7` · Claude · ⚠ CI can't run until the GitHub account billing lock is resolved (`docs/upgrade-later.md` item 8) |
 | 11 | Cloudflare (Workers static assets): previews per PR, smoke test on preview | done · `6359831` · Claude (repo) + owner (Cloudflare setup) · verified on preview of `be3cf59` |
-| 12 | Control-plane Docker image, built and run locally (Fly.io deploy deferred: `docs/upgrade-later.md` item 12) | **next** |
-| 13 | ADRs, `STATUS.md`, `CHANGELOG.md`, phase report, merge | *planned* |
+| 12 | Control-plane Docker image, built and run locally (Fly.io deploy deferred: `docs/upgrade-later.md` item 12) | done · `17b96b7` · Claude · image verified in scratch; repo image build running |
+| 13 | ADRs, `ARCHITECTURE.md`, `STATUS.md`, `CHANGELOG.md`, phase report, merge, staging live | **next** |
 
 ### Step 1 — Tooling and repository
 
@@ -1918,3 +1918,75 @@ docker rm flowcanvas-cp
 - **Never `COPY` a `.env` file or pass secrets as build args.** They're stored in image layers and visible with `docker history`. Runtime secrets come from the secrets vault (phase 1c) as environment variables at *run* time.
 
 **Commit:** `build(control-plane): add Docker image for deployment`
+
+### Step 13 — Close phase 1: records, review, merge, staging live
+
+**Goal:** finish phase 1 the way every phase will finish:
+- write down the decisions (ADRs), the architecture and the status
+- check every Done-when item against evidence
+- review the upgrade-later list
+- merge PR #1 so `main` deploys to the **staging URL**
+- verify staging with the same browser test
+
+**Expected outcome:**
+- `https://flowcanvas.ahujaarmaan7777.workers.dev` shows **Flowcanvas** and `0.1.0 · <main's commit>`.
+- The Playwright test passes against it.
+- `docs/STATUS.md` shows phase 1 *in review*, with the open condition that CI must run on GitHub (`docs/upgrade-later.md` item 8) before it can be *accepted*.
+- `CHANGELOG.md` has its first release entry, `0.1.0`.
+
+**Concepts:**
+- **Architecture Decision Records (ADRs).**
+  - A short file per significant choice: *context* (what forced a decision), *options*, *decision*, *consequences*.
+  - They're numbered and never edited after acceptance. A later change gets a new ADR that "supersedes" the old one.
+  - Six months from now, "why TypeScript 6 and not 7?" has a one-page answer.
+  - CLAUDE.md §9 requires one per significant choice.
+  - Docs: https://adr.github.io/ and Michael Nygard's original post, https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions
+- **`ARCHITECTURE.md`.** A map of the system as it is *today*: the parts, where each runs, how they talk, and how code gets from a commit to a URL. Unlike ADRs it is kept current (CLAUDE.md §7).
+- **`CHANGELOG.md`.** A human-readable list of notable changes per version, in the "Keep a Changelog" format (`Added`, `Changed`, `Fixed`, `Security`…). Versions follow semantic versioning: `0.1.0` is the first pre-1.0 release. Docs: https://keepachangelog.com/en/1.1.0/ and https://semver.org/
+- **`docs/STATUS.md`.** One table, one row per phase (planned, in progress, in review, accepted), in the format of CLAUDE.md §13.3.
+- **Phase report.** CLAUDE.md §13.2 template: result per Done-when item with evidence, how to try it, test summary, deviations from the plan and why, ADRs added, known issues, next phase preview. Stored at `docs/reports/phase-1.md` (a project record, not a lesson).
+- **Merging the PR.**
+  - Use a merge commit (`gh pr merge 1 --merge`), which keeps every step's commit in history, so the build-steps table's commit links stay valid.
+  - Squash would collapse 40+ commits into one and break those links.
+  - Merging is normally gated on green CI. CI can't run while the account is billing-locked, so the gate for this merge is: all checks green **locally** + the Cloudflare preview build green + the Playwright test green against the preview. Record that exception in the report.
+- **Staging = the production branch.** Cloudflare Workers Builds deploys `main` with `wrangler deploy` to `flowcanvas.<subdomain>.workers.dev`. Every later merge updates staging automatically.
+
+**What gets written:**
+1. `docs/adr/0001-monorepo-pnpm-turborepo.md`
+2. `docs/adr/0002-vite-react-spa.md`
+3. `docs/adr/0003-typescript-6-strict.md`
+4. `docs/adr/0004-node-24-lts.md`
+5. `docs/adr/0005-hosting-cloudflare-workers-free-first.md` (Cloudflare static assets + Workers Builds; Fly.io and Actions-based deploys deferred)
+6. `docs/adr/0006-supply-chain-defaults.md` (pinned action SHAs, pnpm minimum release age, denied install scripts, telemetry off, loopback default)
+7. `ARCHITECTURE.md` (root): packages, runtime locations, request and deploy flow, how the version and commit travel from git to the page and to `/health`
+8. `CHANGELOG.md` (root): `0.1.0`
+9. `docs/STATUS.md`: phases 1 … 1d with status
+10. `docs/reports/phase-1.md`: the phase report
+11. `docs/upgrade-later.md`: end-of-phase review (what's due now, what moved)
+
+**Commands (merge and verify staging):**
+
+```fish
+pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e   # all green locally
+gh pr merge 1 --merge                       # merge commit; keeps step history
+git switch main && git pull
+# wait for Cloudflare's build of main (dashboard → flowcanvas → Builds), then:
+curl -sI https://flowcanvas.ahujaarmaan7777.workers.dev | grep -i content-security-policy
+E2E_BASE_URL=https://flowcanvas.ahujaarmaan7777.workers.dev E2E_EXPECTED_COMMIT=(git rev-parse HEAD) pnpm --filter @flowcanvas/e2e test:e2e
+```
+
+**Run and check it (the phase 1 Done-when, with evidence):**
+
+| Done-when / Try-it | Evidence |
+| --- | --- |
+| The staging URL loads the app | Open `https://flowcanvas.ahujaarmaan7777.workers.dev`: **Flowcanvas** + `0.1.0 · <main commit>`; the Playwright test passes against it |
+| Every pull request gets its own preview URL | PR #1: Cloudflare check "Workers Builds: flowcanvas" plus the branch alias `https://phase-1-project-skeleton-flowcanvas.ahujaarmaan7777.workers.dev`; verified with Playwright. (The URL isn't posted on the PR yet: upgrade-later item 10) |
+| Try it: open the staging link; the app loads and shows its version | Same as the first row |
+| Build: CI with lint, type checks and tests | Workflow `.github/workflows/ci.yml` committed; **can't run until the GitHub account billing lock is resolved** (upgrade-later item 8). The same checks pass locally |
+
+**Gotchas:**
+- **`main` shows the merge commit's SHA, not the last PR commit's.** That's correct: staging runs exactly what's on `main`.
+- **A brand-new staging deploy can 404 for a minute.** Retry before debugging.
+- **Don't delete the phase branch before Cloudflare finishes building `main`.** The branch alias preview stops updating after deletion, which is expected.
+
+**Commit:** `docs: close phase 1 with ADRs, architecture, status, changelog and report`
