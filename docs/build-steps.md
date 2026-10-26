@@ -56,7 +56,7 @@ pnpm format:check
 | 8 | Minimal `workspace/agent` and `packages/engine` | done · `c30c1c0` · Claude |
 | 9 | Playwright smoke test | done · `9f4245f` · Claude |
 | 10 | GitHub Actions CI, open the PR, branch protection | done · `a3247c7` · Claude · ⚠ CI can't run until the GitHub account billing lock is resolved (`docs/upgrade-later.md` item 8) |
-| 11 | Cloudflare Pages: account, previews per PR, URL comment, smoke test on preview | *planned* |
+| 11 | Cloudflare Pages: account, previews per PR, URL comment, smoke test on preview | **next** |
 | 12 | Fly.io: Dockerfile, `fly.toml`, deploy on merge, staging deploy | *planned* |
 | 13 | ADRs, `STATUS.md`, `CHANGELOG.md`, phase report, merge | *planned* |
 
@@ -1654,3 +1654,106 @@ gh pr checks --watch                    # follow both jobs live in the terminal
 ```fish
 pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e
 ```
+
+### Step 11 — Cloudflare Pages: a preview URL for every pull request
+
+**Goal:** the web app is deployed automatically by Cloudflare Pages. Every push to a PR branch gets its **own preview URL**, posted on the PR, and `main` becomes the **staging** site. This satisfies half of phase 1's Done-when. Because GitHub Actions is blocked on the account (`docs/upgrade-later.md` item 8), we use **Cloudflare's own Git integration**: Cloudflare watches the repo and builds on its servers, so it doesn't need Actions.
+
+**Expected outcome:**
+- On PR #1, a **Cloudflare Pages** comment and check appear with a preview link such as `https://<hash>.flowcanvas.pages.dev`, plus a stable branch alias `https://phase-1-project-skeleton.flowcanvas.pages.dev`.
+- Opening it shows **Flowcanvas** and `0.1.0 · <PR head commit>`.
+- After merging to `main`, `https://flowcanvas.pages.dev` (staging) shows the merge commit.
+- The Playwright smoke test passes against the preview URL from your laptop.
+
+**Concepts:**
+- **Static hosting on a CDN.** Our web app builds to plain files (`index.html` + one JS bundle). Cloudflare Pages copies them to its global network, so there's no server of ours to run. The free plan includes unlimited static requests and 500 builds a month. Docs: https://developers.cloudflare.com/pages/
+- **Git integration vs direct upload.**
+  - *Git integration*: Cloudflare is authorised on the GitHub repo, clones it on every push, runs our build command, and posts the result back to GitHub as a commit status and a PR comment.
+  - *Direct upload*: our own CI builds and uploads with Wrangler.
+
+  We planned direct upload (CI controls everything, and the e2e test runs against the preview automatically). With Actions blocked, Git integration is the way to still get per-PR previews. Moving back to direct upload once Actions work is item 10 in `docs/upgrade-later.md`. Docs: https://developers.cloudflare.com/pages/configuration/git-integration/
+- **Production vs preview deployments.**
+  - The **production branch** (`main`) deploys to `<project>.pages.dev`. That's our **staging** URL (real production comes in phase 44).
+  - Every other branch deploys to a unique `<hash>.<project>.pages.dev`, plus a branch alias `<branch>.<project>.pages.dev` that always points at that branch's latest build.
+
+  Docs: https://developers.cloudflare.com/pages/configuration/preview-deployments/
+- **Building a pnpm monorepo on Cloudflare.**
+  - The project's *root directory* stays the repo root (so the workspace, lockfile and `turbo.json` are visible).
+  - The *build output directory* is `apps/web/dist`.
+  - The build command builds **only** the web app and what it depends on: `pnpm build --filter=@flowcanvas/web`. Arguments after a pnpm script name are passed through to `turbo run build`, and `--filter` limits Turbo to that package plus its `^build` dependencies (`graph-model`).
+- **Controlling pnpm and Node in Cloudflare's build image.**
+  - Cloudflare's build image can run its own `pnpm install` with whatever pnpm version it ships, which may not understand our pnpm 12 lockfile. Setting `SKIP_DEPENDENCY_INSTALL=true` turns that off, and our build command installs dependencies itself.
+  - `corepack enable` then provides exactly the `packageManager` version (pnpm 12.15.0), as on your laptop.
+  - Node 24 still bundles Corepack (only Node 25+ dropped it).
+  - `NODE_VERSION=24` pins Node.
+
+  Docs: https://developers.cloudflare.com/pages/configuration/build-image/
+- **The commit shown on the page.** Cloudflare clones the repo with git history, so our root `build` script's `git rev-parse HEAD` returns the commit being deployed. Cloudflare also exposes it as `CF_PAGES_COMMIT_SHA`, which you can compare against.
+- **Security headers (`_headers`).** Cloudflare Pages reads a `_headers` file from the output directory and adds those HTTP headers to responses. Ours sets a strict **Content-Security-Policy** (only scripts, styles and connections from our own origin, no framing), plus `X-Content-Type-Options: nosniff` and a strict `Referrer-Policy`. CLAUDE.md's engineering standards require a strict CSP. Vite copies `apps/web/public/*` into `dist/`, so the file lives in `public/`. Docs: https://developers.cloudflare.com/pages/configuration/headers/ and https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
+- **Proving the preview.** The Playwright test from step 9 runs against any URL. Point `E2E_BASE_URL` at the preview and `E2E_EXPECTED_COMMIT` at the PR's head commit. A preview still serving an old build fails. If the CSP blocked our own script, the heading would never render and the test would fail too.
+- **Previews are public.** Anyone with a `*.pages.dev` link can open it. Today it only shows a version string. Before previews show real user projects, protect them with Cloudflare Access (free for small teams): `docs/upgrade-later.md` item 11.
+
+**Files (repo):**
+
+**`apps/web/public/_headers`:**
+
+```
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+```
+
+- `/*` applies the headers to every path.
+- `frame-ancestors 'none'` stops other sites embedding our app in an iframe (clickjacking).
+- `object-src 'none'` disables plugins.
+- No `'unsafe-inline'`: the production build has no inline scripts or styles. If phase 1a's styling needs inline styles, we revisit this with a decision record.
+- **Locally**, `vite dev` and `vite preview` don't apply `_headers`. Only Cloudflare does, which is why we test the real preview.
+
+**Setup in Cloudflare (owner does this; Claude guides):**
+1. **Account.** Sign up at https://dash.cloudflare.com/sign-up (the free plan is enough) and verify your email.
+2. **Create the project.** In the dashboard: **Workers & Pages → Create → Pages → Connect to Git**. Authorise the **Cloudflare Pages** GitHub app and grant it access to **only** `ArmaanAhuja-7777/Glassbox` (least privilege).
+3. **Project settings:**
+   - Project name: `flowcanvas`. If it's taken, `flowcanvas-web`; this becomes `<name>.pages.dev`. Never "glassbox".
+   - Production branch: `main`
+   - Framework preset: **None**
+   - Build command: `corepack enable && pnpm install --frozen-lockfile && pnpm build --filter=@flowcanvas/web`
+   - Build output directory: `apps/web/dist`
+   - Root directory (advanced): leave empty (the repo root)
+4. **Environment variables** (Production **and** Preview):
+   - `NODE_VERSION` = `24`
+   - `SKIP_DEPENDENCY_INSTALL` = `true`
+   - `TURBO_TELEMETRY_DISABLED` = `1`
+   - `COREPACK_ENABLE_DOWNLOAD_PROMPT` = `0`
+5. **Preview deployments:** Settings → Builds → Branch control → preview deployments for **all non-production branches** (the default). The PR comment comes from the Cloudflare GitHub app.
+6. Click **Save and Deploy**. The first deployment builds `main`.
+
+**Commands (after setup):**
+
+```fish
+git push                                        # any push to the PR branch triggers a preview build
+gh pr view 1 --comments                         # the Cloudflare comment with the preview URL
+gh pr checks 1                                  # a "Cloudflare Pages" check appears
+E2E_BASE_URL=https://phase-1-project-skeleton.flowcanvas.pages.dev \
+  E2E_EXPECTED_COMMIT=(git rev-parse HEAD) pnpm --filter @flowcanvas/e2e test:e2e
+curl -sI https://phase-1-project-skeleton.flowcanvas.pages.dev | grep -i content-security-policy
+```
+
+(fish: `(git rev-parse HEAD)`; bash: `$(git rev-parse HEAD)`. Use the project name you actually chose.)
+
+**Run and check it:**
+1. PR #1 shows a Cloudflare comment or check with the preview link.
+2. The preview shows **Flowcanvas** and `0.1.0 · <short head commit>`, the same SHA as the PR's latest commit.
+3. The e2e test passes against the preview URL.
+4. `curl -sI <preview URL>` shows the `content-security-policy` header. In the browser, devtools → Console shows no CSP violations.
+5. Push another commit to the PR: a **new** preview URL appears, and the branch alias now shows the new commit.
+
+**Gotchas:**
+- **Build fails at `pnpm: command not found` or with a lockfile error:** check `SKIP_DEPENDENCY_INSTALL=true` and that the build command starts with `corepack enable`. The build log is under the deployment in the Cloudflare dashboard.
+- **The preview shows "unknown commit":** the build had no git history and no `FLOWCANVAS_COMMIT`. Set the build command to `… && FLOWCANVAS_COMMIT=$CF_PAGES_COMMIT_SHA pnpm build --filter=@flowcanvas/web`.
+- **Blank page on the preview but fine locally:** usually the CSP. Look for "Refused to load …" in the console.
+- **The project name can't be renamed later without a new URL.** Choose carefully.
+- **Never put secrets in Pages environment variables for this app.** Anything the browser bundle reads is public by definition.
+
+**Commit:** `feat(web): add security headers for Cloudflare Pages`
