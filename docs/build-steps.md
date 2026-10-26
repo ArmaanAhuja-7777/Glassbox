@@ -53,7 +53,7 @@ pnpm format:check
 | 5 | ESLint and Prettier | done · `d88f916` · Claude |
 | 6 | `apps/web`: Vite + React, version and commit injected at build time, test | done · `3e33324` · Claude |
 | 7 | `services/control-plane`: Fastify `/health`, tests, log redaction | done · `f03f422` · Claude |
-| 8 | Minimal `workspace/agent` and `packages/engine` | *planned* |
+| 8 | Minimal `workspace/agent` and `packages/engine` | **next** |
 | 9 | Playwright smoke test | *planned* |
 | 10 | GitHub Actions CI, open the PR, branch protection | *planned* |
 | 11 | Cloudflare Pages: account, previews per PR, URL comment, smoke test on preview | *planned* |
@@ -1225,3 +1225,102 @@ pnpm dev                                   # starts web (5173) AND control plane
 - Never put real secrets in tests. Use obvious canaries like `CANARY-…`.
 
 **Commit:** `feat(control-plane): add Fastify health endpoint with log redaction`
+
+### Step 8 — Minimal `packages/engine` and `workspace/agent`
+
+**Goal:** give the two remaining packages named in the phase 1 Build line ("web app, workspace agent, engine, control plane, shared types") a real place in the monorepo. From today, lint, type-check, test and build cover them, so they can never quietly rot before their real work starts (agent in phase 1d, engine in phase 4).
+
+**Expected outcome:** `pnpm ls -r --depth -1` lists 6 projects (root + 5 packages). `pnpm test` runs 6 tasks with 10 tests in total, all green.
+
+**Concepts:**
+- **Skeleton vs placeholder feature.**
+  - CLAUDE.md forbids *placeholder features*: fake UI or fake data in the product.
+  - An empty-but-wired *package* is different. It is infrastructure: a name, a build and a test, and the user sees nothing.
+  - We keep it to the minimum. Each package exports only its own name, with a comment stating what it will hold and in which phase.
+- **Why a test for one constant.** It proves the package is wired in: Turbo finds it, `tsc` builds it, Vitest runs it. Vitest also fails on a package with **no** test files (by design, so a typo in a test path can't pass silently). One honest smoke test is better than `--passWithNoTests`, which would hide that safety.
+- **Copying the package pattern.** `engine` and `workspace-agent` reuse `graph-model`'s two tsconfigs unchanged. The folder depth is the same (`../../tsconfig.base.json`), and neither needs Node types yet. The engine and agent will add `"types": ["node"]` when they start touching files and processes.
+- **Package names vs folders.** The folder `workspace/agent` holds the package `@flowcanvas/workspace-agent`. Package names are flat and must be unique; folders group by deployment target (`apps/` = browser, `services/` = our cloud, `workspace/` = inside each user's VM, `packages/` = shared libraries).
+
+**Files:** for each of the two packages:
+
+**`packages/engine/package.json`** (and `workspace/agent/package.json` with `"name": "@flowcanvas/workspace-agent"`):
+
+```json
+{
+  "name": "@flowcanvas/engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
+```
+
+**`tsconfig.json` and `tsconfig.build.json`:** identical copies of `packages/graph-model`'s.
+
+**`packages/engine/src/index.ts`:**
+
+```ts
+// Analysis engine: indexer, parsers, resolvers and flow builder. It runs inside each workspace. Real code arrives in phase 4.
+export const PACKAGE_NAME = '@flowcanvas/engine';
+```
+
+**`workspace/agent/src/index.ts`:**
+
+```ts
+// In-workspace daemon: file and process API, autosave journal, snapshots. Real code arrives in phase 1d.
+export const PACKAGE_NAME = '@flowcanvas/workspace-agent';
+```
+
+**`src/index.test.ts`** (engine shown; the agent's uses its own name):
+
+```ts
+import { describe, expect, it } from 'vitest';
+import { PACKAGE_NAME } from './index.js';
+
+describe('@flowcanvas/engine', () => {
+  it('is wired into the workspace', () => {
+    expect(PACKAGE_NAME).toBe('@flowcanvas/engine');
+  });
+});
+```
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm format
+pnpm lint && pnpm typecheck && pnpm test && pnpm build   # 6 / 6 / 6 / 5 tasks
+pnpm ls -r --depth -1                                    # 6 projects
+```
+
+`build` is 5 tasks, not 6, because the root package has no build script.
+
+**Run and check it:**
+1. `pnpm test` shows `engine: 1 passed`, `workspace-agent: 1 passed`, alongside the other three packages: 10 tests in total.
+2. `pnpm exec turbo run build --dry=json`: the plan now includes `@flowcanvas/engine#build` and `@flowcanvas/workspace-agent#build`, running in parallel with `graph-model` because they don't depend on each other.
+
+**Gotchas:**
+- If a new package doesn't show up in `pnpm ls -r`, its folder isn't matched by a glob in `pnpm-workspace.yaml`, or its `package.json` is missing or invalid.
+- Two packages with the same `name` make pnpm refuse to install. Names must be unique across the workspace.
+- `"files": ["dist"]` was expanded to three lines here because that's how Prettier formats `package.json`. Writing it on one line just gets reformatted by `pnpm format`.
+
+**Commit:** `feat: add minimal engine and workspace-agent packages`
