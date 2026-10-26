@@ -8,8 +8,14 @@
   "engines": {
     "node": ">=24.11"
   },
-  "scripts": {},
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "turbo run lint"
+  },
   "devDependencies": {
+    "turbo": "catalog:",
     "typescript": "catalog:"
   }
 }
