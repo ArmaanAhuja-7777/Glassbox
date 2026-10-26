@@ -56,7 +56,7 @@ pnpm format:check
 | 8 | Minimal `workspace/agent` and `packages/engine` | done · `c30c1c0` · Claude |
 | 9 | Playwright smoke test | done · `9f4245f` · Claude |
 | 10 | GitHub Actions CI, open the PR, branch protection | done · `a3247c7` · Claude · ⚠ CI can't run until the GitHub account billing lock is resolved (`docs/upgrade-later.md` item 8) |
-| 11 | Cloudflare Pages: account, previews per PR, URL comment, smoke test on preview | **next** |
+| 11 | Cloudflare (Workers static assets): previews per PR, smoke test on preview | repo part done · `6359831` · Claude; waiting for the owner's Cloudflare setup and first deploy |
 | 12 | Fly.io: Dockerfile, `fly.toml`, deploy on merge, staging deploy | *planned* |
 | 13 | ADRs, `STATUS.md`, `CHANGELOG.md`, phase report, merge | *planned* |
 
@@ -1700,7 +1700,7 @@ pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && p
 **`pnpm-workspace.yaml`:** add to the catalog:
 
 ```yaml
-  wrangler: 4.153.0
+  wrangler: 4.152.0
 ```
 
 **Root `package.json`:** add to `devDependencies`:
@@ -1708,6 +1708,24 @@ pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && p
 ```json
     "wrangler": "catalog:"
 ```
+
+**Supply-chain policies met along the way (pnpm 12):**
+- **Minimum release age.** pnpm refuses packages published very recently (within about a day), because malicious releases are usually caught within that window. `wrangler@4.153.0` was only hours old, so pnpm wrote a `minimumReleaseAgeExclude` exemption into `pnpm-workspace.yaml` on its own. We **removed the exemption and pinned 4.152.0** instead (4 days old). The lockfile written during the exempted install was then rejected (`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`), which is the policy protecting us from a lockfile that bypassed it. Fix: `git checkout -- pnpm-lock.yaml && pnpm install`. Rule: **never commit a `minimumReleaseAgeExclude`**; pick an older version.
+- **Install scripts must be decided.** pnpm 12 fails the install (`ERR_PNPM_IGNORED_BUILDS`) when a dependency wants to run a `postinstall` script that hasn't been approved or denied. `esbuild` and `workerd` (pulled in by Wrangler) both work without theirs (verified: build, deploy dry run, `wrangler dev`, e2e), so we deny them:
+
+```fish
+pnpm approve-builds '!esbuild' '!workerd'
+```
+
+That writes to `pnpm-workspace.yaml`:
+
+```yaml
+allowBuilds:
+  esbuild: false
+  workerd: false
+```
+
+Least privilege: a package only runs code at install time if we said yes.
 
 **`wrangler.jsonc`** (repo root):
 
