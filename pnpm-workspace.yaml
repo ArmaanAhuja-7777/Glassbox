@@ -1,0 +1,10 @@
+packages:
+  - "apps/*"
+  - "services/*"
+  - "workspace/*"
+  - "packages/*"
+  - "packages/connectors/*"
+  - "tools/*"
+  - "e2e"
+
+engineStrict: true
