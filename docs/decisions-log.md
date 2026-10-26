@@ -87,3 +87,7 @@ Decision: **resolve the billing lock later and continue building now.** Until th
 - Phase 1 can't be fully accepted until the workflow runs green on GitHub.
 
 The repository stays public for now; making it private again is a separate choice. While public, no secrets, personal or account details go into it, and forks of AGPL test repos stay out of it (decision A8). Tracked in `docs/upgrade-later.md` (items 8 and 9).
+
+## 27 Oct 2026: light theme approved (phase 1a, step 2)
+
+The owner approved the proposed Graphite light theme: same 40 colour roles as dark, all WCAG AA pairs passing (enforced by tests), and a **near-black primary button with off-white text** in light (the inverse of dark's off-white button). Values: `packages/tokens/source/color.light.tokens.json` and the Graphite doc's "Light theme" section.

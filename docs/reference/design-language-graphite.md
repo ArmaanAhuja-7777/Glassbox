@@ -133,7 +133,52 @@ Tests and runtime health reuse the same hues with standard meanings: pass = adde
 
 ### Light theme
 
-**Not yet defined for the muted palette.** A light theme using the same role tokens will be proposed in phase 1a for approval. Dark ships first.
+**Approved 27 Oct 2026 (phase 1a, step 2).** Same 40 roles as dark, inverted lightness:
+- Surfaces get lighter as they come forward: canvas `#FCFCFD`, panels `#F6F7F9`, nodes `#FFFFFF`.
+- The muted state hues keep their character, with darker solids and text and pale tints.
+- The accent stays steel blue, darkened to `#4E6390`.
+- **Primary button in light: near-black `surface/inverse` (`#1E2228`) with off-white `text/on-accent` (`#FCFCFD`)**, so it remains the strongest element on the screen (the inverse of the dark theme's off-white button).
+- `preview/*` colours are unchanged (live frames show the user's own app).
+
+Source of truth: `packages/tokens/source/color.light.tokens.json`. Contrast is enforced by `packages/tokens` tests for both themes.
+
+| Token | Light |
+| --- | --- |
+| `surface/canvas` | #FCFCFD |
+| `surface/panel` | #F6F7F9 |
+| `surface/raised` | #FFFFFF |
+| `surface/hover` | #EEF0F3 |
+| `surface/selected` | #E6E9EE |
+| `surface/inverse` | #1E2228 |
+| `border/subtle` | #E3E6EA |
+| `border/control` | #D2D6DC |
+| `border/strong` | #B4BAC3 |
+| `text/primary` | #16191D |
+| `text/secondary` | #5C6470 |
+| `text/tertiary` | #868D98 |
+| `text/on-accent` | #FCFCFD |
+| `accent/solid` | #4E6390 |
+| `accent/hover` | #43578A |
+| `accent/tint` | #E9EDF5 |
+| `accent/ring` | #B8C4DB |
+| `accent/text` | #3D5287 |
+| `state/added/solid` | #4C8063 |
+| `state/added/tint` | #E6F0EA |
+| `state/added/text` | #2E5E43 |
+| `state/modified/solid` | #957A40 |
+| `state/modified/tint` | #F4EFE2 |
+| `state/modified/text` | #66511F |
+| `state/removed/solid` | #A0585A |
+| `state/removed/tint` | #F6E7E7 |
+| `state/removed/text` | #7A393C |
+| `state/affected/solid` | #7064A0 |
+| `state/affected/tint` | #ECEAF5 |
+| `state/affected/text` | #514585 |
+| `state/scope/solid` | #93607F |
+| `state/scope/tint` | #F5E8F0 |
+| `state/scope/text` | #6E3C5B |
+| `edge/observed` | #5C6470 |
+| `edge/default` | #868D98 |
 
 ### Superseded values (history only, do not use)
 
@@ -252,7 +297,9 @@ All motion respects the system's "reduce motion" setting, falling back to instan
 | Change-state solids (bars, dashed outlines) on canvas | 5.2 – 7.3 : 1 | 3 : 1 (non-text) | Pass |
 | Edges #6B7380 on canvas | 4.1 : 1 | 3 : 1 | Pass (Slate 8 scored 2.5 : 1, too faint for meaningful lines) |
 | Tertiary #6B7380 on node #181B20 | 3.6 : 1 | 3 : 1 (non-text) | Pass for icons and placeholders; not for body text |
-| Light theme | — | — | To be calculated when the light theme is proposed in phase 1a |
+| Light: text #16191D on canvas #FCFCFD / secondary #5C6470 on panel #F6F7F9 | 17.2 / 5.6 : 1 | 4.5 : 1 | Pass |
+| Light: state text on tint (five hues) / primary button #FCFCFD on #1E2228 | 6.4 – 7.2 / 15.6 : 1 | 4.5 : 1 | Pass |
+| Light: tertiary on nodes / edges / focus ring / state solids | 3.4 / 3.3 / 6.0 / 4.0 – 5.1 : 1 | 3 : 1 (non-text) | Pass |
 
 Ratios recalculated on 26 Oct 2026 from the muted hex values.
 

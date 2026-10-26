@@ -2051,7 +2051,7 @@ When phase 1a is done you can:
 | # | Step | Status |
 | --- | --- | --- |
 | 1 | Token source (DTCG JSON seed) + `tools/figma-tokens` generator → `packages/tokens` (CSS variables + typed TS), with tests | done · `c9ffb4c` · Claude |
-| 2 | Light theme proposal: values + contrast checks, **for the owner's approval** | **next** (waiting for approval) |
+| 2 | Light theme proposal: values + contrast checks, **for the owner's approval** | approved by owner · done · `02ae155` · Claude |
 | 3 | `packages/ui` foundation: CSS Modules, global styles, self-hosted fonts, theme switching, reduced motion, "no raw values" lint rule | *planned* |
 | 4 | Storybook: setup, dark/light toolbar, accessibility addon, local run | *planned* |
 | 5 | Button and Tag (the Figma components) | *planned* |
