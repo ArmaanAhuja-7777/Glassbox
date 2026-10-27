@@ -329,6 +329,13 @@
       }
     },
     "icon": {
+      "xs": {
+        "$value": {
+          "value": 14,
+          "unit": "px"
+        },
+        "$description": "Icons inside menu rows (Figma context menus)"
+      },
       "sm": {
         "$value": {
           "value": 16,

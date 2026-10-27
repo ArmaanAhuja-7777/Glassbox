@@ -112,6 +112,7 @@ export const vars = {
     "bar": "var(--size-bar)",
     "rail": "var(--size-rail)",
     "icon": {
+      "xs": "var(--size-icon-xs)",
       "sm": "var(--size-icon-sm)",
       "md": "var(--size-icon-md)"
     },

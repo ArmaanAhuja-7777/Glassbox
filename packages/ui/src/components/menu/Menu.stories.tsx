@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { Bot, Code, Copy, Eye, Layers, Sparkle } from 'lucide-react';
 import { Menu, MenuButton, MenuItem, MenuSection, MenuSeparator, MenuTrigger } from './Menu';
 
 const meta = {
@@ -10,25 +11,31 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The event context menu from the Figma prompting screens (right-click on item.created). */
+/** The event context menu from Figma screen 27 (right-click on item.created): icons, inline details, keycap. */
 export const EventActions: Story = {
   render: (args) => (
     <MenuTrigger defaultOpen>
       <MenuButton kind="ghost">item.created</MenuButton>
       <Menu {...args}>
         <MenuSection title="item.created · event">
-          <MenuItem id="ask" shortcut="⌘↵">
+          <MenuItem id="ask" icon={<Sparkle />} shortcut="⌘↵">
             Ask about this flow…
           </MenuItem>
-          <MenuItem id="change">Change this flow…</MenuItem>
-          <MenuItem id="trace">Trace a run</MenuItem>
-          <MenuItem id="producers" description="1 producer · 3 consumers">
+          <MenuItem id="change" icon={<Bot />}>
+            Change this flow…
+          </MenuItem>
+          <MenuItem id="trace" icon={<Eye />}>
+            Trace a run
+          </MenuItem>
+          <MenuItem id="producers" icon={<Layers />} description="1 · 3">
             Producers and consumers
           </MenuItem>
         </MenuSection>
         <MenuSeparator />
-        <MenuItem id="open">Open code</MenuItem>
-        <MenuItem id="copy" description="@item.created">
+        <MenuItem id="open" icon={<Code />}>
+          Open code
+        </MenuItem>
+        <MenuItem id="copy" icon={<Copy />} description="@item.created" descriptionMono>
           Copy reference
         </MenuItem>
       </Menu>

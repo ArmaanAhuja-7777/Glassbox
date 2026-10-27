@@ -27,10 +27,10 @@
   outline: none;
 }
 
+/* Figma menu row: icon, label, an inline detail, then the shortcut keycap on the right; 8 px gaps. */
 .item {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 0 var(--space-8);
+  display: flex;
+  gap: var(--space-8);
   align-items: center;
   min-block-size: var(--size-row-compact);
   padding: var(--space-4) var(--space-8);
@@ -53,24 +53,49 @@
 
 .icon {
   display: inline-flex;
-  grid-column: 1;
+  flex: none;
   color: var(--color-text-tertiary);
 }
 
+.icon svg {
+  width: var(--size-icon-xs);
+  height: var(--size-icon-xs);
+  stroke-width: var(--icon-stroke-width);
+}
+
+.item[data-focused] .icon {
+  color: var(--color-text-primary);
+}
+
 .label {
-  grid-column: 2;
+  white-space: nowrap;
 }
 
 .description {
-  grid-column: 2;
+  overflow: hidden;
   color: var(--color-text-muted);
+  font-family: var(--text-caption-font-family);
   font-size: var(--text-caption-font-size);
+  font-weight: var(--text-caption-font-weight);
   line-height: var(--text-caption-line-height);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
+.description[data-mono] {
+  font-family: var(--text-mono-small-font-family);
+  font-size: var(--text-mono-small-font-size);
+  font-weight: var(--text-mono-small-font-weight);
+  line-height: var(--text-mono-small-line-height);
+}
+
+/* The keycap: 1 px control border, pushed to the right edge of the row. */
 .shortcut {
-  grid-row: 1;
-  grid-column: 3;
+  flex: none;
+  margin-inline-start: auto;
+  padding: 0 calc(var(--space-4) + var(--space-2) / 2);
+  border: var(--border-width-default) solid var(--color-border-control);
+  border-radius: var(--radius-control);
   color: var(--color-text-muted);
   font-family: var(--text-mono-small-font-family);
   font-size: var(--text-mono-small-font-size);

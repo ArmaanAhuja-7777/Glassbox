@@ -17,8 +17,10 @@ function EventMenu({ onAction = vi.fn() }: { onAction?: (key: React.Key) => void
           <MenuItem id="change">Change this flow…</MenuItem>
         </MenuSection>
         <MenuSeparator />
-        <MenuItem id="open">Open code</MenuItem>
-        <MenuItem id="copy" description="@item.created">
+        <MenuItem id="open" icon={<svg data-testid="code-icon" />}>
+          Open code
+        </MenuItem>
+        <MenuItem id="copy" description="@item.created" descriptionMono>
           Copy reference
         </MenuItem>
       </Menu>
@@ -81,6 +83,19 @@ describe('Menu', () => {
     const ask = screen.getByRole('menuitem', { name: 'Ask about this flow…' });
     expect(ask.getAttribute('aria-describedby')).toBe(ask.querySelector('kbd')?.id);
     expect(screen.getByRole('menuitem', { name: 'Copy reference' })).toBeTruthy();
+  });
+
+  it('hides icons from screen readers and describes an item by its inline detail', async () => {
+    const user = userEvent.setup();
+    render(<EventMenu />);
+    await user.click(screen.getByRole('button', { name: 'Event actions' }));
+    expect(screen.getByTestId('code-icon').parentElement?.getAttribute('aria-hidden')).toBe('true');
+    expect(screen.getByRole('menuitem', { name: 'Open code' })).toBeTruthy();
+
+    const copy = screen.getByRole('menuitem', { name: 'Copy reference' });
+    const detail = screen.getByText('@item.created');
+    expect(copy.getAttribute('aria-describedby')).toBe(detail.id);
+    expect(detail.dataset.mono).toBe('true');
   });
 
   it('styles the trigger like a Button', () => {

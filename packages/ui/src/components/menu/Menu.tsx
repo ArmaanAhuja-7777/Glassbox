@@ -67,18 +67,28 @@ export function Menu<T extends object>({
 export interface MenuItemProps extends Omit<AriaMenuItemProps, 'className' | 'children'> {
   /** The item's label; also used for type-to-select. */
   readonly children: string;
+  /** A short detail after the label on the same line, e.g. "1 · 3"; screen readers hear it as the description. */
   readonly description?: string;
+  /** Show the description in the code font, for references such as "@item.created". */
+  readonly descriptionMono?: boolean;
   /**
-   * Shown on the right, e.g. "⌘↵". React Aria links it to the item through aria-describedby, so screen
-   * readers hear the label as the name and the shortcut as its description. Display only: the
+   * Shown on the right in a keycap, e.g. "⌘↵". React Aria links it to the item through aria-describedby, so
+   * screen readers hear the label as the name and the shortcut as its description. Display only: the
    * shortcut itself is handled elsewhere.
    */
   readonly shortcut?: string;
-  /** A decorative 14 px icon before the label. */
+  /** A decorative 14 px icon before the label, e.g. a Lucide icon. */
   readonly icon?: ReactNode;
 }
 
-export function MenuItem({ children, description, shortcut, icon, ...rest }: MenuItemProps) {
+export function MenuItem({
+  children,
+  description,
+  descriptionMono = false,
+  shortcut,
+  icon,
+  ...rest
+}: MenuItemProps) {
   return (
     <AriaMenuItem {...rest} textValue={children} className={classNames(styles.item)}>
       {icon !== undefined && (
@@ -90,7 +100,11 @@ export function MenuItem({ children, description, shortcut, icon, ...rest }: Men
         {children}
       </Text>
       {description !== undefined && (
-        <Text slot="description" className={styles.description}>
+        <Text
+          slot="description"
+          className={styles.description}
+          data-mono={descriptionMono || undefined}
+        >
           {description}
         </Text>
       )}
