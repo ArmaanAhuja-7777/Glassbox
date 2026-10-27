@@ -103,4 +103,4 @@ Engineering decisions, made within the design rules:
 - **Placeholders use `text/muted`** (4.9:1 dark, 5.2:1 light). Placeholders are text, so `text/tertiary` (3.6 / 3.35) would fail AA. This tightens the 27 Oct caption decision: `text/tertiary` is never used for any text.
 - **Toggle off knob uses `text/secondary`** (Figma: tertiary), so the knob that shows the state has ≥ 3:1 against its track (6.2 dark, 4.9 light; tertiary would be 3.0 / 2.75).
 
-Open question for the owner: input borders (`border/control`) are 1.6:1 against the input fill; WCAG 1.4.11 asks 3:1 for a control's identifying boundary.
+Input border: owner chose **option A** (keep `border/control`, 1.6:1). Every input has a visible label and the focus state passes. Logged for an accessibility review before public beta (`docs/upgrade-later.md` item 15).

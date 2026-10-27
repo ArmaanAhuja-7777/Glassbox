@@ -2055,7 +2055,7 @@ When phase 1a is done you can:
 | 3 | `packages/ui` foundation: CSS Modules, global styles, self-hosted fonts, theme switching, reduced motion, "no raw values" lint rule | done · `7af36eb` · Claude |
 | 4 | Storybook: setup, dark/light toolbar, accessibility addon, local run | done · `5d4aa21` (caption token) + `389286c` · Claude |
 | 5 | Button and Tag (the Figma components) | done · `792a45a` · Claude |
-| 6 | Input and Toggle | done · `8c1e851` · Claude · input-border contrast question open |
+| 6 | Input and Toggle | done · `8c1e851` · Claude · input border: option A (upgrade-later 15) |
 | 7 | Tabs and Panel | *planned* |
 | 8 | Menu and Tooltip (headless accessible primitives; ADR) | *planned* |
 | 9 | Flow node (all change states, selected, analysing) | *planned* |
