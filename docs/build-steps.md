@@ -2056,7 +2056,7 @@ When phase 1a is done you can:
 | 4 | Storybook: setup, dark/light toolbar, accessibility addon, local run | done · `5d4aa21` (caption token) + `389286c` · Claude |
 | 5 | Button and Tag (the Figma components) | done · `792a45a` · Claude |
 | 6 | Input and Toggle | done · `8c1e851` · Claude · input border: option A (upgrade-later 15) |
-| 7 | Tabs and Panel | *planned* |
+| 7 | Tabs and Panel | done · `5b88a8e` · Claude |
 | 8 | Menu and Tooltip (headless accessible primitives; ADR) | *planned* |
 | 9 | Flow node (all change states, selected, analysing) | *planned* |
 | 10 | Figma references + Playwright visual comparison with a side-by-side report | *planned* |
@@ -4239,3 +4239,452 @@ pnpm --filter @flowcanvas/ui storybook
 - **`border-radius: 50%` fails Stylelint.** Use the element's size token.
 
 **Commit:** `feat(ui): add Input and Toggle components with stories and tests`
+
+### Step 1a.7 — Tabs and Panel
+
+**Goal:**
+- **Tabs:** the inspector tab bar (underline) and the review-bar tabs (pills with count tags), with the full WAI-ARIA keyboard pattern.
+- **Panel:** the side-panel container used by the entry-points list, files, source control and settings.
+
+**Expected outcome:**
+- Storybook shows **Components → Tabs** (Underline: Details · Runs 12 · Changes 1 · Calls; Pill: Changed 3 · Affected 2 · Tests 3/4 · Observed 5 · Unverified 1).
+- It also shows **Components → Panel → Entry points**, matching the Figma left panel.
+- Arrow keys, Home and End move between tabs; Tab moves into the panel content.
+- `ui` tests: 39 (12 new). axe is clean in both themes.
+
+**Concepts:**
+- **The WAI-ARIA tabs pattern.**
+  - Roles `tablist` > `tab` (with `aria-selected`, `aria-controls`) and a `tabpanel` (with `aria-labelledby` pointing at its tab).
+  - Keyboard: **Left/Right** move between tabs and wrap at the ends; **Home/End** jump to the first or last tab.
+  - **Automatic activation:** moving focus also selects. Simple and fine when panels render instantly. (*Manual activation*, select on Enter, is for slow panels.)
+  - Docs: https://www.w3.org/WAI/ARIA/apg/patterns/tabs/
+- **Roving tabindex.**
+  - Only the selected tab has `tabIndex={0}`; the others have `-1`. Pressing Tab enters the tab list once (on the selected tab) and leaves it with the next Tab; arrows move *within* it.
+  - Without this, a keyboard user would have to Tab through every tab.
+  - Docs: https://www.w3.org/WAI/ARIA/apg/practices/keyboard-interface/#kbd_roving_tabindex
+- **A focusable tab panel.** The panel has `tabIndex={0}`, so the next Tab after the tab list lands in the content, which can then be scrolled with the keyboard.
+  - Found in a real-browser test: before the fix, Tab skipped straight to `<body>`.
+  - A unit test now guards it.
+- **Moving focus from code.**
+  - The component keeps a `Map` of tab elements via **callback refs** (`ref={(el) => …}` is called with the element on mount and `null` on unmount) and calls `.focus()` on the target tab.
+  - `useId()` makes unique, SSR-safe ids for `aria-controls` / `aria-labelledby`, so two Tabs on one page never clash.
+  - Docs: https://react.dev/reference/react/useId and https://react.dev/learn/manipulating-the-dom-with-refs#how-to-manage-a-list-of-refs-using-a-ref-callback
+- **Controlled or uncontrolled** (same pattern as Toggle): `value` + `onValueChange`, or `defaultValue`. `onValueChange` only fires when the selection actually changes.
+- **Two looks, one behaviour.**
+  - `variant="underline"`: 16 px apart, a hairline under the row, and a 2 px accent bar under the selected tab, drawn with `::after` (absolutely positioned, so it sits on top of the hairline).
+  - `variant="pill"`: the selected tab gets `surface-selected`, and counts become `Tag`s in the state's colours (Graphite: "count tag in the state's colours").
+- **Panel = one edge, no boxes.**
+  - Graphite: panels are `surface-panel` with **one** 1 px subtle edge *toward the canvas* (`edge="end"` for a left panel, `"start"` for a right one), no shadow.
+  - Sections are separated by spacing and an 11 px sentence-case label in `text/muted`, never by borders or cards ("fewer boxes").
+- **Landmarks and groups.**
+  - `<section aria-labelledby>` with an `<h2>` title makes each panel a named **region** landmark, so screen-reader users can jump between panels.
+  - Each `PanelSection` is a `role="group"` named by its label.
+  - Tests find them with `getByRole('region', { name: 'Entry points' })` and `getByRole('group', { name: 'Screens' })`.
+- **No `as` casts or `!` in tests.**
+  - `document.activeElement as Element` fails lint (`non-nullable-type-assertion-style`), and `!` is forbidden by the strict rules.
+  - A small `focused()` helper checks for `null` and throws a clear error instead, which is better than either shortcut because a failure explains itself.
+
+**Files:**
+
+**`packages/ui/src/components/tabs/Tabs.tsx`:**
+
+```tsx
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { classNames } from '../../class-names';
+import { Tag, type TagTone } from '../tag/Tag';
+import styles from './Tabs.module.css';
+
+export interface TabItem {
+  readonly id: string;
+  readonly label: string;
+  /** Shown after the label: plain muted text (underline tabs) or a tag (pill tabs). */
+  readonly count?: number | string;
+  /** Pill tabs only: the tag tone for the count, e.g. "modified" for "Changed 3". */
+  readonly countTone?: TagTone;
+}
+
+/** `underline`: inspector and panel tabs. `pill`: review-bar tabs with count tags. */
+export type TabsVariant = 'underline' | 'pill';
+
+export interface TabsProps {
+  readonly items: readonly TabItem[];
+  /** Controlled selection. Leave undefined to let Tabs manage it from `defaultValue`. */
+  readonly value?: string;
+  readonly defaultValue?: string;
+  readonly onValueChange?: (id: string) => void;
+  readonly variant?: TabsVariant;
+  /** Names the tab list for assistive technology, e.g. "Inspector". */
+  readonly 'aria-label': string;
+  /** Renders the content for the selected tab inside a tabpanel. Omit if the content lives elsewhere. */
+  readonly renderPanel?: (id: string) => ReactNode;
+  readonly className?: string;
+}
+
+/**
+ * WAI-ARIA tabs with automatic activation: arrow keys move focus and selection together,
+ * Home/End jump to the ends, and only the selected tab is in the Tab order ("roving tabindex").
+ */
+export function Tabs({
+  items,
+  value,
+  defaultValue,
+  onValueChange,
+  variant = 'underline',
+  'aria-label': ariaLabel,
+  renderPanel,
+  className,
+}: TabsProps) {
+  const baseId = useId();
+  const tabRefs = useRef(new Map<string, HTMLButtonElement>());
+  const [uncontrolled, setUncontrolled] = useState(defaultValue ?? items[0]?.id);
+  const selected = value ?? uncontrolled;
+
+  const select = (id: string) => {
+    if (value === undefined) {
+      setUncontrolled(id);
+    }
+    if (id !== selected) {
+      onValueChange?.(id);
+    }
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const last = items.length - 1;
+    const target =
+      event.key === 'ArrowRight'
+        ? index === last
+          ? 0
+          : index + 1
+        : event.key === 'ArrowLeft'
+          ? index === 0
+            ? last
+            : index - 1
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? last
+              : undefined;
+    const item = target === undefined ? undefined : items[target];
+    if (item === undefined) {
+      return;
+    }
+    event.preventDefault();
+    select(item.id);
+    tabRefs.current.get(item.id)?.focus();
+  };
+
+  const tabId = (id: string) => `${baseId}-tab-${id}`;
+  const panelId = `${baseId}-panel`;
+
+  return (
+    <div className={className}>
+      <div role="tablist" aria-label={ariaLabel} className={styles.list} data-variant={variant}>
+        {items.map((item, index) => {
+          const isSelected = item.id === selected;
+          return (
+            <button
+              key={item.id}
+              ref={(element) => {
+                if (element) {
+                  tabRefs.current.set(item.id, element);
+                } else {
+                  tabRefs.current.delete(item.id);
+                }
+              }}
+              id={tabId(item.id)}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              aria-controls={renderPanel && isSelected ? panelId : undefined}
+              tabIndex={isSelected ? 0 : -1}
+              className={styles.tab}
+              onClick={() => {
+                select(item.id);
+              }}
+              onKeyDown={(event) => {
+                onKeyDown(event, index);
+              }}
+            >
+              <span>{item.label}</span>
+              {item.count !== undefined &&
+                (variant === 'pill' ? (
+                  <Tag tone={item.countTone ?? 'neutral'}>{item.count}</Tag>
+                ) : (
+                  <span className={styles.count}>{item.count}</span>
+                ))}
+            </button>
+          );
+        })}
+      </div>
+      {renderPanel && selected !== undefined && (
+        <div
+          role="tabpanel"
+          id={panelId}
+          // Focusable so Tab moves from the tab list into the content (WAI-ARIA tabs pattern).
+          tabIndex={0}
+          aria-labelledby={tabId(selected)}
+          className={classNames(styles.panel)}
+        >
+          {renderPanel(selected)}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+**`packages/ui/src/components/tabs/Tabs.module.css`:**
+
+```css
+.list {
+  display: flex;
+  align-items: center;
+}
+
+/* Underline (inspector, panels): 16 px apart, a hairline under the row, 2 px accent under the selected tab. */
+.list[data-variant='underline'] {
+  gap: var(--space-16);
+  border-block-end: var(--border-width-default) solid var(--color-border-subtle);
+}
+
+/* Pill (review bar): compact, the selected tab gets the selected surface. */
+.list[data-variant='pill'] {
+  gap: var(--space-4);
+}
+
+.tab {
+  position: relative;
+  display: inline-flex;
+  gap: var(--space-4);
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--text-small-font-family);
+  font-size: var(--text-small-font-size);
+  font-weight: var(--text-small-font-weight);
+  line-height: var(--text-small-line-height);
+  letter-spacing: var(--text-small-letter-spacing);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--duration-hover) ease-out,
+    background-color var(--duration-hover) ease-out;
+}
+
+.tab:hover {
+  color: var(--color-text-primary);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--color-text-primary);
+  font-weight: var(--text-small-strong-font-weight);
+}
+
+.list[data-variant='underline'] .tab {
+  padding-block: 0 calc(var(--space-8) - var(--border-width-default));
+}
+
+.list[data-variant='underline'] .tab[aria-selected='true']::after {
+  position: absolute;
+  inset: auto 0 calc(-1 * var(--border-width-default));
+  block-size: var(--border-width-state-bar);
+  background: var(--color-accent-solid);
+  content: '';
+}
+
+.list[data-variant='pill'] .tab {
+  padding: var(--space-4) calc(var(--space-8) + var(--space-2));
+  border-radius: var(--radius-control);
+}
+
+.list[data-variant='pill'] .tab:hover {
+  background: var(--color-surface-hover);
+}
+
+.list[data-variant='pill'] .tab[aria-selected='true'] {
+  background: var(--color-surface-selected);
+}
+
+.count {
+  color: var(--color-text-muted);
+  font-weight: var(--text-small-font-weight);
+}
+
+.panel {
+  padding-block-start: var(--space-12);
+}
+```
+
+**`packages/ui/src/components/panel/Panel.tsx`:**
+
+```tsx
+import { useId, type ComponentPropsWithRef, type ReactNode } from 'react';
+import { classNames } from '../../class-names';
+import styles from './Panel.module.css';
+
+/** Which side faces the canvas: the only side with a border (Graphite: "1 px edge toward the canvas only"). */
+export type PanelEdge = 'start' | 'end' | 'top' | 'bottom' | 'none';
+
+export interface PanelProps extends Omit<ComponentPropsWithRef<'section'>, 'title'> {
+  readonly title: string;
+  /** Short text on the right of the header, e.g. a count ("26") or a project name. */
+  readonly meta?: ReactNode;
+  readonly edge?: PanelEdge;
+}
+
+/** A side panel: panel surface, a header naming it, and content arranged in sections. */
+export function Panel({ title, meta, edge = 'end', className, children, ...rest }: PanelProps) {
+  const titleId = useId();
+  return (
+    <section
+      {...rest}
+      aria-labelledby={titleId}
+      className={classNames(styles.panel, className)}
+      data-edge={edge}
+    >
+      <header className={styles.header}>
+        <h2 id={titleId} className={styles.title}>
+          {title}
+        </h2>
+        {meta !== undefined && <span className={styles.meta}>{meta}</span>}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+export interface PanelSectionProps extends ComponentPropsWithRef<'div'> {
+  readonly label: string;
+  readonly count?: number | string;
+}
+
+/**
+ * A group inside a panel, introduced by an 11 px sentence-case label. Groups are separated by
+ * spacing, not borders or cards (Graphite: "fewer boxes").
+ */
+export function PanelSection({ label, count, className, children, ...rest }: PanelSectionProps) {
+  const labelId = useId();
+  return (
+    <div
+      {...rest}
+      role="group"
+      aria-labelledby={labelId}
+      className={classNames(styles.section, className)}
+    >
+      <div className={styles.sectionHeader}>
+        <span id={labelId}>{label}</span>
+        {count !== undefined && <span>{count}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+```
+
+**`packages/ui/src/components/panel/Panel.module.css`:**
+
+```css
+/* Graphite panel: panel surface, one 1 px subtle edge toward the canvas, no shadow. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: calc(var(--space-8) + var(--space-2)) var(--space-8) var(--space-12);
+  background: var(--color-surface-panel);
+  color: var(--color-text-primary);
+}
+
+.panel[data-edge='start'] {
+  border-inline-start: var(--border-width-default) solid var(--color-border-subtle);
+}
+
+.panel[data-edge='end'] {
+  border-inline-end: var(--border-width-default) solid var(--color-border-subtle);
+}
+
+.panel[data-edge='top'] {
+  border-block-start: var(--border-width-default) solid var(--color-border-subtle);
+}
+
+.panel[data-edge='bottom'] {
+  border-block-end: var(--border-width-default) solid var(--color-border-subtle);
+}
+
+.header {
+  display: flex;
+  gap: var(--space-8);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-8) var(--space-8);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--text-small-strong-font-family);
+  font-size: var(--text-small-strong-font-size);
+  font-weight: var(--text-small-strong-font-weight);
+  line-height: var(--text-small-strong-line-height);
+  letter-spacing: var(--text-small-strong-letter-spacing);
+}
+
+.meta,
+.sectionHeader {
+  color: var(--color-text-muted);
+  font-family: var(--text-caption-font-family);
+  font-size: var(--text-caption-font-size);
+  font-weight: var(--text-caption-font-weight);
+  line-height: var(--text-caption-line-height);
+  letter-spacing: var(--text-caption-letter-spacing);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-12) var(--space-8) var(--space-4);
+}
+```
+
+**Tests and stories:**
+- `tabs/Tabs.test.tsx`, 9 tests:
+  - first tab selected with its panel
+  - roving tabindex
+  - click selects and reports
+  - arrows move and wrap
+  - Home/End
+  - focusable panel
+  - counts after labels
+  - controlled
+  - no report on re-clicking the selected tab
+- `panel/Panel.test.tsx`, 3 tests: named region with meta; edge (default `end`, and `start`); labelled sections with counts.
+- `Tabs.stories.tsx`: Underline (inspector, with panel content), Pill (review bar).
+- `Panel.stories.tsx`: Entry points (mock content, catalogue only).
+- `packages/ui/src/index.ts` exports `Tabs`, `Panel`, `PanelSection` and their types.
+
+**Commands:**
+
+```fish
+pnpm format && pnpm lint && pnpm typecheck && pnpm test   # ui: 39 passed
+pnpm --filter @flowcanvas/ui storybook
+```
+
+**Run and check it:**
+1. **Components → Tabs → Underline:** click Runs, and the accent bar moves and the panel text changes.
+2. Click Details, then use **→ → End → Home** on the keyboard; press **Tab** once more and focus lands in the panel (ring visible).
+3. **Tabs → Pill:** review-bar tabs with coloured count tags.
+4. **Components → Panel → Entry points:** the panel with its single right edge, filter, and Screens / API routes / Jobs sections.
+5. Light theme, then the Accessibility tab: no violations.
+
+**Gotchas:**
+- **Every tab in the Tab order** (all `tabIndex=0`) is a common mistake; keyboard users then have to Tab through all of them.
+- **`aria-controls` must point to an element that exists.** We only set it on the selected tab, whose panel is rendered.
+- **Don't put borders between panel sections.** Use the section label and spacing.
+- **A Panel without a title** has no accessible name. `title` is required.
+
+**Commit:** `feat(ui): add Tabs and Panel components with stories and tests`
