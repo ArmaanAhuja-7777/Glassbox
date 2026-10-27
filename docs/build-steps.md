@@ -6782,7 +6782,7 @@ export default preview;
 | Field | Value |
 | --- | --- |
 | Project name | `flowcanvas-catalogue` (must equal `name` in `packages/ui/wrangler.jsonc`) |
-| Build command | `corepack enable && pnpm install --frozen-lockfile && pnpm --filter @flowcanvas/ui --fail-if-no-match build-storybook` |
+| Build command | `corepack enable && pnpm install --frozen-lockfile && pnpm turbo run build-storybook --filter=@flowcanvas/ui` |
 | Deploy command | `pnpm exec wrangler deploy --config packages/ui/wrangler.jsonc` |
 | Enable preview builds | **on** |
 | Non-production branch deploy command | `pnpm exec wrangler versions upload --config packages/ui/wrangler.jsonc` |
@@ -6794,13 +6794,20 @@ export default preview;
 The production deploy runs from `main`, so the catalogue URL works after phase 1a is merged.
 
 - **The first build fails on `main`, and that's expected.** Creating the project builds the production branch at once, and `main` has no `packages/ui` yet, so the deploy reports `Could not read file: packages/ui/wrangler.jsonc`. This happened on 27 Oct 2026; it resolves itself when phase 1a merges.
-- **`--fail-if-no-match` matters.** That same build's first step reported **Success** although `--filter @flowcanvas/ui` matched nothing ("No projects matched the filters"). pnpm exits 0 when a filter matches nothing; with the flag it exits 1, so a wrong filter fails at the build step with a clear message instead of later, confusingly, at deploy. Until then, use the **preview URL** of the `phase/1a-design-system` branch from the project's Deployments page.
+- **Build through Turbo, not `pnpm --filter`.**
+  - The second build (branch `phase/1a-design-system`, 27 Oct 2026) failed: `Rolldown failed to resolve import "@flowcanvas/tokens"`.
+  - `@flowcanvas/tokens` is a *compiled* package (its `exports` point at `dist/`), and a clean checkout has no `dist/`.
+  - `pnpm --filter … build-storybook` runs only that one script. `turbo run build-storybook` first runs the `^build` tasks it depends on (`turbo.json`).
+  - It worked locally only because `dist/` was left over from earlier builds. Reproduced and fixed in a fresh `git clone`.
+  - Turbo also exits 1 when `--filter` matches nothing.
+  - `pnpm test:visual` uses Turbo for the same reason.
+- **`--fail-if-no-match` matters for plain pnpm filters.** That same build's first step reported **Success** although `--filter @flowcanvas/ui` matched nothing ("No projects matched the filters"). pnpm exits 0 when a filter matches nothing; with the flag it exits 1, so a wrong filter fails at the build step with a clear message instead of later, confusingly, at deploy. Until then, use the **preview URL** of the `phase/1a-design-system` branch from the project's Deployments page.
 
 **Commands (local):**
 
 ```fish
 pnpm install
-pnpm --filter @flowcanvas/ui build-storybook
+pnpm turbo run build-storybook --filter=@flowcanvas/ui
 pnpm exec wrangler deploy --config packages/ui/wrangler.jsonc --dry-run   # "Read 99 files from the assets directory"
 pnpm exec wrangler dev --config packages/ui/wrangler.jsonc --port 8788    # the catalogue in Cloudflare's runtime, headers applied
 curl -sI http://127.0.0.1:8788/ | grep -i content-security-policy
