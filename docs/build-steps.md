@@ -2058,7 +2058,7 @@ When phase 1a is done you can:
 | 6 | Input and Toggle | done · `8c1e851` · Claude · input border: option A (upgrade-later 15) |
 | 7 | Tabs and Panel | done · `5b88a8e` · Claude |
 | 8 | Menu and Tooltip (headless accessible primitives; ADR) | done · `9743475` · Claude · ADR 0008 |
-| 9 | Flow node (all change states, selected, analysing) | *planned* |
+| 9 | Flow node (all change states, selected, analysing) | done · `6fef1f8` · Claude · ADR 0009 · shadow `0358bba` |
 | 10 | Figma references + Playwright visual comparison with a side-by-side report | *planned* |
 | 11 | Version page restyled with tokens; Storybook deployed to a free Cloudflare URL | *planned* |
 | 12 | Close phase 1a: ADRs, architecture, status, changelog, report, merge | *planned* |
@@ -5109,3 +5109,649 @@ pnpm build && pnpm exec wrangler dev                      # web app under the pr
 - **A `<div onClick>` can't be a tooltip trigger.** The child must be focusable.
 
 **Commit:** `feat(ui): add Menu and Tooltip on React Aria Components, CSP-safe`
+
+### Step 1a.9 — Flow node (plus the lighter light-theme shadow)
+
+**Goal:** build the card every flow step is drawn with on the canvas: type icon, title, file and line, and the change, status and selection states from the Figma "Flow node" component (9 variants).
+
+**Expected outcome:**
+- Storybook shows **Components → Flow node**:
+  - **All states:** the 9 Figma variants in Figma order.
+  - **Combinations:** selected + modified, modified + failing, added + analysing, a long title.
+  - **All kinds:** 12 node types, one icon each.
+- Both themes; axe finds no violations on any story.
+- `ui` tests: 60 (11 new).
+- Before this step (owner approved): the popover shadow is per theme. Light is now `0 8 24 rgba(16, 24, 40, 0.12)`; dark is unchanged. `shadow.popover` moved from `base.tokens.json` into both theme files (commit `0358bba`).
+
+**Concepts:**
+- **Variants in a design tool vs props in code.**
+  - Figma's component has nine *mutually exclusive* variants (Default, Selected, Added … Analysing). In the product these are not exclusive: a node can be modified, failing and selected at once.
+  - So the code models three **independent** props: `change`, `status` and `selected`.
+  - Copying Figma's variant list into one `state` prop would make "modified and failing" impossible to express. Translate the *meaning* of a design, not its file structure.
+- **State never by colour alone** (WCAG 1.4.1; https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html). Every state has three signals:
+  - a hue (state solid at 50% on the border)
+  - a shape (2 px state bar, dashed outline for affected or outside selection, strikethrough for removed)
+  - text (the tag)
+- **Dimming without breaking contrast.**
+  - Figma dims removed and analysing nodes with opacity 0.55. That would put the mono location text at about 2.4:1, below the 4.5:1 AA minimum.
+  - Instead the title steps down one text level (`text/primary` → `text/secondary`), which looks dimmed and still passes. Recorded in the decisions log.
+- **Accessible names for meaningful icons.**
+  - Lucide icons render `aria-hidden` by default (decorative).
+  - The node-type icon *does* carry meaning, so it gets `role="img"` and `aria-label="Function"`. A screen reader reads "Function, createItem, modified, src/items/create.ts:42".
+  - The "~" prefix is wrapped in `aria-hidden`, so it isn't read as "tilde".
+- **`aria-busy`** (https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-busy). An analysing node is marked busy, which supports the product rule that stale values are never presented as current.
+- **Whitespace in flex containers.** The Tag is `inline-flex`; text runs become flex items and a trailing space inside the symbol `<span>` is dropped ("+added"). A no-break space (` `) survives. Found in the screenshot, not the unit test, which is why we look at the real render.
+- **Flex wrapping for a title row.** With `flex: 1 1 auto`, the title keeps its natural width. When title and tags don't fit, the **tags** wrap below rather than the title breaking mid-word ("legacyNormaliz/e" in the first render). Very long identifiers still break anywhere (`overflow-wrap: anywhere`) rather than overflow.
+- **Selection ring without layout shift.** The border stays 1 px and turns accent. Two `box-shadow` rings add the extra 0.5 px (making 1.5 px) and the 3 px accent-tint halo. Changing `border-width` would move the content by half a pixel.
+- **A shimmer that respects reduced motion.**
+  - A pseudo-element's background gradient sweeps across over `--duration-shimmer` (1.2 s, linear).
+  - It moves `background-position`, so nothing needs `overflow: hidden`, which would clip the state bar drawn over the border.
+  - Under reduced motion it's removed entirely; the tag and dimmed title still say "analysing".
+- **Presentational components.** `FlowNode` handles no clicks, focus or keys. The canvas (React Flow, from phase 2) wraps each node in its own focusable, selectable element. Two focus stops per node would break keyboard navigation.
+- **Icons:** Lucide, via `lucide-react`; see ADR 0009 for the choice and the type-to-icon table. Icon size and stroke come from tokens (`--size-icon-sm`, `--icon-stroke-width: 2.25` = 1.5 px at 16 px).
+
+**New tokens** (`packages/tokens/source/base.tokens.json`, then `pnpm --filter @flowcanvas/tokens generate`):
+- `border.width.node-halo` = 3 px. The 2 px `halo` is now described as the inputs' halo.
+- `icon.stroke-width` = 2.25 (number).
+
+**Dependency:** `lucide-react: 1.55.0` in the catalog; `"lucide-react": "catalog:"` in `packages/ui` dependencies. `index.ts` exports `FlowNode` and the types `FlowNodeKind`, `FlowNodeChange`, `FlowNodeStatus`, `FlowNodeProps`.
+
+**`packages/ui/src/components/flow-node/FlowNode.tsx`:**
+
+```tsx
+import type { ComponentPropsWithRef } from 'react';
+import {
+  AppWindow,
+  BrainCircuit,
+  Code,
+  Database,
+  File,
+  Globe,
+  KeyRound,
+  Layers,
+  ListChecks,
+  Route,
+  SlidersHorizontal,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react';
+import { classNames } from '../../class-names';
+import { Tag, type TagTone } from '../tag/Tag';
+import styles from './FlowNode.module.css';
+
+/** The twelve node types in Graphite, one icon each. */
+export type FlowNodeKind =
+  | 'ui'
+  | 'function'
+  | 'route'
+  | 'rule'
+  | 'data'
+  | 'external'
+  | 'ai'
+  | 'queue'
+  | 'config'
+  | 'auth'
+  | 'error'
+  | 'file';
+
+/** What happened to this node in the change under review. Absent means unchanged. */
+export type FlowNodeChange = 'added' | 'modified' | 'removed' | 'affected' | 'scope';
+
+/** Live status, independent of the change: a failing test, or analysis still running. */
+export type FlowNodeStatus = 'failing' | 'analysing';
+
+export interface FlowNodeProps extends Omit<ComponentPropsWithRef<'div'>, 'title' | 'children'> {
+  /** Short name, e.g. "createItem". */
+  readonly title: string;
+  /** File and line, e.g. "src/items/create.ts:42". */
+  readonly location: string;
+  readonly kind?: FlowNodeKind;
+  readonly change?: FlowNodeChange;
+  readonly status?: FlowNodeStatus;
+  readonly selected?: boolean;
+}
+
+const KINDS: Record<FlowNodeKind, { readonly icon: LucideIcon; readonly label: string }> = {
+  ui: { icon: AppWindow, label: 'UI' },
+  function: { icon: Code, label: 'Function' },
+  route: { icon: Route, label: 'Route' },
+  rule: { icon: ListChecks, label: 'Rule' },
+  data: { icon: Database, label: 'Data' },
+  external: { icon: Globe, label: 'External service' },
+  ai: { icon: BrainCircuit, label: 'AI call' },
+  queue: { icon: Layers, label: 'Queue' },
+  config: { icon: SlidersHorizontal, label: 'Config' },
+  auth: { icon: KeyRound, label: 'Auth' },
+  error: { icon: TriangleAlert, label: 'Error' },
+  file: { icon: File, label: 'File' },
+};
+
+interface Label {
+  readonly tone: TagTone;
+  /** Visual prefix only; screen readers hear the text ("modified", not "tilde modified"). */
+  readonly symbol?: string;
+  readonly text: string;
+}
+
+const CHANGE_LABELS: Record<FlowNodeChange, Label> = {
+  added: { tone: 'added', symbol: '+', text: 'added' },
+  modified: { tone: 'modified', symbol: '~', text: 'modified' },
+  removed: { tone: 'removed', symbol: '−', text: 'removed' },
+  affected: { tone: 'affected', text: 'affected' },
+  scope: { tone: 'scope', text: 'outside selection' },
+};
+
+const STATUS_LABELS: Record<FlowNodeStatus, Label> = {
+  failing: { tone: 'removed', text: 'failing' },
+  analysing: { tone: 'neutral', text: 'analysing…' },
+};
+
+function StateTag({ label }: { readonly label: Label }) {
+  return (
+    <Tag tone={label.tone}>
+      {/* A no-break space: the Tag is a flex container, which would drop an ordinary trailing space. */}
+      {label.symbol !== undefined && <span aria-hidden="true">{`${label.symbol}\u00a0`}</span>}
+      {label.text}
+    </Tag>
+  );
+}
+
+/**
+ * One step of a flow on the canvas. Presentational only: selection, focus and keyboard handling
+ * belong to the canvas that renders it. A change is shown by hue *and* by shape (state bar, dashed
+ * outline, strikethrough) *and* by a text tag, so it never depends on colour alone.
+ */
+export function FlowNode({
+  title,
+  location,
+  kind = 'function',
+  change,
+  status,
+  selected = false,
+  className,
+  ...rest
+}: FlowNodeProps) {
+  const { icon: Icon, label: kindLabel } = KINDS[kind];
+  return (
+    <div
+      {...rest}
+      className={classNames(styles.node, className)}
+      data-change={change}
+      data-status={status}
+      data-selected={selected || undefined}
+      aria-busy={status === 'analysing' || undefined}
+    >
+      <Icon className={styles.icon} role="img" aria-label={kindLabel} />
+      <div className={styles.text}>
+        <div className={styles.titleRow}>
+          <span className={styles.title}>{title}</span>
+          {change !== undefined && <StateTag label={CHANGE_LABELS[change]} />}
+          {status !== undefined && <StateTag label={STATUS_LABELS[status]} />}
+        </div>
+        <span className={styles.location}>{location}</span>
+      </div>
+    </div>
+  );
+}
+```
+
+**`packages/ui/src/components/flow-node/FlowNode.module.css`:**
+
+```css
+/*
+ * Graphite flow node (Figma component "Flow node", 216 px): raised surface, 1 px subtle border,
+ * 6 px radius, type icon, Body strong title, Mono small location.
+ * Changed: 2 px state bar on the left, border in the state's solid at 50%, tag in the title row.
+ * Affected / outside selection: dashed border in the state's solid, no bar.
+ */
+.node {
+  --node-state: transparent;
+
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+  box-sizing: border-box;
+  width: var(--size-node-width);
+  padding: var(--space-8) var(--space-8) var(--space-8) var(--space-12);
+  border: var(--border-width-default) solid var(--color-border-subtle);
+  border-radius: var(--radius-node);
+  background: var(--color-surface-raised);
+  transition:
+    background-color var(--duration-hover) ease-out,
+    border-color var(--duration-hover) ease-out;
+}
+
+.node:hover {
+  background: var(--color-surface-hover);
+}
+
+.node:not([data-change], [data-status='failing']):hover {
+  border-color: var(--color-border-strong);
+}
+
+.icon {
+  flex: none;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+
+  /* Centre the icon on the title's first line (20 px line, 16 px icon). */
+  margin-block: calc((var(--text-body-strong-line-height) - var(--size-icon-sm)) / 2);
+  color: var(--color-text-tertiary);
+  stroke-width: var(--icon-stroke-width);
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/*
+ * Tags sit at the end of the title row. The title keeps its natural width, so when title and tags
+ * don't fit on one line the tags move below the title instead of the title breaking mid-word.
+ */
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) calc(var(--space-4) + var(--space-2));
+}
+
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--text-body-strong-font-family);
+  font-size: var(--text-body-strong-font-size);
+  font-weight: var(--text-body-strong-font-weight);
+  line-height: var(--text-body-strong-line-height);
+  letter-spacing: var(--text-body-strong-letter-spacing);
+  color: var(--color-text-primary);
+}
+
+/* text/muted, not the Figma's tertiary: the location is text and must pass 4.5:1. */
+.location {
+  overflow-wrap: anywhere;
+  font-family: var(--text-mono-small-font-family);
+  font-size: var(--text-mono-small-font-size);
+  font-weight: var(--text-mono-small-font-weight);
+  line-height: var(--text-mono-small-line-height);
+  letter-spacing: var(--text-mono-small-letter-spacing);
+  color: var(--color-text-muted);
+}
+
+/* ── Change states ─────────────────────────────────────────────── */
+
+.node[data-change='added'] {
+  --node-state: var(--color-state-added-solid);
+}
+
+.node[data-change='modified'] {
+  --node-state: var(--color-state-modified-solid);
+}
+
+.node[data-change='removed'],
+.node:not([data-change])[data-status='failing'] {
+  --node-state: var(--color-state-removed-solid);
+}
+
+.node[data-change='added'],
+.node[data-change='modified'],
+.node[data-change='removed'],
+.node:not([data-change])[data-status='failing'] {
+  border-color: color-mix(in srgb, var(--node-state) 50%, transparent);
+}
+
+/* The state bar: 2 px, inset 8 px from top and bottom, drawn over the left border. */
+.node[data-change='added']::before,
+.node[data-change='modified']::before,
+.node[data-change='removed']::before,
+.node:not([data-change])[data-status='failing']::before {
+  position: absolute;
+  inset-block: calc(var(--space-8) - var(--border-width-default));
+  inset-inline-start: calc(-1 * var(--border-width-default));
+  width: var(--border-width-state-bar);
+  border-radius: calc(var(--border-width-state-bar) / 2);
+  background: var(--node-state);
+  content: '';
+}
+
+.node[data-change='affected'] {
+  border-style: dashed;
+  border-color: var(--color-state-affected-solid);
+}
+
+.node[data-change='scope'] {
+  border-style: dashed;
+  border-color: var(--color-state-scope-solid);
+}
+
+/*
+ * Removed nodes and nodes still being analysed are dimmed by stepping text down one level, not by
+ * opacity, so the title still passes contrast. Removed is also struck through.
+ */
+.node[data-change='removed'] .title,
+.node[data-status='analysing'] .title {
+  color: var(--color-text-secondary);
+}
+
+.node[data-change='removed'] .title {
+  text-decoration: line-through;
+}
+
+/* ── Selected: 1.5 px accent outline plus a 3 px accent-tint halo ── */
+
+.node[data-selected] {
+  border-color: var(--color-accent-solid);
+  box-shadow:
+    0 0 0 calc(var(--border-width-selected) - var(--border-width-default)) var(--color-accent-solid),
+    0 0 0
+      calc(
+        var(--border-width-selected) - var(--border-width-default) + var(--border-width-node-halo)
+      )
+      var(--color-accent-tint);
+}
+
+/*
+ * Analysing: a subtle shimmer sweeps across the node. It moves the background rather than the
+ * element, so nothing needs clipping (overflow: hidden would also clip the state bar).
+ */
+.node[data-status='analysing']::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+      90deg,
+      transparent 30%,
+      color-mix(in srgb, var(--color-text-primary) 6%, transparent) 50%,
+      transparent 70%
+    )
+    0 0 / 300% 100% no-repeat;
+  content: '';
+  pointer-events: none;
+  animation: shimmer var(--duration-shimmer) linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* No sweep at all under reduced motion; the tag and dimmed title still say "analysing". */
+@media (prefers-reduced-motion: reduce) {
+  .node[data-status='analysing']::after {
+    display: none;
+  }
+}
+```
+
+**`packages/ui/src/components/flow-node/FlowNode.test.tsx`:**
+
+```tsx
+import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { FlowNode, type FlowNodeKind } from './FlowNode';
+
+afterEach(cleanup);
+
+function node(): HTMLElement {
+  const title = screen.getByText('createItem');
+  const root = title.closest<HTMLElement>('[data-flow-node]');
+  if (root === null) throw new Error('flow node root not found');
+  return root;
+}
+
+describe('FlowNode', () => {
+  it('shows the title and location, unchanged and unselected by default', () => {
+    render(<FlowNode data-flow-node title="createItem" location="src/items/create.ts:42" />);
+    expect(screen.getByText('src/items/create.ts:42')).toBeTruthy();
+    expect(node().dataset.change).toBeUndefined();
+    expect(node().dataset.status).toBeUndefined();
+    expect(node().dataset.selected).toBeUndefined();
+    expect(
+      screen.queryByText(/added|modified|removed|affected|outside|failing|analysing/),
+    ).toBeNull();
+  });
+
+  it('names the node type for screen readers through its icon', () => {
+    const kinds: [FlowNodeKind, string][] = [
+      ['function', 'Function'],
+      ['data', 'Data'],
+      ['external', 'External service'],
+    ];
+    for (const [kind, label] of kinds) {
+      render(<FlowNode kind={kind} title={kind} location="a.ts:1" />);
+      expect(screen.getByRole('img', { name: label })).toBeTruthy();
+      cleanup();
+    }
+  });
+
+  it.each([
+    ['added', '+\u00a0added', 'added'],
+    ['modified', '~\u00a0modified', 'modified'],
+    ['removed', '−\u00a0removed', 'removed'],
+    ['affected', 'affected', 'affected'],
+    ['scope', 'outside selection', 'scope'],
+  ] as const)('labels the %s change with text, not colour alone', (change, visible, tone) => {
+    render(<FlowNode data-flow-node title="createItem" location="a.ts:1" change={change} />);
+    expect(node().dataset.change).toBe(change);
+    const tag = node().querySelector<HTMLElement>('[data-tone]');
+    expect(tag?.textContent).toBe(visible);
+    expect(tag?.dataset.tone).toBe(tone);
+  });
+
+  it('hides the symbol prefix from screen readers', () => {
+    render(<FlowNode data-flow-node title="createItem" location="a.ts:1" change="modified" />);
+    const symbol = node().querySelector('[aria-hidden="true"]:not(svg)');
+    expect(symbol?.textContent.trim()).toBe('~');
+    expect(screen.getByText('modified')).toBeTruthy();
+  });
+
+  it('shows a status alongside a change', () => {
+    render(
+      <FlowNode
+        data-flow-node
+        title="createItem"
+        location="a.ts:1"
+        change="modified"
+        status="failing"
+      />,
+    );
+    const tones = [...node().querySelectorAll<HTMLElement>('[data-tone]')].map((tag) => [
+      tag.textContent,
+      tag.dataset.tone,
+    ]);
+    expect(tones).toEqual([
+      ['~\u00a0modified', 'modified'],
+      ['failing', 'removed'],
+    ]);
+  });
+
+  it('marks an analysing node busy, so stale values are never read as current', () => {
+    render(<FlowNode data-flow-node title="createItem" location="a.ts:1" status="analysing" />);
+    expect(node().getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByText('analysing…')).toBeTruthy();
+  });
+
+  it('reflects selection and passes other attributes through', () => {
+    render(
+      <FlowNode
+        data-flow-node
+        title="createItem"
+        location="a.ts:1"
+        selected
+        className="extra"
+        id="node-1"
+      />,
+    );
+    expect(node().dataset.selected).toBe('true');
+    expect(node().id).toBe('node-1');
+    expect(node().classList.contains('extra')).toBe(true);
+    expect(node().hasAttribute('aria-busy')).toBe(false);
+  });
+});
+```
+
+**`packages/ui/src/components/flow-node/FlowNode.stories.tsx`:**
+
+```tsx
+import { vars } from '@flowcanvas/tokens';
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { FlowNode, type FlowNodeKind } from './FlowNode';
+
+const meta = {
+  title: 'Components/Flow node',
+  component: FlowNode,
+  args: { title: 'createItem', location: 'src/items/create.ts:42', kind: 'function' },
+  argTypes: {
+    kind: {
+      control: 'select',
+      options: [
+        'ui',
+        'function',
+        'route',
+        'rule',
+        'data',
+        'external',
+        'ai',
+        'queue',
+        'config',
+        'auth',
+        'error',
+        'file',
+      ],
+    },
+    change: {
+      control: 'select',
+      options: [undefined, 'added', 'modified', 'removed', 'affected', 'scope'],
+    },
+    status: { control: 'select', options: [undefined, 'failing', 'analysing'] },
+  },
+} satisfies Meta<typeof FlowNode>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+const column = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space['16'],
+  alignItems: 'flex-start',
+} as const;
+
+export const Default: Story = {};
+
+/** The nine variants of the Figma "Flow node" component set, in the same order. */
+export const AllStates: Story = {
+  render: () => (
+    <div style={column}>
+      <FlowNode title="Save item" location="app/items/save.tsx:18" kind="ui" />
+      <FlowNode title="POST /api/items" location="app/api/items/route.ts:9" kind="route" selected />
+      <FlowNode title="validateTitle" location="lib/validate.ts:12" kind="rule" change="added" />
+      <FlowNode title="createItem" location="src/items/create.ts:42" change="modified" />
+      <FlowNode title="legacyNormalize" location="src/items/legacy.ts:7" change="removed" />
+      <FlowNode title="db.items.insert" location="lib/db.ts:41" kind="data" change="affected" />
+      <FlowNode title="item.created" location="src/events/items.ts:3" kind="queue" change="scope" />
+      <FlowNode title="sendWelcome" location="worker/mail.ts:22" kind="external" status="failing" />
+      <FlowNode
+        title="AI check (Gemini)"
+        location="worker/check.ts:42"
+        kind="ai"
+        status="analysing"
+      />
+    </div>
+  ),
+};
+
+/** Selection and status combine with a change: selection never hides what changed. */
+export const Combinations: Story = {
+  render: () => (
+    <div style={column}>
+      <FlowNode title="createItem" location="src/items/create.ts:42" change="modified" selected />
+      <FlowNode
+        title="createItem"
+        location="src/items/create.ts:42"
+        change="modified"
+        status="failing"
+      />
+      <FlowNode
+        title="validateTitle"
+        location="lib/validate.ts:12"
+        kind="rule"
+        change="added"
+        status="analysing"
+      />
+      <FlowNode
+        title="normalizeItemTitleAndStripUnsafeMarkup"
+        location="src/items/sanitize/normalize-title.ts:118"
+        change="affected"
+      />
+    </div>
+  ),
+};
+
+const KINDS: [FlowNodeKind, string, string][] = [
+  ['ui', 'Item editor', 'app/items/editor.tsx:1'],
+  ['function', 'createItem', 'src/items/create.ts:42'],
+  ['route', 'POST /api/items', 'app/api/items/route.ts:9'],
+  ['rule', 'validateTitle', 'lib/validate.ts:12'],
+  ['data', 'db.items.insert', 'lib/db.ts:41'],
+  ['external', 'Stripe charge', 'src/billing/charge.ts:30'],
+  ['ai', 'AI check (Gemini)', 'worker/check.ts:42'],
+  ['queue', 'item.created', 'src/events/items.ts:3'],
+  ['config', 'ITEM_LIMIT', 'config/items.ts:5'],
+  ['auth', 'requireSession', 'src/auth/session.ts:14'],
+  ['error', 'onSaveError', 'app/items/errors.ts:8'],
+  ['file', 'items.csv', 'data/items.csv'],
+];
+
+/** One icon per node type (Graphite iconography). */
+export const AllKinds: Story = {
+  render: () => (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, max-content)',
+        gap: vars.space['12'],
+      }}
+    >
+      {KINDS.map(([kind, title, location]) => (
+        <FlowNode key={kind} kind={kind} title={title} location={location} />
+      ))}
+    </div>
+  ),
+};
+```
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm --filter @flowcanvas/tokens generate
+pnpm format && pnpm lint && pnpm typecheck && pnpm test   # ui: 60 passed
+pnpm --filter @flowcanvas/ui storybook                    # http://localhost:6006
+```
+
+**Run and check it:**
+1. **Components → Flow node → All states:** compare top to bottom with the Figma "Flow node" component set (Default, Selected, Added, Modified, Removed, Affected, Scope, Failing, Analysing). The last one shimmers.
+2. Switch the theme toolbar to light and check the same.
+3. **Combinations:** a selected node keeps its ochre bar and tag; "failing" and "analysing" tags sit next to the change tag; the long title wraps without overflowing.
+4. **All kinds:** twelve different icons.
+5. **Accessibility** tab on each story: no violations.
+6. Turn on "reduce motion" in your OS: the analysing node stops shimmering but still says "analysing…".
+7. **Components → Menu** in light theme: the popover shadow is soft now.
+
+**Gotchas:**
+- **Don't make `FlowNode` clickable or focusable.** The canvas owns interaction.
+- **Never add a state that is only a colour.** Each new state needs a shape cue and a tag.
+- **Don't reach for `opacity` to dim text.** Check the contrast of the result, or step down a text token.
+- **Hover quick actions, edge ports, badges and the appear animation are deliberately not here.** They arrive with the canvas and node-action phases.
+
+**Commits:** `feat(tokens): lighter popover shadow in the light theme` · `feat(ui): add Flow node with change states, status, selection and type icons`

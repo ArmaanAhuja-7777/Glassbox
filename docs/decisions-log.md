@@ -110,3 +110,28 @@ Input border: owner chose **option A** (keep `border/control`, 1.6:1). Every inp
 Engineering decision (ADR 0008): **React Aria Components** for menus, tooltips and future overlays, after testing React Aria, Radix and Base UI under the production CSP. React Aria's one injected `<style>` is pre-empted by `preventReactAriaStyleInjection()` plus the same rule in `global.css`. Also recorded: ADR 0007 (`@flowcanvas/ui` is consumed as source).
 
 Popover shadow per theme (owner approved, 27 Oct 2026): dark keeps `0 8 24 rgba(0, 0, 0, 0.4)`; light uses `0 8 24 rgba(16, 24, 40, 0.12)`, a soft slate tint, because the dark value looked heavy on light surfaces. `shadow.popover` moved from the base tokens into both theme files.
+
+## 27 Oct 2026: Flow node (phase 1a, step 9)
+
+Engineering decisions, made to keep accessibility and the 4 px grid; step 10 compares the result with Figma:
+
+- **Icons:** Lucide via `lucide-react` (ADR 0009), with one icon per node type.
+- **State model:**
+  - `change` (added, modified, removed, affected, outside selection), `status` (failing, analysing) and `selected` are three independent props. Figma has them as nine separate variants, but in the product a node can be modified *and* failing *and* selected.
+  - Each shows its own tag.
+  - The state bar and border follow the change; a failing node with no change gets the clay bar, as in the Figma "Failing" variant.
+- **Dimming:**
+  - Removed and analysing nodes dim the title to `text/secondary` instead of setting opacity 0.55 (Figma) or 0.4 (Graphite motion table). Opacity would drop the location text below 4.5:1.
+  - Removed nodes keep the strikethrough and the "− removed" tag.
+  - `opacity.ghost` stays in the tokens for canvas-level ghosting, which needs a contrast check when it's used.
+- **Location text:** uses `text/muted`, not Figma's tertiary, following the 1a.4 caption decision.
+- **Spacing on the 4 px grid:**
+  - padding 8 px plus the 1 px border (Figma: 9), left 12 px, gap 8 px (Figma: 10).
+  - Rendered size: 216 px wide; 54 px tall with one line, as in Figma.
+- **Tag symbols** ("+", "~", "−") are hidden from screen readers, which hear "modified" rather than "tilde modified".
+- **Left out on purpose** (each belongs to the phase that adds the behaviour; no placeholder features):
+  - hover quick actions
+  - edge ports
+  - framework or timing badges
+  - the "new node appears" animation
+
