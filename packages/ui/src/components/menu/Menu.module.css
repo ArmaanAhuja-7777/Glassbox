@@ -1,0 +1,104 @@
+/* Graphite popover: level 3 (hover surface), 1 px subtle border, 8 px radius, the popover shadow. */
+.popover {
+  min-inline-size: var(--size-node-width);
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-subtle);
+  border-radius: var(--radius-popover);
+  background: var(--color-surface-hover);
+  box-shadow: var(--shadow-popover);
+  color: var(--color-text-primary);
+}
+
+/* Panels and popovers open with opacity + a 4 px slide (Graphite motion); instant under reduced motion. */
+.popover[data-entering] {
+  animation: popover-in var(--duration-panel) ease-out;
+}
+
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-4)));
+  }
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0 var(--space-8);
+  align-items: center;
+  min-block-size: var(--size-row-compact);
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-control);
+  font-family: var(--text-small-font-family);
+  font-size: var(--text-small-font-size);
+  font-weight: var(--text-small-font-weight);
+  line-height: var(--text-small-line-height);
+  cursor: default;
+  outline: none;
+}
+
+.item[data-focused] {
+  background: var(--color-surface-selected);
+}
+
+.item[data-disabled] {
+  opacity: var(--opacity-disabled);
+}
+
+.icon {
+  display: inline-flex;
+  grid-column: 1;
+  color: var(--color-text-tertiary);
+}
+
+.label {
+  grid-column: 2;
+}
+
+.description {
+  grid-column: 2;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption-font-size);
+  line-height: var(--text-caption-line-height);
+}
+
+.shortcut {
+  grid-row: 1;
+  grid-column: 3;
+  color: var(--color-text-muted);
+  font-family: var(--text-mono-small-font-family);
+  font-size: var(--text-mono-small-font-size);
+  line-height: var(--text-mono-small-line-height);
+}
+
+/* Muted text is 4.5:1 on the popover but not on the selected row, so a focused item uses secondary. */
+.item[data-focused] .description,
+.item[data-focused] .shortcut {
+  color: var(--color-text-secondary);
+}
+
+.header {
+  padding: var(--space-4) var(--space-8);
+  color: var(--color-text-muted);
+  font-family: var(--text-caption-font-family);
+  font-size: var(--text-caption-font-size);
+  font-weight: var(--text-caption-font-weight);
+  line-height: var(--text-caption-line-height);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+.separator {
+  margin: var(--space-4) 0;
+  border: 0;
+  border-block-start: var(--border-width-default) solid var(--color-border-subtle);
+}

@@ -17,7 +17,8 @@
   "dependencies": {
     "@flowcanvas/tokens": "workspace:*",
     "@fontsource-variable/inter": "catalog:",
-    "@fontsource-variable/jetbrains-mono": "catalog:"
+    "@fontsource-variable/jetbrains-mono": "catalog:",
+    "react-aria-components": "catalog:"
   },
   "peerDependencies": {
     "react": "^19.0.0",
@@ -30,6 +31,7 @@
     "@storybook/react-vite": "catalog:",
     "@testing-library/dom": "catalog:",
     "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "eslint": "catalog:",

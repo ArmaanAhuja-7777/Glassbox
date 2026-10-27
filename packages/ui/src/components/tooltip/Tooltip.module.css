@@ -1,0 +1,24 @@
+/* A small popover: same surface, border and shadow as menus, Caption text, 4 px radius. */
+.tooltip {
+  max-inline-size: calc(var(--size-node-width) + var(--space-32));
+  padding: var(--space-4) var(--space-8);
+  border: var(--border-width-default) solid var(--color-border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-hover);
+  box-shadow: var(--shadow-popover);
+  color: var(--color-text-primary);
+  font-family: var(--text-caption-font-family);
+  font-size: var(--text-caption-font-size);
+  font-weight: var(--text-caption-font-weight);
+  line-height: var(--text-caption-line-height);
+}
+
+.tooltip[data-entering] {
+  animation: tooltip-in var(--duration-panel) ease-out;
+}
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+  }
+}

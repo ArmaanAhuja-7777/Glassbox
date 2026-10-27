@@ -1,6 +1,9 @@
 import { withThemeByDataAttribute } from '@storybook/addon-themes';
 import type { Preview } from '@storybook/react-vite';
+import { preventReactAriaStyleInjection } from '../src/react-aria-csp';
 import '../src/styles/global.css';
+
+preventReactAriaStyleInjection();
 
 const preview: Preview = {
   decorators: [

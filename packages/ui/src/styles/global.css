@@ -34,6 +34,14 @@ samp {
   line-height: var(--text-mono-line-height);
 }
 
+/*
+ * React Aria would inject this rule as a <style> element, which our CSP blocks. It lives here instead,
+ * and preventReactAriaStyleInjection() tells React Aria not to inject it (see src/react-aria-csp.ts).
+ */
+[data-react-aria-pressable] {
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
 /* One focus style everywhere: a 2 px accent ring, offset from the element, only for keyboard focus. */
 :focus-visible {
   outline: var(--border-width-focus) solid var(--color-accent-solid);
