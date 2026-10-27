@@ -2054,7 +2054,7 @@ When phase 1a is done you can:
 | 2 | Light theme proposal: values + contrast checks, **for the owner's approval** | approved by owner · done · `02ae155` · Claude |
 | 3 | `packages/ui` foundation: CSS Modules, global styles, self-hosted fonts, theme switching, reduced motion, "no raw values" lint rule | done · `7af36eb` · Claude |
 | 4 | Storybook: setup, dark/light toolbar, accessibility addon, local run | done · `5d4aa21` (caption token) + `389286c` · Claude |
-| 5 | Button and Tag (the Figma components) | *planned* |
+| 5 | Button and Tag (the Figma components) | done · `792a45a` · Claude |
 | 6 | Input and Toggle | *planned* |
 | 7 | Tabs and Panel | *planned* |
 | 8 | Menu and Tooltip (headless accessible primitives; ADR) | *planned* |
@@ -3606,3 +3606,298 @@ pnpm format && pnpm lint && pnpm typecheck && pnpm test
 - Caption decision: **option B** (owner, 27 Oct 2026). New token `color.text.muted`: dark `#818995`, light `#666E7A`. Used for captions, section labels and metadata; `text.tertiary` is now non-text only (icons, edges, placeholders, disabled marks). Selected rows use `text.secondary` for metadata.
 - Token tests: 37 (4 new `text-muted` contrast checks per theme). axe-core on Foundations → Tokens: **0 violations** in dark and light.
 - Commits: `5d4aa21` (token), `389286c` (Storybook).
+
+### Step 1a.5 — Button and Tag
+
+**Goal:** the first two real components, matching the Figma component sets:
+- **Button:** Kind = Primary, Secondary, Ghost, Danger.
+- **Tag:** Tone = Added, Modified, Removed, Affected, Scope, Neutral, Accent.
+
+Each has all its variants and states, token-only CSS, unit tests and Storybook stories, and is accessible in both themes.
+
+**Expected outcome:**
+- Storybook shows **Components → Button** (Primary, Secondary, Ghost, Danger, All kinds) and **Components → Tag** (Default, All tones).
+- Every control works (kind, size, disabled, tone).
+- The Accessibility tab is clean in dark and light.
+- `pnpm test` adds 10 `ui` tests (15 total in the package) and 4 token contrast checks.
+
+**Concepts:**
+- **Variants as data attributes.**
+  - Components set `data-kind="primary"` / `data-size="sm"` / `data-tone="added"`, and the CSS selects on them (`.button[data-kind='primary']`).
+  - CSS Module class names are hashed (`_button_x7a2`), so tests can't rely on them, while data attributes are stable.
+  - That makes them a clean contract for styling, tests (`button.dataset.kind`) and devtools. The alternative, one class per variant, works too but needs a lookup map.
+- **Extending native element props.**
+  - `interface ButtonProps extends ComponentPropsWithRef<'button'>` means `Button` accepts everything a `<button>` does (`onClick`, `disabled`, `aria-*`, `ref`…) plus our `kind` and `size`.
+  - In React 19, `ref` is a normal prop, so no `forwardRef` is needed.
+  - Docs: https://react.dev/reference/react/forwardRef (React 19 note) and https://react-typescript-cheatsheet.netlify.app/docs/advanced/patterns_by_usecase/#wrappingmirroring
+- **`type="button"` by default.** A bare `<button>` inside a form *submits* it. Almost every button in a tool UI is an action, not a submit, so the component defaults to `type="button"` and you opt in with `type="submit"`.
+- **Primary is the inverse surface,** never blue: off-white with dark text in dark, near-black with off-white text in light. **One primary per view** (Graphite).
+- **States:**
+  - **Hover** changes only background, border and text colour, in 80 ms (`--duration-hover`), which becomes instant under reduced motion.
+  - Primary and danger hovers use **`color-mix()`**, blending two tokens in CSS, so hover colours stay derived from tokens rather than new hex values. Docs: https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/color-mix
+  - **Focus** uses the global `:focus-visible` ring from step 3.
+  - **Disabled** uses `cursor: not-allowed` plus a new token `opacity.disabled` (0.5). WCAG exempts disabled controls from contrast.
+- **Contrast checked before coding.** Every new pair was computed first and passes AA in both themes:
+  - primary hover 12.4 / 10.8
+  - danger rest 7.3 / 7.1, danger hover 5.6 / 5.5
+  - ghost hover text 13.9 / 15.5
+  - neutral tag 6.8 / 5.2, accent tag 8.1 / 6.5
+
+  The pairs that are plain tokens (`text-primary` and `text-secondary` on `surface-hover`, `accent-text` on `accent-tint`) are now in the token contrast tests; the `color-mix()` hovers were checked by hand.
+- **Off-grid values from Figma, kept honest.** Figma's button has 10 px side padding and the tag 1 px / 6 px. The spacing scale has no 10, 1 or 6, so the CSS writes `calc(var(--space-8) + var(--space-2))` and similar. It's still tokens only (Stylelint passes), and still exactly what Figma shows.
+- **State never by colour alone.** Tags always carry their state in text (`+ added`, `~ modified`, `− removed`, `affected`, `outside selection`), so they read in greyscale and for colour-blind users. Accessibility rule from Graphite.
+- **Behaviour tests with Testing Library.**
+  - `getByRole('button', { name: 'Accept' })` finds the button the way assistive technology does.
+  - `fireEvent.click` simulates a click; `vi.fn()` is a mock function that records calls (`toHaveBeenCalledOnce()`).
+  - A disabled button must **not** call `onClick`.
+  - `createRef` proves `ref` reaches the real `<button>`.
+
+  Docs: https://vitest.dev/api/vi.html#vi-fn and https://testing-library.com/docs/dom-testing-library/api-events
+- **`classNames()` helper.** Joins class names and skips empty values. CSS Module lookups are typed `string | undefined` under `noUncheckedIndexedAccess`, so plain string concatenation could produce `"undefined"`.
+
+**Files:**
+
+**`packages/ui/src/components/button/Button.tsx`:**
+
+```tsx
+import type { ComponentPropsWithRef } from 'react';
+import { classNames } from '../../class-names';
+import styles from './Button.module.css';
+
+/** Primary is the single strongest action in a view; use it at most once per view. */
+export type ButtonKind = 'primary' | 'secondary' | 'ghost' | 'danger';
+
+/** `sm` (28 px) is the default control height; `md` (32 px) is for roomier forms and dialogs. */
+export type ButtonSize = 'sm' | 'md';
+
+export interface ButtonProps extends ComponentPropsWithRef<'button'> {
+  readonly kind?: ButtonKind;
+  readonly size?: ButtonSize;
+}
+
+export function Button({
+  kind = 'secondary',
+  size = 'sm',
+  // A bare <button> submits its form; most buttons in a tool UI aren't submit buttons.
+  type = 'button',
+  className,
+  ...rest
+}: ButtonProps) {
+  return (
+    <button
+      {...rest}
+      type={type}
+      className={classNames(styles.button, className)}
+      data-kind={kind}
+      data-size={size}
+    />
+  );
+}
+```
+
+**`packages/ui/src/components/button/Button.module.css`:**
+
+```css
+.button {
+  display: inline-flex;
+  gap: var(--space-4);
+  align-items: center;
+  justify-content: center;
+  block-size: var(--size-control-sm);
+  padding: 0 calc(var(--space-8) + var(--space-2));
+  border: var(--border-width-default) solid transparent;
+  border-radius: var(--radius-control);
+  font-family: var(--text-small-strong-font-family);
+  font-size: var(--text-small-strong-font-size);
+  font-weight: var(--text-small-strong-font-weight);
+  line-height: var(--text-small-strong-line-height);
+  letter-spacing: var(--text-small-strong-letter-spacing);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-hover) ease-out,
+    border-color var(--duration-hover) ease-out,
+    color var(--duration-hover) ease-out;
+}
+
+.button[data-size='md'] {
+  block-size: var(--size-control-md);
+  padding-inline: var(--space-12);
+}
+
+/* Primary: the inverse surface (off-white in dark, near-black in light). Never blue. */
+.button[data-kind='primary'] {
+  background: var(--color-surface-inverse);
+  color: var(--color-text-on-accent);
+}
+
+.button[data-kind='primary']:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-surface-inverse) 88%, var(--color-surface-canvas));
+}
+
+.button[data-kind='secondary'] {
+  background: var(--color-surface-raised);
+  border-color: var(--color-border-control);
+  color: var(--color-text-primary);
+}
+
+.button[data-kind='secondary']:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-strong);
+}
+
+.button[data-kind='ghost'] {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.button[data-kind='ghost']:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.button[data-kind='danger'] {
+  background: var(--color-state-removed-tint);
+  color: var(--color-state-removed-text);
+}
+
+.button[data-kind='danger']:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--color-state-removed-tint) 80%,
+    var(--color-state-removed-solid)
+  );
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}
+```
+
+**`packages/ui/src/components/tag/Tag.tsx`:**
+
+```tsx
+import type { ComponentPropsWithRef } from 'react';
+import { classNames } from '../../class-names';
+import styles from './Tag.module.css';
+
+/**
+ * Change states (added … scope) use their muted hue; neutral and accent are for non-state labels.
+ * The label text must always say the state too ("+ added"), so meaning never depends on colour alone.
+ */
+export type TagTone =
+  'added' | 'modified' | 'removed' | 'affected' | 'scope' | 'neutral' | 'accent';
+
+export interface TagProps extends ComponentPropsWithRef<'span'> {
+  readonly tone?: TagTone;
+}
+
+export function Tag({ tone = 'neutral', className, ...rest }: TagProps) {
+  return <span {...rest} className={classNames(styles.tag, className)} data-tone={tone} />;
+}
+```
+
+**`packages/ui/src/components/tag/Tag.module.css`:**
+
+```css
+/* Figma Tag: 1 px / 6 px padding, 4 px radius, Caption text, tint background with same-hue text. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: calc(var(--space-2) / 2) calc(var(--space-4) + var(--space-2));
+  border-radius: var(--radius-control);
+  font-family: var(--text-caption-font-family);
+  font-size: var(--text-caption-font-size);
+  font-weight: var(--text-caption-font-weight);
+  line-height: var(--text-caption-line-height);
+  letter-spacing: var(--text-caption-letter-spacing);
+  white-space: nowrap;
+}
+
+.tag[data-tone='added'] {
+  background: var(--color-state-added-tint);
+  color: var(--color-state-added-text);
+}
+
+.tag[data-tone='modified'] {
+  background: var(--color-state-modified-tint);
+  color: var(--color-state-modified-text);
+}
+
+.tag[data-tone='removed'] {
+  background: var(--color-state-removed-tint);
+  color: var(--color-state-removed-text);
+}
+
+.tag[data-tone='affected'] {
+  background: var(--color-state-affected-tint);
+  color: var(--color-state-affected-text);
+}
+
+.tag[data-tone='scope'] {
+  background: var(--color-state-scope-tint);
+  color: var(--color-state-scope-text);
+}
+
+.tag[data-tone='neutral'] {
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
+}
+
+.tag[data-tone='accent'] {
+  background: var(--color-accent-tint);
+  color: var(--color-accent-text);
+}
+```
+
+**`packages/ui/src/class-names.ts`:**
+
+```ts
+/** Joins class names, skipping empty values (CSS Module lookups are typed `string | undefined`). */
+export function classNames(...names: readonly (string | false | null | undefined)[]): string {
+  return names.filter((name): name is string => typeof name === 'string' && name !== '').join(' ');
+}
+```
+
+**Tests and stories:**
+- `packages/ui/src/components/button/Button.test.tsx`, 5 tests:
+  - default secondary/sm/`type="button"`
+  - kind, size and submit type
+  - `onClick` fires
+  - disabled doesn't fire
+  - extra `className` kept and `ref` forwarded
+- `packages/ui/src/components/tag/Tag.test.tsx`, 3 tests: default neutral tone; change-state tone; attributes such as `title` pass through.
+- `packages/ui/src/class-names.test.ts`, 2 tests.
+- `Button.stories.tsx`: Primary, Secondary, Ghost, Danger (with controls), and All kinds (both sizes plus disabled).
+- `Tag.stories.tsx`: Default (with a tone control) and All tones with the labels used across the Figma screens.
+- `packages/ui/src/index.ts` exports `Button`, `Tag` and their types.
+
+Full files are in the repository.
+
+**Tokens:**
+- `packages/tokens/source/base.tokens.json`: add `opacity.disabled` = 0.5, then `generate`.
+- `packages/tokens/src/tokens.test.ts`: add `text-primary`/`surface-hover`, `text-secondary`/`surface-hover` and `accent-text`/`accent-tint` to the 4.5:1 list.
+
+**Commands:**
+
+```fish
+pnpm --filter @flowcanvas/tokens generate
+pnpm format && pnpm lint && pnpm typecheck && pnpm test   # ui: 15 passed, tokens: 43 passed
+pnpm --filter @flowcanvas/ui storybook                    # http://localhost:6006
+```
+
+**Run and check it:**
+1. Storybook → **Components → Button → All kinds**: four kinds at 28 px, the same at 32 px, then disabled. Hover each one; Tab through them to see the focus ring.
+2. **Primary**: use Controls to change `kind`, `size` and `disabled` and watch the button update.
+3. **Components → Tag → All tones**: seven tags with their labels.
+4. Toolbar → light theme: the primary button turns near-black, the tags turn into pale washes.
+5. **Accessibility** tab on each story: no violations (verified with axe-core in both themes).
+
+**Gotchas:**
+- **Forgetting `type="button"` on a plain `<button>` inside a form** makes it submit the form. Use the component, or set the type.
+- **Don't pick a hover colour with a new hex value.** Derive it with `color-mix()` from tokens, and check its contrast.
+- **A Tag without state text** (just a coloured dot) breaks the "never colour alone" rule.
+- **Testing CSS Module class names** breaks when hashes change. Test data attributes and behaviour instead.
+
+**Commit:** `feat(ui): add Button and Tag components with stories and tests`
