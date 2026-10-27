@@ -64,3 +64,23 @@ export const AllKinds: Story = {
     );
   },
 };
+
+/** The Figma variants with the Figma component's default text; compared with the Figma PNGs by e2e/visual. */
+export const FigmaVariants: Story = {
+  render: () => (
+    <div style={{ display: 'grid', gap: vars.space['16'], justifyItems: 'start' }}>
+      <Button kind="primary" data-figma="Kind=Primary">
+        Button
+      </Button>
+      <Button kind="secondary" data-figma="Kind=Secondary">
+        Button
+      </Button>
+      <Button kind="ghost" data-figma="Kind=Ghost">
+        Button
+      </Button>
+      <Button kind="danger" data-figma="Kind=Danger">
+        Button
+      </Button>
+    </div>
+  ),
+};
