@@ -10,10 +10,12 @@
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: var(--space-8);
+  /* Figma: 10 px between icon and text; 9 px vertical and 10 px right padding inside the 1 px border. */
+  gap: calc(var(--space-8) + var(--space-2));
   box-sizing: border-box;
   width: var(--size-node-width);
-  padding: var(--space-8) var(--space-8) var(--space-8) var(--space-12);
+  padding: calc(var(--space-8) + var(--space-2) / 2) calc(var(--space-8) + var(--space-2))
+    calc(var(--space-8) + var(--space-2) / 2) var(--space-12);
   border: var(--border-width-default) solid var(--color-border-subtle);
   border-radius: var(--radius-node);
   background: var(--color-surface-raised);
@@ -49,18 +51,17 @@
 }
 
 /*
- * Tags sit at the end of the title row. The title keeps its natural width, so when title and tags
- * don't fit on one line the tags move below the title instead of the title breaking mid-word.
+ * As in Figma, tags sit top-right beside the title and the title wraps in the space left. Two tags
+ * (change and status) stack, so the title keeps the width of the widest tag, not both.
  */
 .titleRow {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) calc(var(--space-4) + var(--space-2));
+  gap: calc(var(--space-4) + var(--space-2));
 }
 
 .title {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   overflow-wrap: anywhere;
   font-family: var(--text-body-strong-font-family);
@@ -69,6 +70,14 @@
   line-height: var(--text-body-strong-line-height);
   letter-spacing: var(--text-body-strong-letter-spacing);
   color: var(--color-text-primary);
+}
+
+.tags {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-end;
 }
 
 /* text/muted, not the Figma's tertiary: the location is text and must pass 4.5:1. */
@@ -141,17 +150,14 @@
   text-decoration: line-through;
 }
 
-/* ── Selected: 1.5 px accent outline plus a 3 px accent-tint halo ── */
+/* ── Selected: 1.5 px accent outline inside the edge (as Figma's inside stroke), plus a 3 px accent-tint halo ── */
 
 .node[data-selected] {
   border-color: var(--color-accent-solid);
   box-shadow:
-    0 0 0 calc(var(--border-width-selected) - var(--border-width-default)) var(--color-accent-solid),
-    0 0 0
-      calc(
-        var(--border-width-selected) - var(--border-width-default) + var(--border-width-node-halo)
-      )
-      var(--color-accent-tint);
+    inset 0 0 0 calc(var(--border-width-selected) - var(--border-width-default))
+      var(--color-accent-solid),
+    0 0 0 var(--border-width-node-halo) var(--color-accent-tint);
 }
 
 /*

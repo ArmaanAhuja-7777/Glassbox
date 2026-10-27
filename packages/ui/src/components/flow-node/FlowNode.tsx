@@ -124,8 +124,12 @@ export function FlowNode({
       <div className={styles.text}>
         <div className={styles.titleRow}>
           <span className={styles.title}>{title}</span>
-          {change !== undefined && <StateTag label={CHANGE_LABELS[change]} />}
-          {status !== undefined && <StateTag label={STATUS_LABELS[status]} />}
+          {(change !== undefined || status !== undefined) && (
+            <span className={styles.tags}>
+              {change !== undefined && <StateTag label={CHANGE_LABELS[change]} />}
+              {status !== undefined && <StateTag label={STATUS_LABELS[status]} />}
+            </span>
+          )}
         </div>
         <span className={styles.location}>{location}</span>
       </div>
