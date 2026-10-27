@@ -1,0 +1,75 @@
+.button {
+  display: inline-flex;
+  gap: var(--space-4);
+  align-items: center;
+  justify-content: center;
+  block-size: var(--size-control-sm);
+  padding: 0 calc(var(--space-8) + var(--space-2));
+  border: var(--border-width-default) solid transparent;
+  border-radius: var(--radius-control);
+  font-family: var(--text-small-strong-font-family);
+  font-size: var(--text-small-strong-font-size);
+  font-weight: var(--text-small-strong-font-weight);
+  line-height: var(--text-small-strong-line-height);
+  letter-spacing: var(--text-small-strong-letter-spacing);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-hover) ease-out,
+    border-color var(--duration-hover) ease-out,
+    color var(--duration-hover) ease-out;
+}
+
+.button[data-size='md'] {
+  block-size: var(--size-control-md);
+  padding-inline: var(--space-12);
+}
+
+/* Primary: the inverse surface (off-white in dark, near-black in light). Never blue. */
+.button[data-kind='primary'] {
+  background: var(--color-surface-inverse);
+  color: var(--color-text-on-accent);
+}
+
+.button[data-kind='primary']:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-surface-inverse) 88%, var(--color-surface-canvas));
+}
+
+.button[data-kind='secondary'] {
+  background: var(--color-surface-raised);
+  border-color: var(--color-border-control);
+  color: var(--color-text-primary);
+}
+
+.button[data-kind='secondary']:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-strong);
+}
+
+.button[data-kind='ghost'] {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.button[data-kind='ghost']:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.button[data-kind='danger'] {
+  background: var(--color-state-removed-tint);
+  color: var(--color-state-removed-text);
+}
+
+.button[data-kind='danger']:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--color-state-removed-tint) 80%,
+    var(--color-state-removed-solid)
+  );
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}

@@ -133,7 +133,8 @@ export const vars = {
     "shimmer": "var(--duration-shimmer)"
   },
   "opacity": {
-    "ghost": "var(--opacity-ghost)"
+    "ghost": "var(--opacity-ghost)",
+    "disabled": "var(--opacity-disabled)"
   },
   "shadow": {
     "popover": "var(--shadow-popover)"

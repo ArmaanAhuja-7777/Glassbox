@@ -86,6 +86,7 @@
   --duration-camera: 300ms;
   --duration-shimmer: 1200ms;
   --opacity-ghost: 0.4;
+  --opacity-disabled: 0.5;
   --shadow-popover: 0px 8px 24px 0px rgba(0, 0, 0, 0.4);
 }
 

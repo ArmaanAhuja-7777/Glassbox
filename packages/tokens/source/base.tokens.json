@@ -416,6 +416,10 @@
     "ghost": {
       "$value": 0.4,
       "$description": "Removed nodes stay ghosted until review"
+    },
+    "disabled": {
+      "$value": 0.5,
+      "$description": "Disabled controls (WCAG exempts disabled controls from contrast rules)"
     }
   },
   "shadow": {
