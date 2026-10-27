@@ -5845,7 +5845,7 @@ Check: `ls -R docs/reference/figma-exports` lists 9 + 7 + 4 component PNGs plus 
 | `@axe-core/playwright` | 4.13.0 | MPL-2.0 | Accessibility checks; test-only, unmodified, so MPL's file-level terms don't touch our code |
 
 **Root scripts:**
-- `test:visual`: `pnpm --filter @flowcanvas/ui build-storybook && pnpm --filter @flowcanvas/e2e test:visual`.
+- `test:visual`: `turbo run build-storybook --filter=@flowcanvas/ui && pnpm --filter @flowcanvas/e2e --fail-if-no-match test:visual`. Turbo builds the token package first; the original `pnpm --filter` version broke on a clean checkout (fixed in step 11).
 - `test:visual:update`: the same, with `--update-snapshots`.
 
 **Other changes:**
