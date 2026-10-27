@@ -2059,7 +2059,7 @@ When phase 1a is done you can:
 | 7 | Tabs and Panel | done · `5b88a8e` · Claude |
 | 8 | Menu and Tooltip (headless accessible primitives; ADR) | done · `9743475` · Claude · ADR 0008 |
 | 9 | Flow node (all change states, selected, analysing) | done · `6fef1f8` · Claude · ADR 0009 · shadow `0358bba` |
-| 10 | Figma references + Playwright visual comparison with a side-by-side report | *planned* |
+| 10 | Figma references + Playwright visual comparison with a side-by-side report | done · `7949c92` + `4a325a0` · exports: owner · tests: Claude |
 | 11 | Version page restyled with tokens; Storybook deployed to a free Cloudflare URL | *planned* |
 | 12 | Close phase 1a: ADRs, architecture, status, changelog, report, merge | *planned* |
 
@@ -5141,8 +5141,10 @@ pnpm build && pnpm exec wrangler dev                      # web app under the pr
   - The "~" prefix is wrapped in `aria-hidden`, so it isn't read as "tilde".
 - **`aria-busy`** (https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-busy). An analysing node is marked busy, which supports the product rule that stale values are never presented as current.
 - **Whitespace in flex containers.** The Tag is `inline-flex`; text runs become flex items and a trailing space inside the symbol `<span>` is dropped ("+added"). A no-break space (` `) survives. Found in the screenshot, not the unit test, which is why we look at the real render.
-- **Flex wrapping for a title row.** With `flex: 1 1 auto`, the title keeps its natural width. When title and tags don't fit, the **tags** wrap below rather than the title breaking mid-word ("legacyNormaliz/e" in the first render). Very long identifiers still break anywhere (`overflow-wrap: anywhere`) rather than overflow.
-- **Selection ring without layout shift.** The border stays 1 px and turns accent. Two `box-shadow` rings add the extra 0.5 px (making 1.5 px) and the 3 px accent-tint halo. Changing `border-width` would move the content by half a pixel.
+- **The title row** (corrected in step 10 to match Figma):
+  - The tags sit top-right; two tags stack in a column.
+  - The title takes the rest of the row (`flex: 1 1 0`) and wraps there, breaking a single very long identifier anywhere (`overflow-wrap: anywhere`) rather than overflowing.
+- **Selection ring without layout shift** (corrected in step 10). The border stays 1 px and turns accent. An `inset` box-shadow adds 0.5 px inside it (1.5 px in total, like Figma's inside stroke), and a second box-shadow draws the 3 px accent-tint halo outside. Changing `border-width` would move the content by half a pixel.
 - **A shimmer that respects reduced motion.**
   - A pseudo-element's background gradient sweeps across over `--duration-shimmer` (1.2 s, linear).
   - It moves `background-position`, so nothing needs `overflow: hidden`, which would clip the state bar drawn over the border.
@@ -5755,3 +5757,613 @@ pnpm --filter @flowcanvas/ui storybook                    # http://localhost:600
 - **Hover quick actions, edge ports, badges and the appear animation are deliberately not here.** They arrive with the canvas and node-action phases.
 
 **Commits:** `feat(tokens): lighter popover shadow in the light theme` · `feat(ui): add Flow node with change states, status, selection and type icons`
+
+### Step 1a.10 — Figma references and visual comparison
+
+**Goal:** prove the components match the Figma design, and stop them drifting later. Two layers:
+1. **Figma comparison (human review).** Export the Figma components as PNGs. A Playwright script renders the same variants from Storybook and writes a side-by-side report: Figma | ours | difference.
+2. **Visual regression (automatic).** Playwright screenshots every story in both themes and compares it with our own approved baseline. Any unintended pixel change fails the test. The same run checks every story with axe.
+
+**Expected outcome:**
+- `pnpm test:visual` passes: every story in dark and light matches its baseline, and axe reports no violations (except the recorded menu-shortcut false positive).
+- `pnpm visual:report` writes an HTML report you open in a browser. It shows each Figma component and screen crop next to ours, with a difference overlay and a mismatch percentage. Figma is dark only, so it's compared with dark.
+
+**Concepts:**
+- **Reference vs baseline.**
+  - A Figma PNG is a *reference*: rendering engines differ (font hinting, anti-aliasing), so exact equality is impossible, and a human judges it.
+  - A *baseline* is a screenshot of **our own** component, approved once. Later renders on the same machine and browser must match it within a small tolerance, so regression is automatic.
+  - Playwright's `toHaveScreenshot()` does this: https://playwright.dev/docs/test-snapshots
+- **Device pixel ratio.** Export from Figma at **2x** and render at `deviceScaleFactor: 2`, so both images have the same pixel density.
+- **Image difference.** `pixelmatch` (https://github.com/mapbox/pixelmatch) counts the pixels that differ beyond a colour threshold and draws them in a diff image. Anti-aliasing is ignored.
+
+**Owner task: export the Figma references** (Figma web or desktop, free plan, dark theme as drawn). Settings for every export: **PNG, 2x**, defaults otherwise.
+
+Components page: each variant becomes one file, named after the layer, e.g. `State=Added.png`. Keep these names.
+
+| Layers panel → select | Export into |
+| --- | --- |
+| Expand **Flow node** → click `State=Default`, Shift-click `State=Analysing` (9 layers) | `docs/reference/figma-exports/flow-node/` |
+| Expand **Tag** → `Tone=Added` … `Tone=Accent` (7 layers) | `docs/reference/figma-exports/tag/` |
+| Expand **Button** → `Kind=Primary` … `Kind=Danger` (4 layers) | `docs/reference/figma-exports/button/` |
+
+How to export:
+1. Select the layers.
+2. In the right sidebar (Design tab), scroll to **Export** and click **+**.
+3. Set the scale to `2x` and the format to `PNG`.
+4. Click **Export N layers**. In the browser, several layers download as a `.zip`; unzip it into the folder.
+
+Screens page crops, one layer each: select the layer in the layers panel (or Ctrl/⌘-click it on the canvas to select deep inside a frame), export at 2x and **rename** the file as shown. Figma has no tooltip, so Tooltip is compared with the Graphite spec only.
+
+| Screen frame | Layer | Save as `docs/reference/figma-exports/screens/…` |
+| --- | --- | --- |
+| `02 · Clone repository` | the focused `Input` with the repository URL | `input-focused.png` |
+| `17 · Settings · privacy` | one `Toggle · on` and one `Toggle · off` | `toggle-on.png`, `toggle-off.png` |
+| `06 · Workspace · after session` | `View switch` in the top bar (Graph / Sequence / Code) | `view-switch.png` |
+| `06 · Workspace · after session` | `Inspector` (right panel), and its `Tabs` row | `inspector.png`, `inspector-tabs.png` |
+| `27 · Prompt from a flow or event` | `Context menu · item.created` | `context-menu.png` |
+
+Check: `ls -R docs/reference/figma-exports` lists 9 + 7 + 4 component PNGs plus the screen exports.
+
+**What was actually exported:** whole screen frames (1440 × 900 at 2x) instead of single layers. That works just as well. The repo keeps one file per screen (`02-clone-repository.png`, `06-workspace-after-session.png`, `17-settings-privacy.png`, `27-prompt-from-flow-or-event.png`), and `screens/crops.json` records where each component sits, in Figma (1x) pixels.
+
+**How it was built** (Claude):
+
+- **Figma variant stories.** Tag, Button and Flow node each gain a `FigmaVariants` story. It renders every Figma variant with the Figma component's default text ("label", "Button", "Node title" / `src/file.ts:42`), and each element is tagged `data-figma="State=Added"`, matching the export's file name. The test then finds each variant by its file name.
+- **Serving the catalogue.**
+  - `pnpm test:visual` builds Storybook (`storybook-static/`), and Playwright's `webServer` serves it with `vite preview`. That's a static server with no extra dependency.
+  - The tests read `storybook-static/index.json`, so every new story is covered automatically.
+- **Rendering deterministically** (`openStory`):
+  - wait for the theme attribute, the rendered root and `document.fonts.ready`
+  - wait for finite animations (popover fade-in) to finish
+  - `animations: 'disabled'` freezes the infinite shimmer at its first frame
+- **Comparing with Figma** (`figma.spec.ts`):
+  - Flatten the transparent Figma PNG onto the canvas token colour.
+  - Clip the same-sized area around our element: centred horizontally; vertically from the top edge, moved up only for an effect margin.
+  - Run `pixelmatch` with threshold 0.1 and anti-aliasing ignored. Each variant must stay under its budget.
+  - Each test writes its rows to disk, and `afterAll` assembles `e2e/visual-report/index.html`. One failing test doesn't lose the others' rows; Playwright restarts the worker after a failure, so in-memory results would be lost.
+- **Choosing budgets from measurements.**
+  - The first run measured 2–15% mismatch.
+  - Looking at the images showed real layout errors in the Flow node: 8 px instead of 10 px gaps, the tag placement, and the selection stroke outside the edge. Those were fixed.
+  - What remained is font rasterisation (Figma uses Inter 3, we ship Inter 4: 2–4%) plus a few deliberate differences. Budgets sit just above those; see the decisions log.
+  - A threshold picked before looking would either fail on font noise or let real layout bugs through.
+- **Regression baselines** (`catalogue.spec.ts`):
+  - `toHaveScreenshot()` stores one approved PNG per story and theme in `e2e/visual/__screenshots__/` (62 files, about 1 MB, committed).
+  - The first run writes them. Later runs fail on any pixel change, as they did when the Flow node fix landed: 10 failures, exactly the Flow node stories.
+  - After reviewing a deliberate change, approve it with `pnpm test:visual:update`.
+- **Accessibility in the same pass.**
+  - `@axe-core/playwright` runs the WCAG 2.0–2.2 A/AA rules on every story in both themes.
+  - The menu-shortcut false positive is filtered (ADR 0008).
+  - `@axe-core/playwright` must be imported by name (`import { AxeBuilder }`): its type entry is CommonJS, so the default import doesn't type-check under `nodenext`.
+
+**New dependencies (e2e, dev only):**
+
+| Package | Version | Licence | Purpose |
+| --- | --- | --- | --- |
+| `pixelmatch` | 8.0.0 | ISC | Pixel difference |
+| `pngjs` | 7.0.0 | MIT | PNG reading and writing |
+| `@types/pngjs` | 6.0.5 | | Types for `pngjs` |
+| `@axe-core/playwright` | 4.13.0 | MPL-2.0 | Accessibility checks; test-only, unmodified, so MPL's file-level terms don't touch our code |
+
+**Root scripts:**
+- `test:visual`: `pnpm --filter @flowcanvas/ui build-storybook && pnpm --filter @flowcanvas/e2e test:visual`.
+- `test:visual:update`: the same, with `--update-snapshots`.
+
+**Other changes:**
+- `e2e/tsconfig.json` adds `"lib": ["es2024", "dom"]` (for `page.evaluate` callbacks) and includes `visual` and the new config.
+- `.gitignore` adds `visual-report/` and `playwright-report-visual/`.
+
+**`e2e/playwright.visual.config.ts`:**
+
+```ts
+import { defineConfig, devices } from '@playwright/test';
+
+// Visual tests run against the static Storybook build (pnpm test:visual builds it first).
+const storybookUrl = 'http://127.0.0.1:6008';
+const isCi = Boolean(process.env.CI);
+
+export default defineConfig({
+  testDir: './visual',
+  forbidOnly: isCi,
+  // Screenshot baselines are only comparable on the same OS and browser build; {platform} keeps them apart.
+  snapshotPathTemplate: '{testDir}/__screenshots__/{arg}-{platform}{ext}',
+  reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report-visual' }]],
+  expect: { toHaveScreenshot: { animations: 'disabled', caret: 'hide' } },
+  use: {
+    baseURL: storybookUrl,
+    // Figma exports are 2x, so we render at 2x too.
+    ...devices['Desktop Chrome'],
+    deviceScaleFactor: 2,
+    viewport: { width: 800, height: 900 },
+  },
+  projects: [{ name: 'chromium' }],
+  webServer: {
+    command:
+      'pnpm --filter @flowcanvas/ui exec vite preview --outDir storybook-static --host 127.0.0.1 --port 6008 --strictPort',
+    url: storybookUrl,
+    reuseExistingServer: !isCi,
+    timeout: 30_000,
+  },
+});
+```
+
+**`e2e/visual/storybook.ts`:**
+
+```ts
+import { readFileSync } from 'node:fs';
+import type { Page } from '@playwright/test';
+
+export type Theme = 'dark' | 'light';
+export const THEMES: readonly Theme[] = ['dark', 'light'];
+
+export const REPO_ROOT = new URL('../../', import.meta.url);
+
+interface IndexEntry {
+  readonly id: string;
+  readonly type: 'story' | 'docs';
+}
+
+/** Every story in the built catalogue, read from Storybook's index (so new stories are covered automatically). */
+export function storyIds(): string[] {
+  const file = new URL('packages/ui/storybook-static/index.json', REPO_ROOT);
+  let text: string;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch {
+    throw new Error('Storybook is not built. Run `pnpm test:visual`, which builds it first.');
+  }
+  const index = JSON.parse(text) as { entries: Record<string, IndexEntry> };
+  return Object.values(index.entries)
+    .filter((entry) => entry.type === 'story')
+    .map((entry) => entry.id);
+}
+
+/** Opens one story in the given theme and waits until it is rendered, themed and its fonts are loaded. */
+export async function openStory(page: Page, id: string, theme: Theme): Promise<void> {
+  await page.goto(`/iframe.html?id=${id}&viewMode=story&globals=theme:${theme}`);
+  await page.waitForFunction(
+    (expected) =>
+      document.documentElement.dataset.theme === expected &&
+      (document.querySelector('#storybook-root')?.childElementCount ?? 0) > 0,
+    theme,
+  );
+  await page.evaluate(() => document.fonts.ready);
+  // Let finite animations (popover fade-in) finish; infinite ones (the analysing shimmer) keep running.
+  await page.waitForFunction(() =>
+    document
+      .getAnimations()
+      .every(
+        (animation) =>
+          animation.playState !== 'running' ||
+          animation.effect?.getTiming().iterations === Infinity,
+      ),
+  );
+}
+```
+
+**`e2e/visual/images.ts`:**
+
+```ts
+import { readFileSync } from 'node:fs';
+import pixelmatch from 'pixelmatch';
+import { PNG } from 'pngjs';
+
+export function readPng(file: URL | Buffer): PNG {
+  return PNG.sync.read(Buffer.isBuffer(file) ? file : readFileSync(file));
+}
+
+export function writePng(png: PNG): Buffer {
+  return PNG.sync.write(png);
+}
+
+/** Copies a rectangle out of an image (pixel units). */
+export function crop(source: PNG, x: number, y: number, width: number, height: number): PNG {
+  const out = new PNG({ width, height });
+  PNG.bitblt(source, out, x, y, width, height, 0, 0);
+  return out;
+}
+
+/** Figma exports are transparent outside the shape; flatten them onto the page background before comparing. */
+export function flatten(image: PNG, background: readonly [number, number, number]): PNG {
+  const out = new PNG({ width: image.width, height: image.height });
+  for (let i = 0; i < image.data.length; i += 4) {
+    const alpha = (image.data[i + 3] ?? 0) / 255;
+    background.forEach((bg, channel) => {
+      const fg = image.data[i + channel] ?? 0;
+      out.data[i + channel] = Math.round(fg * alpha + bg * (1 - alpha));
+    });
+    out.data[i + 3] = 255;
+  }
+  return out;
+}
+
+export interface Difference {
+  /** Share of pixels that differ beyond pixelmatch's colour threshold (anti-aliasing ignored). */
+  readonly ratio: number;
+  readonly diff: PNG;
+}
+
+export function compare(expected: PNG, actual: PNG): Difference {
+  if (expected.width !== actual.width || expected.height !== actual.height) {
+    throw new Error(
+      `size differs: expected ${String(expected.width)}×${String(expected.height)}, got ${String(actual.width)}×${String(actual.height)}`,
+    );
+  }
+  const { width, height } = expected;
+  const diff = new PNG({ width, height });
+  const count = pixelmatch(expected.data, actual.data, diff.data, width, height, {
+    threshold: 0.1,
+  });
+  return { ratio: count / (width * height), diff };
+}
+
+/** `#0b0c0e` → [11, 12, 14]. */
+export function hexToRgb(hex: string): [number, number, number] {
+  const value = Number.parseInt(hex.replace('#', ''), 16);
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+}
+```
+
+**`e2e/visual/report.ts`:**
+
+```ts
+import { mkdirSync, writeFileSync } from 'node:fs';
+
+export interface ReportRow {
+  readonly group: string;
+  readonly name: string;
+  /** Paths relative to the report folder. */
+  readonly figma: string;
+  readonly ours: string;
+  readonly diff?: string;
+  readonly ratio?: number;
+  readonly budget?: number;
+  readonly note?: string;
+}
+
+const escape = (text: string): string =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** Writes a self-contained, static side-by-side report (no scripts, so it opens anywhere). */
+export function writeReport(folder: URL, rows: readonly ReportRow[]): URL {
+  mkdirSync(folder, { recursive: true });
+  const groups = [...new Set(rows.map((row) => row.group))];
+  const sections = groups
+    .map((group) => {
+      const body = rows
+        .filter((row) => row.group === group)
+        .map((row) => {
+          const score =
+            row.ratio === undefined
+              ? '<td class="muted">review by eye</td>'
+              : `<td class="${row.budget !== undefined && row.ratio > row.budget ? 'fail' : 'pass'}">${(row.ratio * 100).toFixed(2)}% <span class="muted">/ ${((row.budget ?? 0) * 100).toFixed(1)}%</span></td>`;
+          return `<tr><th>${escape(row.name)}${row.note === undefined ? '' : `<div class="muted">${escape(row.note)}</div>`}</th>
+<td><img src="${escape(row.figma)}" alt="Figma"></td><td><img src="${escape(row.ours)}" alt="Ours"></td>
+<td>${row.diff === undefined ? '' : `<img src="${escape(row.diff)}" alt="Difference">`}</td>${score}</tr>`;
+        })
+        .join('\n');
+      return `<h2>${escape(group)}</h2><table><thead><tr><th></th><th>Figma</th><th>Ours</th><th>Difference</th><th>Mismatch / budget</th></tr></thead><tbody>${body}</tbody></table>`;
+    })
+    .join('\n');
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Figma comparison</title><style>
+body{margin:24px;background:#0b0c0e;color:#edeff2;font:13px/20px system-ui,sans-serif}
+h1{font-size:20px}h2{font-size:15px;margin-top:32px}table{border-collapse:collapse}
+th,td{border-bottom:1px solid #2c323a;padding:8px 12px;text-align:left;vertical-align:top}
+img{display:block;max-width:560px;height:auto;zoom:.5}.muted{color:#818995}.pass{color:#9fc2ad}.fail{color:#cfa09f}
+</style></head><body><h1>Figma comparison</h1>
+<p class="muted">Figma exports (dark, 2x) next to our components rendered at 2x. Red pixels in the difference image differ beyond the colour threshold; anti-aliasing is ignored. Screen crops contain different content, so they are reviewed by eye.</p>
+${sections}</body></html>`;
+  const file = new URL('index.html', folder);
+  writeFileSync(file, html);
+  return file;
+}
+```
+
+**`e2e/visual/figma.spec.ts`:**
+
+```ts
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { expect, test } from '@playwright/test';
+import { compare, crop, flatten, hexToRgb, readPng, writePng } from './images.js';
+import { writeReport, type ReportRow } from './report.js';
+import { openStory, REPO_ROOT } from './storybook.js';
+
+// Phase 1a "Done when": each component matches its Figma counterpart in a side-by-side screenshot test.
+// Figma is dark only, so everything here is compared in dark; light is covered by the catalogue baselines.
+
+const EXPORTS = new URL('docs/reference/figma-exports/', REPO_ROOT);
+const REPORT = new URL('e2e/visual-report/', REPO_ROOT);
+const SCALE = 2;
+
+/** The page background the Figma exports are flattened onto: the dark canvas token. */
+function canvasColour(): [number, number, number] {
+  const css = readFileSync(new URL('packages/tokens/css/tokens.css', REPO_ROOT), 'utf8');
+  const match = /--color-surface-canvas:\s*(#[0-9a-f]{6})/i.exec(css);
+  if (match?.[1] === undefined) throw new Error('--color-surface-canvas not found in tokens.css');
+  return hexToRgb(match[1]);
+}
+
+/**
+ * Mismatch budgets: the share of pixels allowed to differ from the Figma export. Measured on 27 Oct 2026,
+ * then set just above. The floor (2–4%) is font rasterisation: Figma draws Inter 3, we ship Inter 4 (slightly
+ * different glyph widths), and Chrome hints differently. A 1–2 px layout error measures 5–15%, so it fails.
+ * Higher budgets are deliberate differences, each recorded in docs/decisions-log.md.
+ */
+const COMPONENTS = [
+  {
+    folder: 'tag',
+    story: 'components-tag--figma-variants',
+    budget: 0.06,
+    overrides: {},
+  },
+  {
+    folder: 'button',
+    story: 'components-button--figma-variants',
+    budget: 0.04,
+    overrides: {
+      // Figma's export of the bordered button is 2 px wider (61 vs 59) than its layout box; ours is 59.
+      'Kind=Secondary': 0.07,
+    },
+  },
+  {
+    folder: 'flow-node',
+    story: 'components-flow-node--figma-variants',
+    budget: 0.05,
+    overrides: {
+      // Tag text (Inter 3 vs 4) plus the location in text/muted instead of tertiary (contrast).
+      'State=Added': 0.07,
+      'State=Modified': 0.07,
+      'State=Failing': 0.07,
+      // Figma's selected node is 57 px tall (its 1.5 px stroke rounds the auto height up); ours stays 56.
+      'State=Selected': 0.07,
+      // Strikethrough (Graphite) and no opacity dimming of the location (contrast).
+      'State=Removed': 0.08,
+    },
+  },
+] as const satisfies readonly {
+  folder: string;
+  story: string;
+  budget: number;
+  overrides: Readonly<Record<string, number>>;
+}[];
+
+const background = canvasColour();
+
+/**
+ * Each test writes its rows to disk, so the report is complete even when a test fails (Playwright then
+ * restarts the worker and in-memory state is lost).
+ */
+function record(group: string, rows: readonly ReportRow[]): void {
+  mkdirSync(new URL('rows/', REPORT), { recursive: true });
+  writeFileSync(new URL(`rows/${group}.json`, REPORT), JSON.stringify(rows));
+}
+
+function recordedRows(): ReportRow[] {
+  const folder = new URL('rows/', REPORT);
+  return readdirSync(folder)
+    .filter((file) => file.endsWith('.json'))
+    .sort()
+    .flatMap((file) => JSON.parse(readFileSync(new URL(file, folder), 'utf8')) as ReportRow[]);
+}
+
+function save(relative: string, png: Parameters<typeof writePng>[0]): string {
+  const file = new URL(relative, REPORT);
+  mkdirSync(new URL('./', file), { recursive: true });
+  writeFileSync(file, writePng(png));
+  return relative;
+}
+
+for (const { folder, story, budget: defaultBudget, overrides } of COMPONENTS) {
+  test(`${folder} matches Figma`, async ({ page }) => {
+    await openStory(page, story, 'dark');
+    const variants = readdirSync(new URL(`${folder}/`, EXPORTS)).filter((file) =>
+      file.endsWith('.png'),
+    );
+    expect(variants.length).toBeGreaterThan(0);
+
+    const rows: ReportRow[] = [];
+    const failures: string[] = [];
+    for (const file of variants) {
+      const variant = file.replace(/\.png$/, '');
+      const budget = (overrides as Readonly<Record<string, number>>)[variant] ?? defaultBudget;
+      let figma = flatten(readPng(new URL(`${folder}/${file}`, EXPORTS)), background);
+
+      // Clip an area the size of the Figma export around our component. Horizontally it is centred: widths
+      // differ by effects such as the selection halo (equal on both sides) or by font rendering. Vertically
+      // it starts at our top edge, moved up by the same effect margin only when Figma's export is taller
+      // (a wrapped title makes Figma taller at the bottom, not the top).
+      const box = await page.locator(`[data-figma="${variant}"]`).boundingBox();
+      if (box === null) throw new Error(`no element with data-figma="${variant}" in ${story}`);
+      const width = figma.width / SCALE;
+      const height = figma.height / SCALE;
+      const effect = Math.max(0, (width - box.width) / 2);
+      const top = height > box.height + 1 ? box.y - effect : box.y;
+      let ours = readPng(
+        await page.screenshot({
+          animations: 'disabled',
+          clip: { x: box.x + (box.width - width) / 2, y: top, width, height },
+        }),
+      );
+
+      // Figma's export reserves room for the selection halo but draws it transparent (spread on a drop shadow
+      // doesn't export); Graphite and the Figma screens do show it. Compare the node itself, inside that margin.
+      const margin = Math.round(effect * SCALE);
+      if (margin > 0) {
+        const inner = (image: typeof figma) =>
+          crop(image, margin, margin, image.width - 2 * margin, image.height - 2 * margin);
+        figma = inner(figma);
+        ours = inner(ours);
+      }
+
+      const { ratio, diff } = compare(figma, ours);
+      const sizeNote = `ours ${String(box.width)}×${String(box.height)}, Figma ${String(width)}×${String(height)} (incl. effects)`;
+      rows.push({
+        group: folder,
+        name: variant,
+        figma: save(`${folder}/${variant}.figma.png`, figma),
+        ours: save(`${folder}/${variant}.ours.png`, ours),
+        diff: save(`${folder}/${variant}.diff.png`, diff),
+        ratio,
+        budget,
+        note: sizeNote,
+      });
+      if (ratio > budget)
+        failures.push(`${variant}: ${(ratio * 100).toFixed(2)}% > ${(budget * 100).toFixed(1)}%`);
+    }
+    record(folder, rows);
+    expect(failures).toEqual([]);
+  });
+}
+
+interface Crop {
+  readonly name: string;
+  readonly screen: string;
+  readonly rect: readonly [number, number, number, number];
+  readonly story: string;
+}
+
+test('screen crops next to their stories (reviewed by eye)', async ({ page }) => {
+  const rows: ReportRow[] = [];
+  const { crops } = JSON.parse(readFileSync(new URL('screens/crops.json', EXPORTS), 'utf8')) as {
+    crops: Crop[];
+  };
+  for (const { name, screen, rect, story } of crops) {
+    const [x, y, w, h] = rect.map((value) => value * SCALE) as [number, number, number, number];
+    const figma = crop(readPng(new URL(`screens/${screen}`, EXPORTS)), x, y, w, h);
+    await openStory(page, story, 'dark');
+    const ours = readPng(await page.screenshot({ animations: 'disabled' }));
+    const slug = story.replace(/^components-/, '');
+    rows.push({
+      group: 'Screen crops',
+      name,
+      figma: save(`screens/${slug}.figma.png`, figma),
+      ours: save(`screens/${slug}.ours.png`, ours),
+      note: `${screen} · story ${story}`,
+    });
+  }
+  record('screens', rows);
+  expect(rows).toHaveLength(crops.length);
+});
+
+test.afterAll(() => {
+  const file = writeReport(REPORT, recordedRows());
+  console.log(`Figma comparison report: ${file.pathname}`);
+});
+```
+
+**`e2e/visual/catalogue.spec.ts`:**
+
+```ts
+// Named import: the package's type entry is CommonJS, so its default export doesn't type-check under nodenext.
+import { AxeBuilder } from '@axe-core/playwright';
+import { expect, test } from '@playwright/test';
+import { openStory, storyIds, THEMES } from './storybook.js';
+
+// Every story in both themes: pixel-compared with its approved baseline, and checked with axe.
+// Update baselines deliberately, after reviewing the change: pnpm test:visual:update.
+for (const id of storyIds()) {
+  for (const theme of THEMES) {
+    test(`${id} · ${theme}`, async ({ page }) => {
+      await openStory(page, id, theme);
+
+      await expect(page).toHaveScreenshot(`${id}-${theme}.png`, { fullPage: true });
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+        .analyze();
+      const violations = results.violations
+        .map((violation) => ({
+          ...violation,
+          // Known false positive (ADR 0008): a menu item's shortcut is its description, not part of its name.
+          nodes: violation.nodes.filter(
+            (node) =>
+              !(
+                violation.id === 'label-content-name-mismatch' &&
+                node.html.includes('role="menuitem"')
+              ),
+          ),
+        }))
+        .filter((violation) => violation.nodes.length > 0)
+        .map(
+          (violation) =>
+            `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(', ')}`,
+        );
+      expect(violations).toEqual([]);
+    });
+  }
+}
+```
+
+**`docs/reference/figma-exports/screens/crops.json`:**
+
+```json
+{
+  "$description": "Where each component sits in the full-screen Figma exports, in Figma (1x) pixels: [x, y, width, height]. The exports are 2x. Each crop is shown next to the matching story in the Figma comparison report.",
+  "crops": [
+    {
+      "name": "Input (focused, mono)",
+      "screen": "02-clone-repository.png",
+      "rect": [477, 325, 486, 48],
+      "story": "components-input--mono"
+    },
+    {
+      "name": "Toggle (settings rows)",
+      "screen": "17-settings-privacy.png",
+      "rect": [352, 140, 728, 470],
+      "story": "components-toggle--settings-rows"
+    },
+    {
+      "name": "Tabs (pill: view switch)",
+      "screen": "06-workspace-after-session.png",
+      "rect": [512, 2, 204, 36],
+      "story": "components-tabs--pill"
+    },
+    {
+      "name": "Tabs (underline: inspector)",
+      "screen": "06-workspace-after-session.png",
+      "rect": [1090, 136, 344, 38],
+      "story": "components-tabs--underline"
+    },
+    {
+      "name": "Panel (entry points)",
+      "screen": "06-workspace-after-session.png",
+      "rect": [44, 40, 248, 540],
+      "story": "components-panel--entry-points"
+    },
+    {
+      "name": "Menu (event context menu)",
+      "screen": "27-prompt-from-flow-or-event.png",
+      "rect": [244, 512, 284, 232],
+      "story": "components-menu--event-actions"
+    }
+  ]
+}
+```
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm test:visual              # builds Storybook, then 66 tests: 62 catalogue (31 stories × 2 themes) + 3 Figma + 1 crops
+pnpm test:visual:update       # only after reviewing a deliberate visual change
+xdg-open e2e/visual-report/index.html                      # the Figma side-by-side report
+pnpm --filter @flowcanvas/e2e exec playwright show-report playwright-report-visual   # failures with expected / actual / diff
+```
+
+**Results (27 Oct 2026):** 66 passed. Mismatch against Figma:
+
+| Component | Variants |
+| --- | --- |
+| Tag | 4.3–4.5% (budget 6%) |
+| Button | Primary, Ghost, Danger 2.4–2.6% (budget 4%); Secondary 5.9% (budget 7%) |
+| Flow node | Default 1.6%, Scope 2.9%, Analysing 3.3%, Affected 4.1% (budget 5%); Selected 5.5%, Added, Modified and Failing about 6% (budget 7%); Removed 7.2% (budget 8%) |
+
+**Run and check it:**
+1. Run `pnpm test:visual`. Expect `66 passed`.
+2. Open `e2e/visual-report/index.html`. For each Tag, Button and Flow node variant you see Figma | ours | difference (red pixels) and the mismatch against its budget. The screen crops (Input, Toggle settings rows, both Tabs, the entry-points Panel, the context Menu) are shown next to their stories for review by eye.
+3. **Prove it catches regressions.** Change a token, for example `--radius-node` in `packages/tokens/source/base.tokens.json` from 6 to 8, then regenerate tokens and run `pnpm test:visual`. Flow node stories fail in both suites. Revert the change and regenerate.
+
+**Gotchas:**
+- **Never run `test:visual:update` to make a red run green without opening the report.** That approves the bug.
+- **Baselines are per OS** (`-linux`). A different OS writes its own set; CI needs its own (upgrade-later 16).
+- **The comparison needs the exact Figma default text.** A variant story with different text measures as a large mismatch.
+- **Figma's export bounds include effects** (shadows, halos) even when the effect isn't drawn.

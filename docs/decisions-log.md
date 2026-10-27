@@ -125,13 +125,34 @@ Engineering decisions, made to keep accessibility and the 4 px grid; step 10 com
   - Removed nodes keep the strikethrough and the "− removed" tag.
   - `opacity.ghost` stays in the tokens for canvas-level ghosting, which needs a contrast check when it's used.
 - **Location text:** uses `text/muted`, not Figma's tertiary, following the 1a.4 caption decision.
-- **Spacing on the 4 px grid:**
-  - padding 8 px plus the 1 px border (Figma: 9), left 12 px, gap 8 px (Figma: 10).
-  - Rendered size: 216 px wide; 54 px tall with one line, as in Figma.
+- **Spacing follows Figma exactly** (corrected in step 10, after the screenshot comparison showed 1–2 px offsets):
+  - 9 px vertical and 10 px right padding inside the 1 px border, 12 px left, 10 px between icon and text.
+  - The node is 216 × 56 px, as in Figma. Step 9 had snapped these to the 4 px grid, which moved the text by 1–2 px.
+- **Tags sit top-right beside the title, as in Figma** (corrected in step 10). The title wraps in the space left; two tags (change and status) stack. Step 9 had wrapped tags below the title instead, which made the "outside selection" variant differ from Figma. A single very long identifier now breaks mid-word, as Figma does.
+- **Selection outline is drawn inside the edge** (1 px border plus a 0.5 px inset ring, like Figma's 1.5 px inside stroke), with the 3 px accent-tint halo outside.
 - **Tag symbols** ("+", "~", "−") are hidden from screen readers, which hear "modified" rather than "tilde modified".
 - **Left out on purpose** (each belongs to the phase that adds the behaviour; no placeholder features):
   - hover quick actions
   - edge ports
   - framework or timing badges
   - the "new node appears" animation
+
+## 27 Oct 2026: visual tests and the Figma comparison (phase 1a, step 10)
+
+Engineering decisions:
+
+- **Two kinds of visual test:**
+  - The **Figma comparison** (`e2e/visual/figma.spec.ts`) checks each Tag, Button and Flow node variant against the owner's Figma exports (dark, 2x), with a mismatch budget per variant. It also writes a side-by-side report.
+  - The **catalogue regression** (`e2e/visual/catalogue.spec.ts`) checks every story in both themes against approved baselines of our own rendering, plus axe (WCAG 2.0–2.2 A/AA).
+- **Mismatch budgets** were measured, then set just above the measurement:
+  - **Floor, 2–4%: font rasterisation.** Figma draws Inter 3; we self-host Inter 4, which has slightly different glyph widths. A 1–2 px layout error measures 5–15%, so it fails.
+  - **Higher budgets cover deliberate differences:**
+    - location text in `text/muted` (contrast)
+    - removed-node strikethrough and no opacity dimming (Graphite, contrast)
+    - Figma's selected node being 57 px tall
+    - Figma's bordered button export being 2 px wider
+- **The selection halo is excluded from the comparison.** Figma's component export reserves room for it but draws it transparent (spread on a drop shadow does not export). Graphite and Figma screen 06 show it, and the catalogue baseline covers it.
+- **Components that exist only inside Figma screens** (Input, Toggle, Tabs, Panel, Menu) are compared by eye in the report. Their crops (`docs/reference/figma-exports/screens/crops.json`) contain other content, so a pixel score would mean nothing. Tooltip has no Figma reference; it follows Graphite.
+- **Screen exports** are kept once per screen (full 1440 × 900 frames at 2x); the crop areas are recorded in `crops.json`.
+- **Baselines are per platform** (`-linux` in the file name). CI needs baselines generated on its own OS: upgrade-later item 16.
 
