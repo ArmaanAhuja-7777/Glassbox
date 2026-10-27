@@ -17,8 +17,8 @@
     "lint": "turbo run lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test:visual": "pnpm --filter @flowcanvas/ui build-storybook && pnpm --filter @flowcanvas/e2e test:visual",
-    "test:visual:update": "pnpm --filter @flowcanvas/ui build-storybook && pnpm --filter @flowcanvas/e2e test:visual --update-snapshots"
+    "test:visual": "pnpm --filter @flowcanvas/ui --fail-if-no-match build-storybook && pnpm --filter @flowcanvas/e2e --fail-if-no-match test:visual",
+    "test:visual:update": "pnpm --filter @flowcanvas/ui --fail-if-no-match build-storybook && pnpm --filter @flowcanvas/e2e --fail-if-no-match test:visual --update-snapshots"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",

@@ -6782,7 +6782,7 @@ export default preview;
 | Field | Value |
 | --- | --- |
 | Project name | `flowcanvas-catalogue` (must equal `name` in `packages/ui/wrangler.jsonc`) |
-| Build command | `corepack enable && pnpm install --frozen-lockfile && pnpm --filter @flowcanvas/ui build-storybook` |
+| Build command | `corepack enable && pnpm install --frozen-lockfile && pnpm --filter @flowcanvas/ui --fail-if-no-match build-storybook` |
 | Deploy command | `pnpm exec wrangler deploy --config packages/ui/wrangler.jsonc` |
 | Enable preview builds | **on** |
 | Non-production branch deploy command | `pnpm exec wrangler versions upload --config packages/ui/wrangler.jsonc` |
@@ -6791,7 +6791,10 @@ export default preview;
 | Advanced → API token | "Create new token" |
 | Advanced → Variables | `NODE_VERSION` = `24`, `SKIP_DEPENDENCY_INSTALL` = `true`, `TURBO_TELEMETRY_DISABLED` = `1`, `COREPACK_ENABLE_DOWNLOAD_PROMPT` = `0`, `WRANGLER_SEND_METRICS` = `false`, `STORYBOOK_DISABLE_TELEMETRY` = `1` |
 
-The production deploy runs from `main`, so the catalogue URL works after phase 1a is merged. Until then, use the **preview URL** of the `phase/1a-design-system` branch from the project's Deployments page.
+The production deploy runs from `main`, so the catalogue URL works after phase 1a is merged.
+
+- **The first build fails on `main`, and that's expected.** Creating the project builds the production branch at once, and `main` has no `packages/ui` yet, so the deploy reports `Could not read file: packages/ui/wrangler.jsonc`. This happened on 27 Oct 2026; it resolves itself when phase 1a merges.
+- **`--fail-if-no-match` matters.** That same build's first step reported **Success** although `--filter @flowcanvas/ui` matched nothing ("No projects matched the filters"). pnpm exits 0 when a filter matches nothing; with the flag it exits 1, so a wrong filter fails at the build step with a clear message instead of later, confusingly, at deploy. Until then, use the **preview URL** of the `phase/1a-design-system` branch from the project's Deployments page.
 
 **Commands (local):**
 
