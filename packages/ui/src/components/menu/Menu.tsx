@@ -1,3 +1,4 @@
+import { Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 import {
   Button as AriaButton,
@@ -51,7 +52,10 @@ export interface MenuProps<T> extends Omit<AriaMenuProps<T>, 'className'> {
   readonly placement?: PopoverProps['placement'];
 }
 
-/** A popover menu: arrow keys move, typing jumps to an item, Enter/Space activate, Escape closes. */
+/**
+ * A popover menu: arrow keys move, typing jumps to an item, Enter/Space activate, Escape closes.
+ * With `selectionMode="single"` it becomes a picker: items are radio items and the chosen one shows a tick.
+ */
 export function Menu<T extends object>({
   className,
   placement = 'bottom start',
@@ -91,24 +95,40 @@ export function MenuItem({
 }: MenuItemProps) {
   return (
     <AriaMenuItem {...rest} textValue={children} className={classNames(styles.item)}>
-      {icon !== undefined && (
-        <span className={styles.icon} aria-hidden="true">
-          {icon}
-        </span>
+      {({ isSelected, selectionMode }) => (
+        <>
+          {icon !== undefined && (
+            <span className={styles.icon} aria-hidden="true">
+              {icon}
+            </span>
+          )}
+          <Text slot="label" className={styles.label}>
+            {children}
+          </Text>
+          {description !== undefined && (
+            <Text
+              slot="description"
+              className={styles.description}
+              data-mono={descriptionMono || undefined}
+            >
+              {description}
+            </Text>
+          )}
+          {(shortcut !== undefined || selectionMode !== 'none') && (
+            <span className={styles.end}>
+              {shortcut !== undefined && (
+                <Keyboard className={styles.shortcut}>{shortcut}</Keyboard>
+              )}
+              {/* In a selectable menu React Aria marks the item checked (menuitemradio / menuitemcheckbox); the tick only shows it. */}
+              {selectionMode !== 'none' && (
+                <span className={styles.check} aria-hidden="true">
+                  {isSelected && <Check />}
+                </span>
+              )}
+            </span>
+          )}
+        </>
       )}
-      <Text slot="label" className={styles.label}>
-        {children}
-      </Text>
-      {description !== undefined && (
-        <Text
-          slot="description"
-          className={styles.description}
-          data-mono={descriptionMono || undefined}
-        >
-          {description}
-        </Text>
-      )}
-      {shortcut !== undefined && <Keyboard className={styles.shortcut}>{shortcut}</Keyboard>}
     </AriaMenuItem>
   );
 }

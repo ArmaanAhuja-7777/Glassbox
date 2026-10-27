@@ -98,6 +98,36 @@ describe('Menu', () => {
     expect(detail.dataset.mono).toBe('true');
   });
 
+  it('works as a single-choice picker that ticks the chosen item', async () => {
+    const user = userEvent.setup();
+    const onSelectionChange = vi.fn();
+    render(
+      <MenuTrigger>
+        <MenuButton>Theme</MenuButton>
+        <Menu
+          aria-label="Theme"
+          selectionMode="single"
+          selectedKeys={['dark']}
+          onSelectionChange={onSelectionChange}
+        >
+          <MenuItem id="system">System</MenuItem>
+          <MenuItem id="dark">Dark</MenuItem>
+          <MenuItem id="light">Light</MenuItem>
+        </Menu>
+      </MenuTrigger>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Theme' }));
+
+    const dark = screen.getByRole('menuitemradio', { name: 'Dark' });
+    expect(dark.getAttribute('aria-checked')).toBe('true');
+    expect(dark.querySelector('svg')).not.toBeNull();
+    expect(screen.getByRole('menuitemradio', { name: 'Light' }).querySelector('svg')).toBeNull();
+
+    await user.click(screen.getByRole('menuitemradio', { name: 'Light' }));
+    const selection = onSelectionChange.mock.calls[0]?.[0] as Set<string> | undefined;
+    expect([...(selection ?? [])]).toEqual(['light']);
+  });
+
   it('styles the trigger like a Button', () => {
     render(<EventMenu />);
     expect(screen.getByRole('button', { name: 'Event actions' }).dataset.kind).toBe('ghost');

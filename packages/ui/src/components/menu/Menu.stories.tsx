@@ -56,3 +56,20 @@ export const Closed: Story = {
     </MenuTrigger>
   ),
 };
+
+/** A single-choice picker: the chosen item is ticked (Figma screen 30, agent picker). */
+export const Picker: Story = {
+  render: (args) => (
+    <MenuTrigger defaultOpen>
+      <MenuButton>Theme: Dark</MenuButton>
+      <Menu {...args} aria-label="Theme" selectionMode="single" defaultSelectedKeys={['dark']}>
+        <MenuItem id="system" description="follows your OS">
+          System
+        </MenuItem>
+        <MenuItem id="dark">Dark</MenuItem>
+        <MenuItem id="light">Light</MenuItem>
+      </Menu>
+    </MenuTrigger>
+  ),
+  parameters: { layout: 'centered' },
+};

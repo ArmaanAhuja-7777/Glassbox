@@ -89,10 +89,17 @@
   line-height: var(--text-mono-small-line-height);
 }
 
-/* The keycap: 1 px control border, pushed to the right edge of the row. */
-.shortcut {
+/* Shortcut and tick sit at the right edge of the row. */
+.end {
+  display: flex;
   flex: none;
+  gap: var(--space-8);
+  align-items: center;
   margin-inline-start: auto;
+}
+
+/* The keycap: 1 px control border. */
+.shortcut {
   padding: 0 calc(var(--space-4) + var(--space-2) / 2);
   border: var(--border-width-default) solid var(--color-border-control);
   border-radius: var(--radius-control);
@@ -100,6 +107,20 @@
   font-family: var(--text-mono-small-font-family);
   font-size: var(--text-mono-small-font-size);
   line-height: var(--text-mono-small-line-height);
+}
+
+/* Reserves the tick's width on every item, so labels don't shift when the selection changes. */
+.check {
+  display: inline-flex;
+  width: var(--size-icon-xs);
+  height: var(--size-icon-xs);
+  color: var(--color-text-primary);
+}
+
+.check svg {
+  width: 100%;
+  height: 100%;
+  stroke-width: var(--icon-stroke-width);
 }
 
 /* Muted text is 4.5:1 on the popover but not on the selected row, so a focused item uses secondary. */
