@@ -2060,7 +2060,7 @@ When phase 1a is done you can:
 | 8 | Menu and Tooltip (headless accessible primitives; ADR) | done · `9743475` · Claude · ADR 0008 |
 | 9 | Flow node (all change states, selected, analysing) | done · `6fef1f8` · Claude · ADR 0009 · shadow `0358bba` |
 | 10 | Figma references + Playwright visual comparison with a side-by-side report | done · `7949c92` + `4a325a0` · exports: owner · tests: Claude |
-| 11 | Version page restyled with tokens; Storybook deployed to a free Cloudflare URL | done · `e708c35` `7d94a63` `26df0ee` `de6e08c` · Claude (repo) · owner: Cloudflare catalogue project · ADR 0010 |
+| 11 | Version page restyled with tokens; Storybook deployed to a free Cloudflare URL | done · `e708c35` `7d94a63` `26df0ee` `de6e08c` · Claude (repo) + owner (Cloudflare catalogue project) · ADR 0010 · verified on previews of `3231df2` |
 | 12 | Close phase 1a: ADRs, architecture, status, changelog, report, merge | *planned* |
 
 ### Step 1a.1 — Design tokens: source, generator and generated package
@@ -6794,6 +6794,14 @@ export default preview;
 The production deploy runs from `main`, so the catalogue URL works after phase 1a is merged.
 
 - **The first build fails on `main`, and that's expected.** Creating the project builds the production branch at once, and `main` has no `packages/ui` yet, so the deploy reports `Could not read file: packages/ui/wrangler.jsonc`. This happened on 27 Oct 2026; it resolves itself when phase 1a merges.
+- **Variable values must be exact.** The third build failed at deploy with `Expected WRANGLER_SEND_METRICS to be "true" or "false", but got "false "`: a trailing space typed into the dashboard. Retype values with no surrounding spaces.
+- **Where the preview is:**
+  - The deploy log of a branch build ends with the version's preview URL.
+  - Stable branch alias: `https://<branch, with / replaced by ->-flowcanvas-catalogue.ahujaarmaan7777.workers.dev`, e.g. `https://phase-1a-design-system-flowcanvas-catalogue.ahujaarmaan7777.workers.dev`.
+  - Until `main` deploys, the production URL shows Cloudflare's "Hello world" placeholder.
+- **Verified 27 Oct 2026 on the previews of `3231df2`:**
+  - catalogue: the CSP header is present, `project.json` returns 404, and three stories render with no console errors
+  - app preview: `E2E_BASE_URL=… E2E_EXPECTED_COMMIT=3231df2… pnpm --filter @flowcanvas/e2e test:e2e` gives 2 passed
 - **Build through Turbo, not `pnpm --filter`.**
   - The second build (branch `phase/1a-design-system`, 27 Oct 2026) failed: `Rolldown failed to resolve import "@flowcanvas/tokens"`.
   - `@flowcanvas/tokens` is a *compiled* package (its `exports` point at `dist/`), and a clean checkout has no `dist/`.
