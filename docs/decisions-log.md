@@ -95,3 +95,12 @@ The owner approved the proposed Graphite light theme: same 40 colour roles as da
 ## 27 Oct 2026: caption colour, `text/muted` (phase 1a, step 4)
 
 axe-core in Storybook found that captions in `text/tertiary` fail WCAG AA (4.08:1 dark, 3.26:1 light; text needs 4.5:1). The owner chose **option B**: a new token **`text/muted`** (dark `#818995`, light `#666E7A`, ≥ 4.5:1 on canvas, panel, raised and hover) for captions, section labels and metadata. `text/tertiary` is **non-text only** from now on (icons, edges, placeholders, disabled marks). Metadata on selected rows uses `text/secondary`. Enforced by the token contrast tests.
+
+## 27 Oct 2026: Input and Toggle details (phase 1a, step 6)
+
+Engineering decisions, made within the design rules:
+- **Input radius 6 px**, following Graphite ("6 nodes and inputs"), which ranks above the Figma screens (they draw 4 px).
+- **Placeholders use `text/muted`** (4.9:1 dark, 5.2:1 light). Placeholders are text, so `text/tertiary` (3.6 / 3.35) would fail AA. This tightens the 27 Oct caption decision: `text/tertiary` is never used for any text.
+- **Toggle off knob uses `text/secondary`** (Figma: tertiary), so the knob that shows the state has ≥ 3:1 against its track (6.2 dark, 4.9 light; tertiary would be 3.0 / 2.75).
+
+Open question for the owner: input borders (`border/control`) are 1.6:1 against the input fill; WCAG 1.4.11 asks 3:1 for a control's identifying boundary.

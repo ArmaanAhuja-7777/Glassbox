@@ -2055,7 +2055,7 @@ When phase 1a is done you can:
 | 3 | `packages/ui` foundation: CSS Modules, global styles, self-hosted fonts, theme switching, reduced motion, "no raw values" lint rule | done · `7af36eb` · Claude |
 | 4 | Storybook: setup, dark/light toolbar, accessibility addon, local run | done · `5d4aa21` (caption token) + `389286c` · Claude |
 | 5 | Button and Tag (the Figma components) | done · `792a45a` · Claude |
-| 6 | Input and Toggle | *planned* |
+| 6 | Input and Toggle | done · `8c1e851` · Claude · input-border contrast question open |
 | 7 | Tabs and Panel | *planned* |
 | 8 | Menu and Tooltip (headless accessible primitives; ADR) | *planned* |
 | 9 | Flow node (all change states, selected, analysing) | *planned* |
@@ -3901,3 +3901,341 @@ pnpm --filter @flowcanvas/ui storybook                    # http://localhost:600
 - **Testing CSS Module class names** breaks when hashes change. Test data attributes and behaviour instead.
 
 **Commit:** `feat(ui): add Button and Tag components with stories and tests`
+
+### Step 1a.6 — Input and Toggle
+
+**Goal:** two form controls that exist in Figma only inside screens: **Input**, from the clone dialog, filters and the secret input; and **Toggle**, from the settings screen. Both are fully accessible: labelled, keyboard-operable, AA contrast in both themes.
+
+**Expected outcome:**
+- Storybook shows **Components → Input** (Default, Mono, Invalid, Disabled, In context) and **Components → Toggle** (Off, On, Disabled, Settings rows).
+- Tab moves focus between them; Space flips a toggle.
+- The Accessibility tab is clean in both themes.
+- `ui` tests: 27 (12 new); token tests: 49.
+
+**Concepts:**
+- **Sources and conflicts.** Neither control is a Figma *component*, so the references are the screens (clone dialog, settings) plus Graphite's component table.
+  - **Radius:** the screens draw inputs at 4 px, Graphite says "6 for nodes and inputs". Graphite ranks above screens (CLAUDE.md §2), so inputs use `--radius-node` (6 px).
+- **Input is a field wrapper plus a real `<input>`.**
+  - The visible box (border, fill, focus halo) is a `<span>` around a borderless `<input>`, so icons and keyboard hints can sit *inside* the box (`leading` / `trailing`).
+  - The wrapper reacts with **`:focus-within`** (true when anything inside has focus): accent border plus a 2 px `accent-tint` halo (new token `border.width.halo`).
+  - The inner input turns off its own outline, so focus isn't drawn twice.
+  - Docs: https://developer.mozilla.org/en-US/docs/Web/CSS/:focus-within
+- **`controlSize` instead of `size`.** `<input size>` is a native attribute (width in characters). Omitting it from the props (`Omit<…, 'size'>`) and naming ours `controlSize` avoids a type clash and confusion.
+- **Labels are mandatory.** An input needs an accessible name: a `<label htmlFor>`, a wrapping `<label>`, `aria-label` or `aria-labelledby`. Tests find inputs with `getByRole('textbox', { name: 'Repository URL' })`, which fails if the label is missing. That makes the test an accessibility check too.
+- **`aria-invalid`.** `invalid` sets `aria-invalid="true"`, so screen readers announce the error, and shows a `state-removed` border. Colour isn't the only signal: an error message must accompany it in real forms.
+- **Placeholders are text.** They use `text/muted` (≥ 4.5:1), never tertiary. Browsers dim placeholders by default (`opacity` < 1), so `::placeholder { opacity: 1 }` keeps the token's exact contrast.
+- **Toggle = `<button role="switch" aria-checked>`.**
+  - A native button gives focus, Space/Enter and disabled for free.
+  - `role="switch"` plus `aria-checked` makes screen readers announce "switch, on/off".
+  - It's named with `aria-label` or `aria-labelledby` (the settings row's title).
+  - Docs: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/switch_role
+- **Controlled vs uncontrolled.**
+  - Pass `checked` + `onCheckedChange`, and the parent owns the state (the toggle only *asks* to change).
+  - Pass `defaultChecked` (or nothing), and the toggle keeps its own state.
+  - That's the same pattern as React's `<input value>` vs `<input defaultValue>`. A test proves a controlled toggle does **not** change unless the parent updates `checked`.
+  - Docs: https://react.dev/learn/sharing-state-between-components#controlled-and-uncontrolled-components
+- **Contrast fixes against the Figma drawing.**
+  - The off knob (it carries the state) is 3.0:1 / 2.75:1 against its track with tertiary, below the 3:1 non-text minimum. It uses `text/secondary` (6.2 / 4.9).
+  - The on state already passes (5.4 / 5.8).
+  - Position also differs, so state isn't shown by colour alone.
+- **New tokens:**
+  - `size.toggle.width` 28, `size.toggle.height` 16, `size.toggle.knob` 12
+  - `border.width.halo` 2
+  - Round shapes use the element's own size as radius (`border-radius: var(--size-toggle-knob)`), since Stylelint forbids raw units including `%`.
+- **React renders `data-x={true}` as `data-x="true"`,** not an empty attribute. Tests expect `'true'`; the CSS selector `[data-invalid]` matches either way. (Two first-run test failures came from expecting `''`.)
+- **TS2883 "inferred type cannot be named".** An inline decorator in a stories file made the inferred type of `meta` refer to a Storybook-internal type. Fix: annotate explicitly (`const meta: Meta<typeof Input> = …`).
+- **Real-browser checks that jsdom can't do:**
+  - Tab really focuses the switch, and the focus outline shows.
+  - Space really toggles it (`aria-checked` false → true).
+  - The focus halo appears on the input.
+
+  These become part of the automated visual and interaction tests in step 10.
+
+**Open question for the owner:** the input border (`border/control`) is **1.6:1** against the input fill (dark and light). WCAG 1.4.11 asks 3:1 for the visual boundary that identifies a control. `border/strong` gives about 2.2:1; `text/tertiary` as a border colour would pass (3.6 / 3.35) but is louder than the Figma look.
+
+**Files:**
+
+**`packages/ui/src/components/input/Input.tsx`:**
+
+```tsx
+import type { ComponentPropsWithRef, ReactNode } from 'react';
+import { classNames } from '../../class-names';
+import styles from './Input.module.css';
+
+/** `md` (32 px) is the default field height; `sm` (28 px) fits filters and dense toolbars. */
+export type InputSize = 'sm' | 'md';
+
+export interface InputProps extends Omit<ComponentPropsWithRef<'input'>, 'size'> {
+  /** Named `controlSize` because `size` is already a native <input> attribute (a character count). */
+  readonly controlSize?: InputSize;
+  /** JetBrains Mono, for values a developer might copy: URLs, paths, branch names, secrets. */
+  readonly mono?: boolean;
+  /** Marks the value as invalid for assistive technology (aria-invalid) and shows the error border. */
+  readonly invalid?: boolean;
+  /** Decorative content before the text, usually a 14 px icon. */
+  readonly leading?: ReactNode;
+  /** Content after the text: an icon, a keyboard hint, a reveal button. */
+  readonly trailing?: ReactNode;
+}
+
+export function Input({
+  controlSize = 'md',
+  mono = false,
+  invalid = false,
+  leading,
+  trailing,
+  className,
+  ...rest
+}: InputProps) {
+  return (
+    <span
+      className={classNames(styles.field, className)}
+      data-size={controlSize}
+      data-mono={mono || undefined}
+      data-invalid={invalid || undefined}
+      data-disabled={rest.disabled === true || undefined}
+    >
+      {leading !== undefined && (
+        <span className={styles.adornment} aria-hidden="true">
+          {leading}
+        </span>
+      )}
+      <input {...rest} className={styles.input} aria-invalid={invalid || undefined} />
+      {trailing !== undefined && <span className={styles.adornment}>{trailing}</span>}
+    </span>
+  );
+}
+```
+
+**`packages/ui/src/components/input/Input.module.css`:**
+
+```css
+/* Graphite input: raised fill, control border, 6 px radius (Graphite "nodes and inputs"; the Figma screens draw 4 px). */
+.field {
+  display: inline-flex;
+  gap: var(--space-8);
+  align-items: center;
+  inline-size: 100%;
+  block-size: var(--size-control-md);
+  padding: 0 calc(var(--space-8) + var(--space-2));
+  border: var(--border-width-default) solid var(--color-border-control);
+  border-radius: var(--radius-node);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  transition:
+    border-color var(--duration-hover) ease-out,
+    box-shadow var(--duration-hover) ease-out;
+}
+
+.field[data-size='sm'] {
+  block-size: var(--size-control-sm);
+}
+
+.field:hover {
+  border-color: var(--color-border-strong);
+}
+
+/* Focus: accent border plus a 2 px accent-tint halo (Graphite input "selected / focused"). */
+.field:focus-within {
+  border-color: var(--color-accent-solid);
+  box-shadow: 0 0 0 var(--border-width-halo) var(--color-accent-tint);
+}
+
+.field[data-invalid] {
+  border-color: var(--color-state-removed-solid);
+}
+
+.field[data-disabled] {
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}
+
+.input {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--text-small-font-family);
+  font-size: var(--text-small-font-size);
+  font-weight: var(--text-small-font-weight);
+  line-height: var(--text-small-line-height);
+  letter-spacing: var(--text-small-letter-spacing);
+}
+
+.field[data-mono] .input {
+  font-family: var(--text-mono-small-font-family);
+  font-size: var(--text-mono-small-font-size);
+  line-height: var(--text-mono-small-line-height);
+}
+
+/* The field draws the focus state, so the inner input doesn't add the global outline. */
+.input:focus-visible {
+  outline: none;
+}
+
+.input:disabled {
+  cursor: not-allowed;
+}
+
+/* Placeholders are text, so they use text/muted (4.5:1), not tertiary. */
+.input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+.adornment {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  color: var(--color-text-tertiary);
+}
+```
+
+**`packages/ui/src/components/toggle/Toggle.tsx`:**
+
+```tsx
+import { useState, type ComponentPropsWithRef } from 'react';
+import { classNames } from '../../class-names';
+import styles from './Toggle.module.css';
+
+export interface ToggleProps extends Omit<
+  ComponentPropsWithRef<'button'>,
+  'onChange' | 'role' | 'type' | 'value'
+> {
+  /** Controlled state. Leave undefined to let the toggle manage its own state from `defaultChecked`. */
+  readonly checked?: boolean;
+  readonly defaultChecked?: boolean;
+  readonly onCheckedChange?: (checked: boolean) => void;
+}
+
+/**
+ * An on/off switch. Renders a <button role="switch"> so Space and Enter work natively and screen
+ * readers announce "on"/"off". Give it a name with `aria-label` or `aria-labelledby`.
+ */
+export function Toggle({
+  checked,
+  defaultChecked = false,
+  onCheckedChange,
+  onClick,
+  className,
+  ...rest
+}: ToggleProps) {
+  const [uncontrolled, setUncontrolled] = useState(defaultChecked);
+  const isControlled = checked !== undefined;
+  const isOn = isControlled ? checked : uncontrolled;
+
+  return (
+    <button
+      {...rest}
+      type="button"
+      role="switch"
+      aria-checked={isOn}
+      className={classNames(styles.toggle, className)}
+      data-state={isOn ? 'on' : 'off'}
+      onClick={(event) => {
+        onClick?.(event);
+        if (event.defaultPrevented) {
+          return;
+        }
+        if (!isControlled) {
+          setUncontrolled(!isOn);
+        }
+        onCheckedChange?.(!isOn);
+      }}
+    >
+      <span className={styles.knob} aria-hidden="true" />
+    </button>
+  );
+}
+```
+
+**`packages/ui/src/components/toggle/Toggle.module.css`:**
+
+```css
+/* Figma settings toggle: 28 × 16 track, 2 px padding, 12 px knob, fully rounded. */
+.toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  inline-size: var(--size-toggle-width);
+  block-size: var(--size-toggle-height);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--size-toggle-height);
+  background: var(--color-surface-selected);
+  cursor: pointer;
+  transition: background-color var(--duration-panel) ease-out;
+}
+
+.knob {
+  inline-size: var(--size-toggle-knob);
+  block-size: var(--size-toggle-knob);
+  border-radius: var(--size-toggle-knob);
+
+  /* Off knob uses text/secondary (Figma: tertiary) so the knob, which shows the state, has ≥ 3:1 against the track. */
+  background: var(--color-text-secondary);
+  transition:
+    transform var(--duration-panel) ease-out,
+    background-color var(--duration-panel) ease-out;
+}
+
+.toggle[data-state='on'] {
+  background: var(--color-accent-solid);
+}
+
+.toggle[data-state='on'] .knob {
+  background: var(--color-text-on-accent);
+  transform: translateX(
+    calc(var(--size-toggle-width) - var(--size-toggle-knob) - 2 * var(--space-2))
+  );
+}
+
+.toggle:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}
+```
+
+**Tests and stories:**
+- `input/Input.test.tsx`, 6 tests:
+  - named by its label
+  - change events
+  - invalid sets `aria-invalid` and the style hook
+  - valid has no `aria-invalid`
+  - leading and trailing slots (leading hidden from assistive tech)
+  - size, mono and ref forwarding
+- `toggle/Toggle.test.tsx`, 6 tests:
+  - switch, off by default
+  - uncontrolled flips and reports
+  - controlled waits for the parent
+  - works with parent state
+  - disabled does nothing
+  - `onClick` can cancel with `preventDefault()`
+- `Input.stories.tsx`: Default, Mono, Invalid, Disabled, In context (clone dialog fields, filter with `/` hint, secret input).
+- `Toggle.stories.tsx`: Off, On, Disabled, Settings rows (Privacy and runtime, cloud-first wording).
+- `packages/ui/src/index.ts` exports `Input`, `Toggle` and their types.
+- Tokens: `size.toggle.*` and `border.width.halo` in `base.tokens.json`. The token tests add `text-secondary`/`surface-selected` (4.5:1) and `text-on-accent`/`accent-solid` and `accent-solid`/`surface-panel` (3:1).
+
+**Commands:**
+
+```fish
+pnpm --filter @flowcanvas/tokens generate
+pnpm format && pnpm lint && pnpm typecheck && pnpm test   # ui: 27, tokens: 49
+pnpm --filter @flowcanvas/ui storybook
+```
+
+**Run and check it:**
+1. **Components → Input → In context:** the clone-dialog fields in JetBrains Mono, a filter with a `/` hint, a masked secret field. Click a field to see the accent border and halo.
+2. **Invalid:** the clay border. In devtools, the `<input>` has `aria-invalid="true"`.
+3. **Components → Toggle → Settings rows:** click a toggle. Then Tab to one and press Space: it flips, and the focus ring is visible.
+4. Switch to light theme and repeat. Accessibility tab: no violations.
+
+**Gotchas:**
+- **Every Input needs a name** (label or `aria-label`). `getByRole('textbox', { name })` in tests catches a missing one.
+- **Don't build a toggle from a `<div>` with `onClick`.** You lose keyboard support, focus and the screen-reader role. Use the component.
+- **A controlled toggle without `onCheckedChange` updating the state looks frozen.** That's by design.
+- **`border-radius: 50%` fails Stylelint.** Use the element's size token.
+
+**Commit:** `feat(ui): add Input and Toggle components with stories and tests`
