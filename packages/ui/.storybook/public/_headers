@@ -1,0 +1,8 @@
+# Security headers for the component catalogue (its own Worker and origin, see packages/ui/wrangler.jsonc).
+# Storybook's built pages use inline scripts and styles, so this CSP allows 'unsafe-inline'; that's why the
+# catalogue never shares an origin with the app. It holds only static demo content: no cookies, no data.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()

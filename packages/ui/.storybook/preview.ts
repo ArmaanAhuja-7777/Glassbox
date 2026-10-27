@@ -17,7 +17,17 @@ const preview: Preview = {
   parameters: {
     layout: 'padded',
     backgrounds: { disable: true },
-    a11y: { test: 'error' },
+    a11y: {
+      test: 'error',
+      // Page-level best-practice rules don't apply to a component shown on its own (no page landmarks or h1).
+      config: {
+        rules: [
+          { id: 'region', enabled: false },
+          { id: 'landmark-one-main', enabled: false },
+          { id: 'page-has-heading-one', enabled: false },
+        ],
+      },
+    },
   },
 };
 
