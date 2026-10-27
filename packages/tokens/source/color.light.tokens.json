@@ -40,8 +40,13 @@
       "secondary": {
         "$value": "#5C6470"
       },
+      "muted": {
+        "$value": "#666E7A",
+        "$description": "Captions, section labels and metadata text. Passes 4.5:1 on canvas, panel, raised and hover; on selected rows use text.secondary."
+      },
       "tertiary": {
-        "$value": "#868D98"
+        "$value": "#868D98",
+        "$description": "Icons at rest, edges, placeholders, disabled marks. Non-text only (3:1); never for text."
       },
       "on-accent": {
         "$value": "#FCFCFD"

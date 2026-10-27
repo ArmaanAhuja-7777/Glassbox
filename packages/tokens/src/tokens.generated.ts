@@ -155,6 +155,7 @@ export const vars = {
     "text": {
       "primary": "var(--color-text-primary)",
       "secondary": "var(--color-text-secondary)",
+      "muted": "var(--color-text-muted)",
       "tertiary": "var(--color-text-tertiary)",
       "on-accent": "var(--color-text-on-accent)"
     },
@@ -220,6 +221,7 @@ export const themeValues = {
     "--color-border-strong": "#4a525e",
     "--color-text-primary": "#edeff2",
     "--color-text-secondary": "#a3aab5",
+    "--color-text-muted": "#818995",
     "--color-text-tertiary": "#6b7380",
     "--color-text-on-accent": "#0b0c0e",
     "--color-accent-solid": "#7487ad",
@@ -262,6 +264,7 @@ export const themeValues = {
     "--color-border-strong": "#b4bac3",
     "--color-text-primary": "#16191d",
     "--color-text-secondary": "#5c6470",
+    "--color-text-muted": "#666e7a",
     "--color-text-tertiary": "#868d98",
     "--color-text-on-accent": "#fcfcfd",
     "--color-accent-solid": "#4e6390",
