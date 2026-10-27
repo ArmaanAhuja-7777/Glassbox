@@ -115,14 +115,20 @@ export const vars = {
       "sm": "var(--size-icon-sm)",
       "md": "var(--size-icon-md)"
     },
-    "node-width": "var(--size-node-width)"
+    "node-width": "var(--size-node-width)",
+    "toggle": {
+      "width": "var(--size-toggle-width)",
+      "height": "var(--size-toggle-height)",
+      "knob": "var(--size-toggle-knob)"
+    }
   },
   "border": {
     "width": {
       "default": "var(--border-width-default)",
       "selected": "var(--border-width-selected)",
       "focus": "var(--border-width-focus)",
-      "state-bar": "var(--border-width-state-bar)"
+      "state-bar": "var(--border-width-state-bar)",
+      "halo": "var(--border-width-halo)"
     }
   },
   "duration": {

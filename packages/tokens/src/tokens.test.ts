@@ -51,6 +51,7 @@ describe.each(Object.entries(themeValues))('%s theme contrast (WCAG AA)', (_them
     ['text-muted', 'surface-panel'],
     ['text-muted', 'surface-raised'],
     ['text-muted', 'surface-hover'],
+    ['text-secondary', 'surface-selected'],
     ['text-on-accent', 'surface-inverse'],
     ['text-primary', 'surface-hover'],
     ['text-secondary', 'surface-hover'],
@@ -70,6 +71,8 @@ describe.each(Object.entries(themeValues))('%s theme contrast (WCAG AA)', (_them
     ['edge-default', 'surface-canvas'],
     ['accent-solid', 'surface-raised'],
     ['state-removed-solid', 'surface-canvas'],
+    ['text-on-accent', 'accent-solid'],
+    ['accent-solid', 'surface-panel'],
   ])('non-text %s on %s is at least 3:1', (fg, bg) => {
     expect(contrast(value(fg), value(bg))).toBeGreaterThanOrEqual(3);
   });

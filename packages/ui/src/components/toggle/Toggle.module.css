@@ -1,0 +1,42 @@
+/* Figma settings toggle: 28 × 16 track, 2 px padding, 12 px knob, fully rounded. */
+.toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  inline-size: var(--size-toggle-width);
+  block-size: var(--size-toggle-height);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--size-toggle-height);
+  background: var(--color-surface-selected);
+  cursor: pointer;
+  transition: background-color var(--duration-panel) ease-out;
+}
+
+.knob {
+  inline-size: var(--size-toggle-knob);
+  block-size: var(--size-toggle-knob);
+  border-radius: var(--size-toggle-knob);
+
+  /* Off knob uses text/secondary (Figma: tertiary) so the knob, which shows the state, has ≥ 3:1 against the track. */
+  background: var(--color-text-secondary);
+  transition:
+    transform var(--duration-panel) ease-out,
+    background-color var(--duration-panel) ease-out;
+}
+
+.toggle[data-state='on'] {
+  background: var(--color-accent-solid);
+}
+
+.toggle[data-state='on'] .knob {
+  background: var(--color-text-on-accent);
+  transform: translateX(
+    calc(var(--size-toggle-width) - var(--size-toggle-knob) - 2 * var(--space-2))
+  );
+}
+
+.toggle:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}

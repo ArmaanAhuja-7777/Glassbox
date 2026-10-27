@@ -347,6 +347,27 @@
         "value": 216,
         "unit": "px"
       }
+    },
+    "toggle": {
+      "$description": "Switch track and knob (Figma settings screen)",
+      "width": {
+        "$value": {
+          "value": 28,
+          "unit": "px"
+        }
+      },
+      "height": {
+        "$value": {
+          "value": 16,
+          "unit": "px"
+        }
+      },
+      "knob": {
+        "$value": {
+          "value": 12,
+          "unit": "px"
+        }
+      }
     }
   },
   "border": {
@@ -375,6 +396,13 @@
           "value": 2,
           "unit": "px"
         }
+      },
+      "halo": {
+        "$value": {
+          "value": 2,
+          "unit": "px"
+        },
+        "$description": "Accent halo around focused inputs and selected nodes"
       }
     }
   },

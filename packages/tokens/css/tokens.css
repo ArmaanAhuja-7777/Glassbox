@@ -76,10 +76,14 @@
   --size-icon-sm: 16px;
   --size-icon-md: 18px;
   --size-node-width: 216px;
+  --size-toggle-width: 28px;
+  --size-toggle-height: 16px;
+  --size-toggle-knob: 12px;
   --border-width-default: 1px;
   --border-width-selected: 1.5px;
   --border-width-focus: 2px;
   --border-width-state-bar: 2px;
+  --border-width-halo: 2px;
   --duration-hover: 80ms;
   --duration-panel: 160ms;
   --duration-appear: 240ms;
