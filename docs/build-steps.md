@@ -2053,7 +2053,7 @@ When phase 1a is done you can:
 | 1 | Token source (DTCG JSON seed) + `tools/figma-tokens` generator → `packages/tokens` (CSS variables + typed TS), with tests | done · `c9ffb4c` · Claude |
 | 2 | Light theme proposal: values + contrast checks, **for the owner's approval** | approved by owner · done · `02ae155` · Claude |
 | 3 | `packages/ui` foundation: CSS Modules, global styles, self-hosted fonts, theme switching, reduced motion, "no raw values" lint rule | done · `7af36eb` · Claude |
-| 4 | Storybook: setup, dark/light toolbar, accessibility addon, local run | **next** (caption-contrast decision pending) |
+| 4 | Storybook: setup, dark/light toolbar, accessibility addon, local run | done · `5d4aa21` (caption token) + `389286c` · Claude |
 | 5 | Button and Tag (the Figma components) | *planned* |
 | 6 | Input and Toggle | *planned* |
 | 7 | Tabs and Panel | *planned* |
@@ -3601,3 +3601,8 @@ pnpm format && pnpm lint && pnpm typecheck && pnpm test
 - **Node 26 prints `DEP0205 module.register() is deprecated` during Storybook builds:** a harmless deprecation warning from Storybook's loader; it's not ours.
 
 **Commit:** `feat(ui): add Storybook catalogue with themes, accessibility checks and token foundations`
+
+**Done notes (step 1a.4):**
+- Caption decision: **option B** (owner, 27 Oct 2026). New token `color.text.muted`: dark `#818995`, light `#666E7A`. Used for captions, section labels and metadata; `text.tertiary` is now non-text only (icons, edges, placeholders, disabled marks). Selected rows use `text.secondary` for metadata.
+- Token tests: 37 (4 new `text-muted` contrast checks per theme). axe-core on Foundations → Tokens: **0 violations** in dark and light.
+- Commits: `5d4aa21` (token), `389286c` (Storybook).

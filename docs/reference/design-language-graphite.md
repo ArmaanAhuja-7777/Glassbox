@@ -78,7 +78,8 @@ A grey with a slight cool tint. Pure greys look dead on screens; a touch of blue
 | `border/strong` | #4A525E | 8 | Hovered borders, strong dividers |
 | `text/primary` | #EDEFF2 | 12 | Primary text, headings |
 | `text/secondary` | #A3AAB5 | 11 | Secondary text, labels, metadata |
-| `text/tertiary` | #6B7380 | 9 | Icons at rest, placeholders, captions (not body text) |
+| `text/muted` | #818995 | — | Captions, section labels, metadata (added 27 Oct 2026; ≥ 4.5:1 on canvas, panel, raised, hover; on selected rows use `text/secondary`) |
+| `text/tertiary` | #6B7380 | 9 | Icons at rest, edges, placeholders, disabled marks. **Non-text only** (3:1); never for text |
 | `text/on-accent` | #0B0C0E | — | Text on `surface/inverse` and on `accent/solid` |
 
 ### Accent: muted steel blue
@@ -155,6 +156,7 @@ Source of truth: `packages/tokens/source/color.light.tokens.json`. Contrast is e
 | `border/strong` | #B4BAC3 |
 | `text/primary` | #16191D |
 | `text/secondary` | #5C6470 |
+| `text/muted` | #666E7A |
 | `text/tertiary` | #868D98 |
 | `text/on-accent` | #FCFCFD |
 | `accent/solid` | #4E6390 |
@@ -207,7 +209,7 @@ Everything above the node row is the full palette the product may use; anything 
 | Body | 13 / 20 | 400 | Default UI text, messages |
 | Body strong | 13 / 20 | 500 | Node titles, selected rows, buttons |
 | Small | 12 / 16 | 400 / 500 | Secondary text, tabs, chips |
-| Caption | 11 / 14 | 500 | Section labels (sentence case, Slate 9), metadata, tags |
+| Caption | 11 / 14 | 500 | Section labels (sentence case, `text/muted`), metadata, tags |
 | Mono | 12 / 18 | 400 | Code, prompts, paths |
 | Mono small | 11 / 16 | 400 | File:line under node titles |
 

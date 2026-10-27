@@ -91,3 +91,7 @@ The repository stays public for now; making it private again is a separate choic
 ## 27 Oct 2026: light theme approved (phase 1a, step 2)
 
 The owner approved the proposed Graphite light theme: same 40 colour roles as dark, all WCAG AA pairs passing (enforced by tests), and a **near-black primary button with off-white text** in light (the inverse of dark's off-white button). Values: `packages/tokens/source/color.light.tokens.json` and the Graphite doc's "Light theme" section.
+
+## 27 Oct 2026: caption colour, `text/muted` (phase 1a, step 4)
+
+axe-core in Storybook found that captions in `text/tertiary` fail WCAG AA (4.08:1 dark, 3.26:1 light; text needs 4.5:1). The owner chose **option B**: a new token **`text/muted`** (dark `#818995`, light `#666E7A`, ≥ 4.5:1 on canvas, panel, raised and hover) for captions, section labels and metadata. `text/tertiary` is **non-text only** from now on (icons, edges, placeholders, disabled marks). Metadata on selected rows uses `text/secondary`. Enforced by the token contrast tests.

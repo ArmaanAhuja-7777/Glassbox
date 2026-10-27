@@ -45,7 +45,7 @@ Flowcanvas is a canvas-first, AI-native development environment that replaces th
 6. **Wrap agents, don't build one.** All agent work goes through the Agent Client Protocol (plus Claude Code hooks where useful). The product does not make code edits with its own model.
 7. **Checkpoints never touch the user's branches.** Use shadow refs (e.g. `refs/flowcanvas/checkpoints/<session>/<step>`).
 8. **Test repos are public forks only.** Use the forks named in the build plan, pinned to exact commits. Never use the user's own projects as test data.
-9. **Design tokens only.** No hard-coded colours, sizes, radii or fonts in components. Everything comes from the Graphite tokens generated from Figma.
+9. **Design tokens only.** No hard-coded colours, sizes, radii or fonts in components. Everything comes from the Graphite tokens in `@flowcanvas/tokens` (enforced by Stylelint for CSS).
 10. **No placeholder features.** Mock data is allowed only in tests, the component catalogue, or behind a Labs switch clearly labelled as preview.
 11. **Ask, don't guess, on product decisions.** On pure engineering choices, decide, record the decision (section 9) and move on.
 
@@ -204,13 +204,13 @@ When you make a significant technical choice (a library, a data format, a protoc
 - **Colour tokens (dark theme, final muted palette):**
   - Surfaces: `surface/canvas` #0B0C0E, `surface/panel` #111317, `surface/raised` #181B20, `surface/hover` #1E2228, `surface/selected` #252A31, `surface/inverse` #E6E8EB
   - Borders: `border/subtle` #2C323A, `border/control` #383F49, `border/strong` #4A525E
-  - Text: `text/primary` #EDEFF2, `text/secondary` #A3AAB5, `text/tertiary` #6B7380, `text/on-accent` #0B0C0E
+  - Text: `text/primary` #EDEFF2, `text/secondary` #A3AAB5, `text/muted` #818995 (captions, labels, metadata), `text/tertiary` #6B7380 (non-text only: icons, edges, placeholders), `text/on-accent` #0B0C0E
   - Accent (steel blue, selection and focus only): `accent/solid` #7487AD, `accent/hover` #8496BB, `accent/tint` #182031, `accent/ring` #34405A, `accent/text` #A9B7D3
   - States (solid / tint / text): added (sage) #6E9C82 / #18221D / #9FC2AD · modified (ochre) #B39B6B / #24211A / #D2BE93 · removed (clay) #B07473 / #261B1B / #CFA09F · affected (lavender) #8C83B0 / #1F1D29 / #B5AED3 · outside selection (mauve) `state/scope/*` #A97A96 / #251C22 / #C9A3BA
   - Edges: `edge/observed` #A3AAB5, `edge/default` #6B7380
   - App preview (inside mock live frames): `preview/surface` #FFFFFF, `preview/ink` #1F2328, `preview/muted` #6E7781, `preview/line` #E5E7EB, `preview/brand` #1F2328
   - **Primary button:** `surface/inverse` background (#E6E8EB) with `text/on-accent` text (#0B0C0E). Never a blue button.
-  - Light theme: not yet defined; propose one in phase 1a for approval.
+  - Light theme: approved 27 Oct 2026; values in `packages/tokens/source/color.light.tokens.json` and the Graphite doc.
 - **Type and spacing:** Inter for UI, JetBrains Mono for code, paths and prompts. Text styles: Display 24/32 600, Title 20/28 600, Heading 15/22 600, Body 13/20 400, Body strong 13/20 500, Small 12/16 400, Small strong 12/16 500, Caption 11/14 500, Mono 12/18 400, Mono small 11/16 400. Letter-spacing −1.5% on Display, −1% on Title and Heading. 4 px grid; radii 4 / 6 / 8 / 10. Sentence-case labels, no ALL CAPS.
 - **Layout:** the Figma screens use a 40 px top bar (project, branch, Graph / Sequence / Code switch, search, workspace status, share, avatar), a 44 px rail and a 40 px review bar. The Figma file is the layout reference.
 - **Components first.** Build each component in `packages/ui` with all its variants and states, show it in the catalogue, and compare it with the Figma component before using it in screens.
