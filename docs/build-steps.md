@@ -2053,7 +2053,7 @@ When phase 1a is done you can:
 | 1 | Token source (DTCG JSON seed) + `tools/figma-tokens` generator → `packages/tokens` (CSS variables + typed TS), with tests | done · `c9ffb4c` · Claude |
 | 2 | Light theme proposal: values + contrast checks, **for the owner's approval** | approved by owner · done · `02ae155` · Claude |
 | 3 | `packages/ui` foundation: CSS Modules, global styles, self-hosted fonts, theme switching, reduced motion, "no raw values" lint rule | done · `7af36eb` · Claude |
-| 4 | Storybook: setup, dark/light toolbar, accessibility addon, local run | *planned* |
+| 4 | Storybook: setup, dark/light toolbar, accessibility addon, local run | **next** (caption-contrast decision pending) |
 | 5 | Button and Tag (the Figma components) | *planned* |
 | 6 | Input and Toggle | *planned* |
 | 7 | Tabs and Panel | *planned* |
@@ -3369,3 +3369,235 @@ pnpm dev                                                                # http:/
 - **Never read `localStorage` without `try/catch`.** Some browsers throw on access when site data is blocked.
 
 **Commit:** `feat(ui): add design-system foundation with global styles, fonts, themes and token-only CSS lint`
+
+### Step 1a.4 — Storybook: the component catalogue
+
+**Goal:** a component workshop where every component and token can be seen in isolation, in both themes, with accessibility checks. It builds to static files, so it can be hosted for free later (step 11).
+
+**Expected outcome:**
+- `pnpm --filter @flowcanvas/ui storybook` opens the catalogue at http://localhost:6006.
+- The sidebar has **Foundations → Tokens**: every colour, the 10 text styles and the spacing scale.
+- The toolbar's theme switch flips dark ↔ light.
+- The **Accessibility** tab lists axe-core results.
+- `pnpm exec turbo run build-storybook` writes a static catalogue to `packages/ui/storybook-static/`.
+
+**Concepts:**
+- **Storybook.**
+  - A separate dev app for UI components. Each **story** is one state of one component, exported from a `*.stories.tsx` file next to the component.
+  - Storybook 10 uses Vite here (`@storybook/react-vite`), so it shares our build setup.
+  - It runs on its own port (6006) and never ships inside the product.
+  - Docs: https://storybook.js.org/docs
+- **Component Story Format (CSF).**
+  - A stories file default-exports `meta` (title, component) and named-exports stories (`export const Primary: StoryObj<typeof meta> = { args: { … } }`).
+  - `satisfies Meta<typeof Component>` keeps types precise while checking the shape.
+  - Docs: https://storybook.js.org/docs/api/csf
+- **Addons used:**
+  - `@storybook/addon-docs`: docs pages from stories.
+  - `@storybook/addon-a11y`: runs **axe-core** on each story and lists violations in the Accessibility tab.
+  - `@storybook/addon-themes`: a toolbar switch. `withThemeByDataAttribute` sets `data-theme` on `<html>`, exactly like the app's `useThemePreference`, so stories use the real theme mechanism.
+
+  Docs: https://storybook.js.org/docs/writing-tests/accessibility-testing and https://storybook.js.org/addons/@storybook/addon-themes
+- **`.storybook/main.ts` and `.storybook/preview.ts`.**
+  - `main.ts` configures Storybook itself: where stories are, addons, framework, and **`core.disableTelemetry: true`**. Storybook collects usage telemetry by default; our rule is telemetry off.
+  - `preview.ts` configures how stories render: it imports our global CSS once (fonts and tokens) and adds the theme decorator.
+- **Pinning to an older release.** Storybook 10.6.4 had been published about 10 hours earlier, inside pnpm's minimum-release-age window, so every Storybook package is pinned to **10.6.3** (no exemptions; ADR 0006).
+- **TypeScript skips dot-folders in globs.** `"include": [".storybook"]` doesn't pick up `.storybook/*.ts`, because wildcard expansion skips names starting with `.`. typescript-eslint then reports "was not found by the project service". Fix: list the files explicitly, `".storybook/*.ts"`.
+- **Never lint build output.** Building Storybook writes minified JavaScript to `storybook-static/`. Without an ignore, ESLint lints it and reports nonsense (`'setTimeout' is not defined` at column 400+). `storybook-static/` is ignored by Git, Prettier, ESLint and Stylelint.
+- **A decorator applies after the first render.** In tests, wait for `document.documentElement.dataset.theme === 'light'`, not just for the story's content, before reading colours or taking screenshots.
+
+**Finding: captions fail WCAG AA (decision needed).** axe-core reported `color-contrast` (serious) on the Foundations page's captions:
+- `text/tertiary` on canvas is **4.08:1 in dark** and **3.26:1 in light**. Text needs 4.5:1, and that includes 11 px captions.
+- The Graphite typography table gives captions that colour, while its own colour notes say tertiary is "not for body text".
+
+Options:
+- **A.** Captions use `text/secondary`.
+- **B. (recommended)** A new `text/muted` token for captions and metadata: dark `#818995`, light `#666E7A`. Both are ≥ 4.5:1 on canvas, panel, raised and hover. Tertiary stays for icons, edges, placeholders and disabled marks, and captions on *selected* rows use secondary.
+- **C.** Accept the failure (not recommended; breaks the accessibility standard).
+
+**`pnpm-workspace.yaml`:** add to the catalog:
+
+```yaml
+  '@storybook/addon-a11y': 10.6.3
+  '@storybook/addon-docs': 10.6.3
+  '@storybook/addon-themes': 10.6.3
+  '@storybook/react-vite': 10.6.3
+  storybook: 10.6.3
+```
+
+**`packages/ui/package.json`:**
+- scripts: `"storybook": "storybook dev --port 6006 --no-open"` and `"build-storybook": "storybook build --output-dir storybook-static"`
+- devDependencies: the five Storybook packages as `catalog:`
+
+**`packages/ui/tsconfig.json`:** `"include": ["src", ".storybook/*.ts", "vitest.config.ts"]`
+
+**`turbo.json`:** add
+
+```json
+    "build-storybook": {
+      "dependsOn": ["^build"],
+      "outputs": ["storybook-static/**"]
+    }
+```
+
+**Ignores:** `storybook-static/` added to `.gitignore`, `.prettierignore`, ESLint's `globalIgnores` and Stylelint's `ignoreFiles`.
+
+**`packages/ui/.storybook/main.ts`:**
+
+```ts
+import type { StorybookConfig } from '@storybook/react-vite';
+
+const config: StorybookConfig = {
+  stories: ['../src/**/*.stories.@(ts|tsx)'],
+  addons: ['@storybook/addon-docs', '@storybook/addon-a11y', '@storybook/addon-themes'],
+  framework: { name: '@storybook/react-vite', options: {} },
+  core: {
+    // Telemetry is off by default across the project (CLAUDE.md, non-negotiable rule 5).
+    disableTelemetry: true,
+  },
+};
+
+export default config;
+```
+
+**`packages/ui/.storybook/preview.ts`:**
+
+```ts
+import { withThemeByDataAttribute } from '@storybook/addon-themes';
+import type { Preview } from '@storybook/react-vite';
+import '../src/styles/global.css';
+
+const preview: Preview = {
+  decorators: [
+    // The toolbar's theme switch sets data-theme on <html>, exactly like the app does.
+    withThemeByDataAttribute({
+      themes: { dark: 'dark', light: 'light' },
+      defaultTheme: 'dark',
+      attributeName: 'data-theme',
+    }),
+  ],
+  parameters: {
+    layout: 'padded',
+    backgrounds: { disable: true },
+    a11y: { test: 'error' },
+  },
+};
+
+export default preview;
+```
+
+**`packages/ui/src/foundations/Foundations.stories.tsx`:**
+
+```tsx
+import { themeValues, vars } from '@flowcanvas/tokens';
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import styles from './Foundations.module.css';
+
+const colorNames = Object.keys(themeValues.dark).filter((name) => name.startsWith('--color-'));
+
+const textStyles = Object.keys(vars.text) as (keyof typeof vars.text)[];
+
+const spaceSteps = Object.keys(vars.space) as (keyof typeof vars.space)[];
+
+function Colors() {
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.heading}>Colour</h2>
+      <p className={styles.caption}>Every colour token for the theme selected in the toolbar.</p>
+      <div className={styles.swatches}>
+        {colorNames.map((name) => (
+          <div key={name} className={styles.swatch}>
+            <span className={styles.chip} style={{ background: `var(${name})` }} />
+            <span className={styles.mono}>{name.slice('--color-'.length)}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Typography() {
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.heading}>Type</h2>
+      {textStyles.map((name) => {
+        const style = vars.text[name];
+        return (
+          <div key={name} className={styles.type}>
+            <span className={styles.mono}>{name}</span>
+            <span
+              style={{
+                fontFamily: style.fontFamily,
+                fontSize: style.fontSize,
+                fontWeight: style.fontWeight,
+                lineHeight: style.lineHeight,
+                letterSpacing: style.letterSpacing,
+              }}
+            >
+              Save item · worker/process.ts:42
+            </span>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function Spacing() {
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.heading}>Space</h2>
+      <p className={styles.caption}>4 px grid. Inside components 4–12, between groups 16–24.</p>
+      {spaceSteps.map((step) => (
+        <div key={step} className={styles.space}>
+          <span className={styles.mono}>space-{step}</span>
+          <span className={styles.bar} style={{ inlineSize: vars.space[step] }} />
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function Foundations() {
+  return (
+    <div className={styles.page}>
+      <Colors />
+      <Typography />
+      <Spacing />
+    </div>
+  );
+}
+
+const meta = {
+  title: 'Foundations/Tokens',
+  component: Foundations,
+} satisfies Meta<typeof Foundations>;
+
+export default meta;
+
+export const Tokens: StoryObj<typeof meta> = {};
+```
+
+**`packages/ui/src/foundations/Foundations.module.css`:** layout for the token page, using tokens only (Stylelint-clean). Full file in the repository.
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm --filter @flowcanvas/ui storybook          # http://localhost:6006
+pnpm exec turbo run build-storybook             # packages/ui/storybook-static/
+pnpm format && pnpm lint && pnpm typecheck && pnpm test
+```
+
+**Run and check it:**
+1. Open http://localhost:6006 and choose **Foundations → Tokens**: colour swatches, the type scale, the spacing bars.
+2. Toolbar → theme switch (paintbrush icon) → **light**: the story turns light. Devtools → Elements → `<html data-theme="light">`.
+3. **Accessibility** tab: lists axe-core results for the story. Today it shows the caption contrast finding above until the decision is applied.
+4. `pnpm exec turbo run build-storybook`, then serve `packages/ui/storybook-static` with any static server (for example `python3 -m http.server 6006` inside that folder): the same catalogue as static files.
+
+**Gotchas:**
+- **"was not found by the project service" for `.storybook/*.ts`:** list the files explicitly in `include`.
+- **Lint errors in minified code:** something is linting `storybook-static/`; check the ignores.
+- **Theme toolbar does nothing:** `withThemeByDataAttribute` must be in `preview.ts` `decorators`, and the global CSS must be imported there.
+- **Node 26 prints `DEP0205 module.register() is deprecated` during Storybook builds:** a harmless deprecation warning from Storybook's loader; it's not ours.
+
+**Commit:** `feat(ui): add Storybook catalogue with themes, accessibility checks and token foundations`
