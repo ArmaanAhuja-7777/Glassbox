@@ -84,6 +84,7 @@
   --border-width-focus: 2px;
   --border-width-state-bar: 2px;
   --border-width-halo: 2px;
+  --border-width-node-halo: 3px;
   --duration-hover: 80ms;
   --duration-panel: 160ms;
   --duration-appear: 240ms;
@@ -91,6 +92,7 @@
   --duration-shimmer: 1200ms;
   --opacity-ghost: 0.4;
   --opacity-disabled: 0.5;
+  --icon-stroke-width: 2.25;
 }
 
 :root,

@@ -402,7 +402,14 @@
           "value": 2,
           "unit": "px"
         },
-        "$description": "Accent halo around focused inputs and selected nodes"
+        "$description": "Accent-tint halo around focused inputs"
+      },
+      "node-halo": {
+        "$value": {
+          "value": 3,
+          "unit": "px"
+        },
+        "$description": "Accent-tint halo around a selected flow node (Graphite: 1.5 px outline + 3 px halo)"
       }
     }
   },
@@ -448,6 +455,13 @@
     "disabled": {
       "$value": 0.5,
       "$description": "Disabled controls (WCAG exempts disabled controls from contrast rules)"
+    }
+  },
+  "icon": {
+    "$type": "number",
+    "stroke-width": {
+      "$value": 2.25,
+      "$description": "Line icons are drawn on a 24-unit grid; 2.25 units = a 1.5 px stroke at 16 px, as in the Figma file"
     }
   }
 }

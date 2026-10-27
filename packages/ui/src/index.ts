@@ -37,3 +37,10 @@ export {
 } from './components/menu/Menu';
 export { Tooltip, type TooltipProps } from './components/tooltip/Tooltip';
 export { preventReactAriaStyleInjection, REACT_ARIA_PRESSABLE_STYLE_ID } from './react-aria-csp';
+export {
+  FlowNode,
+  type FlowNodeChange,
+  type FlowNodeKind,
+  type FlowNodeProps,
+  type FlowNodeStatus,
+} from './components/flow-node/FlowNode';

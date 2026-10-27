@@ -128,7 +128,8 @@ export const vars = {
       "selected": "var(--border-width-selected)",
       "focus": "var(--border-width-focus)",
       "state-bar": "var(--border-width-state-bar)",
-      "halo": "var(--border-width-halo)"
+      "halo": "var(--border-width-halo)",
+      "node-halo": "var(--border-width-node-halo)"
     }
   },
   "duration": {
@@ -141,6 +142,9 @@ export const vars = {
   "opacity": {
     "ghost": "var(--opacity-ghost)",
     "disabled": "var(--opacity-disabled)"
+  },
+  "icon": {
+    "stroke-width": "var(--icon-stroke-width)"
   },
   "color": {
     "surface": {

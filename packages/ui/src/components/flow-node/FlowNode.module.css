@@ -1,0 +1,192 @@
+/*
+ * Graphite flow node (Figma component "Flow node", 216 px): raised surface, 1 px subtle border,
+ * 6 px radius, type icon, Body strong title, Mono small location.
+ * Changed: 2 px state bar on the left, border in the state's solid at 50%, tag in the title row.
+ * Affected / outside selection: dashed border in the state's solid, no bar.
+ */
+.node {
+  --node-state: transparent;
+
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+  box-sizing: border-box;
+  width: var(--size-node-width);
+  padding: var(--space-8) var(--space-8) var(--space-8) var(--space-12);
+  border: var(--border-width-default) solid var(--color-border-subtle);
+  border-radius: var(--radius-node);
+  background: var(--color-surface-raised);
+  transition:
+    background-color var(--duration-hover) ease-out,
+    border-color var(--duration-hover) ease-out;
+}
+
+.node:hover {
+  background: var(--color-surface-hover);
+}
+
+.node:not([data-change], [data-status='failing']):hover {
+  border-color: var(--color-border-strong);
+}
+
+.icon {
+  flex: none;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+
+  /* Centre the icon on the title's first line (20 px line, 16 px icon). */
+  margin-block: calc((var(--text-body-strong-line-height) - var(--size-icon-sm)) / 2);
+  color: var(--color-text-tertiary);
+  stroke-width: var(--icon-stroke-width);
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/*
+ * Tags sit at the end of the title row. The title keeps its natural width, so when title and tags
+ * don't fit on one line the tags move below the title instead of the title breaking mid-word.
+ */
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) calc(var(--space-4) + var(--space-2));
+}
+
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--text-body-strong-font-family);
+  font-size: var(--text-body-strong-font-size);
+  font-weight: var(--text-body-strong-font-weight);
+  line-height: var(--text-body-strong-line-height);
+  letter-spacing: var(--text-body-strong-letter-spacing);
+  color: var(--color-text-primary);
+}
+
+/* text/muted, not the Figma's tertiary: the location is text and must pass 4.5:1. */
+.location {
+  overflow-wrap: anywhere;
+  font-family: var(--text-mono-small-font-family);
+  font-size: var(--text-mono-small-font-size);
+  font-weight: var(--text-mono-small-font-weight);
+  line-height: var(--text-mono-small-line-height);
+  letter-spacing: var(--text-mono-small-letter-spacing);
+  color: var(--color-text-muted);
+}
+
+/* ── Change states ─────────────────────────────────────────────── */
+
+.node[data-change='added'] {
+  --node-state: var(--color-state-added-solid);
+}
+
+.node[data-change='modified'] {
+  --node-state: var(--color-state-modified-solid);
+}
+
+.node[data-change='removed'],
+.node:not([data-change])[data-status='failing'] {
+  --node-state: var(--color-state-removed-solid);
+}
+
+.node[data-change='added'],
+.node[data-change='modified'],
+.node[data-change='removed'],
+.node:not([data-change])[data-status='failing'] {
+  border-color: color-mix(in srgb, var(--node-state) 50%, transparent);
+}
+
+/* The state bar: 2 px, inset 8 px from top and bottom, drawn over the left border. */
+.node[data-change='added']::before,
+.node[data-change='modified']::before,
+.node[data-change='removed']::before,
+.node:not([data-change])[data-status='failing']::before {
+  position: absolute;
+  inset-block: calc(var(--space-8) - var(--border-width-default));
+  inset-inline-start: calc(-1 * var(--border-width-default));
+  width: var(--border-width-state-bar);
+  border-radius: calc(var(--border-width-state-bar) / 2);
+  background: var(--node-state);
+  content: '';
+}
+
+.node[data-change='affected'] {
+  border-style: dashed;
+  border-color: var(--color-state-affected-solid);
+}
+
+.node[data-change='scope'] {
+  border-style: dashed;
+  border-color: var(--color-state-scope-solid);
+}
+
+/*
+ * Removed nodes and nodes still being analysed are dimmed by stepping text down one level, not by
+ * opacity, so the title still passes contrast. Removed is also struck through.
+ */
+.node[data-change='removed'] .title,
+.node[data-status='analysing'] .title {
+  color: var(--color-text-secondary);
+}
+
+.node[data-change='removed'] .title {
+  text-decoration: line-through;
+}
+
+/* ── Selected: 1.5 px accent outline plus a 3 px accent-tint halo ── */
+
+.node[data-selected] {
+  border-color: var(--color-accent-solid);
+  box-shadow:
+    0 0 0 calc(var(--border-width-selected) - var(--border-width-default)) var(--color-accent-solid),
+    0 0 0
+      calc(
+        var(--border-width-selected) - var(--border-width-default) + var(--border-width-node-halo)
+      )
+      var(--color-accent-tint);
+}
+
+/*
+ * Analysing: a subtle shimmer sweeps across the node. It moves the background rather than the
+ * element, so nothing needs clipping (overflow: hidden would also clip the state bar).
+ */
+.node[data-status='analysing']::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+      90deg,
+      transparent 30%,
+      color-mix(in srgb, var(--color-text-primary) 6%, transparent) 50%,
+      transparent 70%
+    )
+    0 0 / 300% 100% no-repeat;
+  content: '';
+  pointer-events: none;
+  animation: shimmer var(--duration-shimmer) linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* No sweep at all under reduced motion; the tag and dimmed title still say "analysing". */
+@media (prefers-reduced-motion: reduce) {
+  .node[data-status='analysing']::after {
+    display: none;
+  }
+}
