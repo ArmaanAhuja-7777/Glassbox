@@ -8,5 +8,5 @@
     "types": ["vite/client"],
     "noEmit": true
   },
-  "include": ["src", "vitest.config.ts"]
+  "include": ["src", ".storybook/*.ts", "vitest.config.ts"]
 }

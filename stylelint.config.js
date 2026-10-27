@@ -2,7 +2,7 @@
 // Raw values are rejected, so a token change reaches every component.
 /** @type {import('stylelint').Config} */
 export default {
-  ignoreFiles: ['**/dist/**', 'packages/tokens/css/**'],
+  ignoreFiles: ['**/dist/**', '**/storybook-static/**', 'packages/tokens/css/**'],
   rules: {
     'color-no-hex': true,
     'color-named': 'never',

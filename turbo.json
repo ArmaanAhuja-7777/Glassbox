@@ -29,6 +29,10 @@
       "dependsOn": ["^build"],
       "cache": false,
       "env": ["E2E_BASE_URL", "E2E_EXPECTED_COMMIT", "CI"]
+    },
+    "build-storybook": {
+      "dependsOn": ["^build"],
+      "outputs": ["storybook-static/**"]
     }
   }
 }
