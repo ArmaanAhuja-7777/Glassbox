@@ -15,3 +15,29 @@ test('shows the product name and the version it was built from', async ({ page }
 
   expect(pageErrors).toEqual([]);
 });
+
+test('switches theme from the menu and links to the component catalogue', async ({ page }) => {
+  const cspViolations: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && message.text().includes('Content Security Policy')) {
+      cspViolations.push(message.text());
+    }
+  });
+
+  await page.goto('/');
+  await expect(page.getByRole('link', { name: 'Open the component catalogue' })).toHaveAttribute(
+    'href',
+    /^https:\/\/flowcanvas-catalogue\./,
+  );
+
+  await page.getByRole('button', { name: /^Theme: / }).click();
+  await page.getByRole('menuitemradio', { name: 'Light' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
+  // The choice is remembered across reloads.
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Theme: Light' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
+  expect(cspViolations).toEqual([]);
+});
