@@ -109,4 +109,4 @@ Input border: owner chose **option A** (keep `border/control`, 1.6:1). Every inp
 
 Engineering decision (ADR 0008): **React Aria Components** for menus, tooltips and future overlays, after testing React Aria, Radix and Base UI under the production CSP. React Aria's one injected `<style>` is pre-empted by `preventReactAriaStyleInjection()` plus the same rule in `global.css`. Also recorded: ADR 0007 (`@flowcanvas/ui` is consumed as source).
 
-Open design question for the owner: the popover shadow token (`rgba(0, 0, 0, 0.4)`) is shared by both themes and looks heavy in light; Graphite only defines it for dark.
+Popover shadow per theme (owner approved, 27 Oct 2026): dark keeps `0 8 24 rgba(0, 0, 0, 0.4)`; light uses `0 8 24 rgba(16, 24, 40, 0.12)`, a soft slate tint, because the dark value looked heavy on light surfaces. `shadow.popover` moved from the base tokens into both theme files.

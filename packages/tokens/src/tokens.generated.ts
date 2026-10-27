@@ -142,9 +142,6 @@ export const vars = {
     "ghost": "var(--opacity-ghost)",
     "disabled": "var(--opacity-disabled)"
   },
-  "shadow": {
-    "popover": "var(--shadow-popover)"
-  },
   "color": {
     "surface": {
       "canvas": "var(--color-surface-canvas)",
@@ -211,6 +208,9 @@ export const vars = {
       "line": "var(--color-preview-line)",
       "brand": "var(--color-preview-brand)"
     }
+  },
+  "shadow": {
+    "popover": "var(--shadow-popover)"
   }
 } as const;
 
@@ -257,7 +257,8 @@ export const themeValues = {
     "--color-preview-ink": "#1f2328",
     "--color-preview-muted": "#6e7781",
     "--color-preview-line": "#e5e7eb",
-    "--color-preview-brand": "#1f2328"
+    "--color-preview-brand": "#1f2328",
+    "--shadow-popover": "0px 8px 24px 0px rgba(0, 0, 0, 0.4)"
   },
   "light": {
     "--color-surface-canvas": "#fcfcfd",
@@ -300,7 +301,8 @@ export const themeValues = {
     "--color-preview-ink": "#1f2328",
     "--color-preview-muted": "#6e7781",
     "--color-preview-line": "#e5e7eb",
-    "--color-preview-brand": "#1f2328"
+    "--color-preview-brand": "#1f2328",
+    "--shadow-popover": "0px 8px 24px 0px rgba(16, 24, 40, 0.12)"
   }
 } as const;
 

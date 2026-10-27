@@ -449,30 +449,5 @@
       "$value": 0.5,
       "$description": "Disabled controls (WCAG exempts disabled controls from contrast rules)"
     }
-  },
-  "shadow": {
-    "$type": "shadow",
-    "popover": {
-      "$value": {
-        "color": "rgba(0, 0, 0, 0.4)",
-        "offsetX": {
-          "value": 0,
-          "unit": "px"
-        },
-        "offsetY": {
-          "value": 8,
-          "unit": "px"
-        },
-        "blur": {
-          "value": 24,
-          "unit": "px"
-        },
-        "spread": {
-          "value": 0,
-          "unit": "px"
-        }
-      },
-      "$description": "Popovers only; never nodes or panels"
-    }
   }
 }

@@ -151,5 +151,30 @@
         "$value": "#1F2328"
       }
     }
+  },
+  "shadow": {
+    "$type": "shadow",
+    "popover": {
+      "$value": {
+        "color": "rgba(0, 0, 0, 0.4)",
+        "offsetX": {
+          "value": 0,
+          "unit": "px"
+        },
+        "offsetY": {
+          "value": 8,
+          "unit": "px"
+        },
+        "blur": {
+          "value": 24,
+          "unit": "px"
+        },
+        "spread": {
+          "value": 0,
+          "unit": "px"
+        }
+      },
+      "$description": "Popovers only; never nodes or panels. On dark surfaces a strong shadow is needed to separate the popover."
+    }
   }
 }

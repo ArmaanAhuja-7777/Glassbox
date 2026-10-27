@@ -91,7 +91,6 @@
   --duration-shimmer: 1200ms;
   --opacity-ghost: 0.4;
   --opacity-disabled: 0.5;
-  --shadow-popover: 0px 8px 24px 0px rgba(0, 0, 0, 0.4);
 }
 
 :root,
@@ -138,6 +137,7 @@
   --color-preview-muted: #6e7781;
   --color-preview-line: #e5e7eb;
   --color-preview-brand: #1f2328;
+  --shadow-popover: 0px 8px 24px 0px rgba(0, 0, 0, 0.4);
 }
 
 [data-theme='light'] {
@@ -183,6 +183,7 @@
   --color-preview-muted: #6e7781;
   --color-preview-line: #e5e7eb;
   --color-preview-brand: #1f2328;
+  --shadow-popover: 0px 8px 24px 0px rgba(16, 24, 40, 0.12);
 }
 
 @media (prefers-color-scheme: light) {
@@ -229,5 +230,6 @@
     --color-preview-muted: #6e7781;
     --color-preview-line: #e5e7eb;
     --color-preview-brand: #1f2328;
+    --shadow-popover: 0px 8px 24px 0px rgba(16, 24, 40, 0.12);
   }
 }

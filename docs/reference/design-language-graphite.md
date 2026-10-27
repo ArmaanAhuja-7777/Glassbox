@@ -233,7 +233,7 @@ Everything above the node row is the full palette the product may use; anything 
 | Radius | 4 controls, 6 nodes and inputs, 8 popovers and panels, 10 live frames | Never mix more than two radii inside one component |
 | Borders | 1 px, Slate 6 for structure, Slate 7 for interactive controls | No borders between items in a list; use spacing instead |
 | Elevation (dark) | Level 0 Slate 1 canvas, level 1 Slate 2 panels, level 2 Slate 3 nodes and cards, level 3 Slate 4 + shadow for popovers, menus, palette | Each level is one step lighter |
-| Shadow | Popovers only: 0 8 24 rgba(0,0,0,0.4) plus 1 px Slate 6 border | No shadows on nodes or panels |
+| Shadow | Popovers only: 0 8 24 rgba(0,0,0,0.4) in dark, rgba(16,24,40,0.12) in light (approved 27 Oct 2026), plus the 1 px subtle border | No shadows on nodes or panels |
 | Canvas grid | Dots, 16 px spacing, Slate 6 at 50% opacity; hidden below 50% zoom | Aids alignment without adding texture |
 
 ## Iconography and motion
