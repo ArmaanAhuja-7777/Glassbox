@@ -104,3 +104,9 @@ Engineering decisions, made within the design rules:
 - **Toggle off knob uses `text/secondary`** (Figma: tertiary), so the knob that shows the state has ≥ 3:1 against its track (6.2 dark, 4.9 light; tertiary would be 3.0 / 2.75).
 
 Input border: owner chose **option A** (keep `border/control`, 1.6:1). Every input has a visible label and the focus state passes. Logged for an accessibility review before public beta (`docs/upgrade-later.md` item 15).
+
+## 27 Oct 2026: headless primitives (phase 1a, step 8)
+
+Engineering decision (ADR 0008): **React Aria Components** for menus, tooltips and future overlays, after testing React Aria, Radix and Base UI under the production CSP. React Aria's one injected `<style>` is pre-empted by `preventReactAriaStyleInjection()` plus the same rule in `global.css`. Also recorded: ADR 0007 (`@flowcanvas/ui` is consumed as source).
+
+Open design question for the owner: the popover shadow token (`rgba(0, 0, 0, 0.4)`) is shared by both themes and looks heavy in light; Graphite only defines it for dark.

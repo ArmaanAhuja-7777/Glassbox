@@ -2057,7 +2057,7 @@ When phase 1a is done you can:
 | 5 | Button and Tag (the Figma components) | done · `792a45a` · Claude |
 | 6 | Input and Toggle | done · `8c1e851` · Claude · input border: option A (upgrade-later 15) |
 | 7 | Tabs and Panel | done · `5b88a8e` · Claude |
-| 8 | Menu and Tooltip (headless accessible primitives; ADR) | *planned* |
+| 8 | Menu and Tooltip (headless accessible primitives; ADR) | done · `9743475` · Claude · ADR 0008 |
 | 9 | Flow node (all change states, selected, analysing) | *planned* |
 | 10 | Figma references + Playwright visual comparison with a side-by-side report | *planned* |
 | 11 | Version page restyled with tokens; Storybook deployed to a free Cloudflare URL | *planned* |
@@ -4688,3 +4688,424 @@ pnpm --filter @flowcanvas/ui storybook
 - **A Panel without a title** has no accessible name. `title` is required.
 
 **Commit:** `feat(ui): add Tabs and Panel components with stories and tests`
+
+### Step 1a.8 — Menu and Tooltip on React Aria Components
+
+**Goal:** the two hardest components for accessibility (focus, keyboard, Escape, positioning, screen-reader wiring), built on a tested **headless** library and styled with our tokens, without weakening the strict CSP.
+
+**Expected outcome:**
+- Storybook shows **Components → Menu → Event actions** (the Figma event context menu: section heading, items, shortcut, description, separator) and **Components → Tooltip** (quick actions).
+- Keyboard works fully: ArrowDown opens, type-ahead jumps, Escape closes and returns focus, and Tab shows tooltips.
+- The web app runs under the CSP with **0 violations**.
+- `ui` tests: 49 (10 new).
+
+**Concepts:**
+- **Headless UI libraries** provide behaviour and accessibility, with no visual styling. We supply all CSS from tokens.
+- **Choosing by testing, not by reading.**
+  - React Aria, Radix and Base UI each rendered a menu and a tooltip in a production build served with **our exact CSP header**, driven by Playwright.
+  - Results: Radix injected a scroll-lock `<style>` (blocked, so the feature silently fails). Base UI's tooltip isn't linked to its trigger (screen readers never hear it). React Aria passed on accessibility, with one injected `<style>`.
+  - Decision and full table: ADR 0008.
+- **Pre-empting an injected style.**
+  - React Aria injects `[data-react-aria-pressable] { touch-action: pan-x pan-y pinch-zoom; }` (removes the double-tap-zoom delay on mobile), unless an element with id `react-aria-pressable-style` already exists. Found by reading its code in our built bundle.
+  - We put the same rule in `global.css` (served from our origin, so the CSP allows it), and `preventReactAriaStyleInjection()` adds a `<meta id="react-aria-pressable-style">` before React renders.
+  - Verified: 0 violations, 0 injected `<style>`s, `touch-action` still applied.
+  - Docs: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/style-src
+- **Attributing a CSP violation.**
+  - A `securitypolicyviolation` listener (`document.addEventListener('securitypolicyviolation', …)`) records the directive and the source file.
+  - Combined with testing each library **alone**, every violation got a name.
+  - The first run's "inline script" violation was our own test tooling (injecting axe), a reminder to isolate the test harness from what's being tested.
+- **Wrapping a library behind our API.**
+  - Product code imports `Menu`, `MenuItem`, `MenuSection`, `MenuSeparator`, `MenuButton`, `MenuTrigger` and `Tooltip` from `@flowcanvas/ui`, never `react-aria-components`.
+  - Switching libraries later only touches `packages/ui`.
+  - React Aria needs its own pressable trigger, so `MenuButton` is React Aria's `Button` wearing our Button styles (`data-kind`, `data-size`).
+  - Tooltips wrap the child in `Focusable`, so our own `Button` works as the trigger.
+- **Typing a wrapper's children.**
+  - `Focusable` only accepts a single element. Our prop is typed as `ComponentProps<typeof Focusable>['children']`, borrowing the library's own type instead of casting.
+  - CSS Module classes are `string | undefined`; with `exactOptionalPropertyTypes` they must go through `classNames()` (returns `string`) before reaching a library's optional `className`.
+- **Accessible keyboard shortcuts.**
+  - React Aria's `<Keyboard>` slot is wired into the item's `aria-describedby`, so a screen reader hears "Ask about this flow…" (name) and "⌘↵" (description).
+  - I first tried `aria-hidden` + `aria-keyshortcuts`. React Aria filters `aria-keyshortcuts` out, so the shortcut would have been hidden from screen readers entirely, and I reverted it. A unit test now checks the description wiring.
+  - axe still flags `label-content-name-mismatch` on that item: a heuristic false positive, because the name *is* the visible label (WCAG 2.5.3 satisfied). Recorded in ADR 0008.
+  - "@item.created" is a reference, not a shortcut, so it's a `description`.
+- **Contrast inside a highlighted row.** `text/muted` passes on the popover but not on `surface-selected`, so a focused item's description and shortcut switch to `text/secondary`.
+- **Testing React Aria in jsdom** (all three found by debugging failing tests, not by guessing):
+  1. `onAction` is called as `onAction(key, …)`: assert on the first argument, not exact arguments.
+  2. Focus returns to the trigger **one frame** after closing: use `waitFor`.
+  3. Hover is ignored until a real pointer interaction has happened (a deliberate guard against emulated mouse events after touch): click once before `user.hover()`.
+
+  Use `@testing-library/user-event` (realistic pointer and keyboard sequences) rather than `fireEvent`. Docs: https://testing-library.com/docs/user-event/intro
+- **Motion.**
+  - Popovers fade and slide 4 px in over `--duration-panel` (160 ms) using React Aria's `data-entering` attribute.
+  - Reduced motion sets the duration to 0.
+  - axe can flag contrast *during* the fade-in; check after animations end.
+- **Tree-shaking keeps cost proportional.** The web app imports `@flowcanvas/ui` but renders no menu or tooltip yet. Its bundle grew 0.26 kB (68.81 → 69.07 kB gzip), not the ~46 kB React Aria costs when used.
+
+**`pnpm-workspace.yaml`:** add to the catalog:
+
+```yaml
+  '@testing-library/user-event': 14.6.8
+  react-aria-components: 1.22.1
+```
+
+**`packages/ui/package.json`:** `react-aria-components` in `dependencies`, `@testing-library/user-event` in `devDependencies` (both `catalog:`).
+
+**Wiring the CSP guard:**
+- `packages/ui/src/styles/global.css` gains the `[data-react-aria-pressable]` rule.
+- `apps/web/src/main.tsx` calls `preventReactAriaStyleInjection()` before `createRoot`.
+- `packages/ui/.storybook/preview.ts` calls it at the top.
+- `packages/ui/src/index.ts` exports the components and the guard.
+
+**`packages/ui/src/react-aria-csp.ts`:**
+
+```ts
+/**
+ * React Aria injects a small <style id="react-aria-pressable-style"> on first use. Our
+ * Content-Security-Policy (style-src 'self') blocks injected <style> elements, so the browser
+ * refuses it and logs a violation. React Aria skips the injection when an element with that id
+ * already exists, and `global.css` carries the same rule, so we add that marker before rendering.
+ */
+export const REACT_ARIA_PRESSABLE_STYLE_ID = 'react-aria-pressable-style';
+
+/** Call once, before the first React render (app entry and Storybook preview). */
+export function preventReactAriaStyleInjection(doc: Document = document): void {
+  if (doc.getElementById(REACT_ARIA_PRESSABLE_STYLE_ID) !== null) {
+    return;
+  }
+  const marker = doc.createElement('meta');
+  marker.id = REACT_ARIA_PRESSABLE_STYLE_ID;
+  doc.head.append(marker);
+}
+```
+
+**`packages/ui/src/components/menu/Menu.tsx`:**
+
+```tsx
+import type { ReactNode } from 'react';
+import {
+  Button as AriaButton,
+  Header,
+  Keyboard,
+  Menu as AriaMenu,
+  MenuItem as AriaMenuItem,
+  MenuSection as AriaMenuSection,
+  MenuTrigger,
+  Popover,
+  Separator,
+  Text,
+  type ButtonProps as AriaButtonProps,
+  type MenuItemProps as AriaMenuItemProps,
+  type MenuProps as AriaMenuProps,
+  type PopoverProps,
+} from 'react-aria-components';
+import { classNames } from '../../class-names';
+import buttonStyles from '../button/Button.module.css';
+import type { ButtonKind, ButtonSize } from '../button/Button';
+import styles from './Menu.module.css';
+
+/** Groups a MenuButton and a Menu: opens on press, Enter, Space or ArrowDown; Escape closes and returns focus. */
+export { MenuTrigger };
+
+export interface MenuButtonProps extends Omit<AriaButtonProps, 'className'> {
+  readonly kind?: ButtonKind;
+  readonly size?: ButtonSize;
+  readonly className?: string;
+}
+
+/** A trigger for a Menu, styled exactly like Button (React Aria needs its own pressable trigger). */
+export function MenuButton({
+  kind = 'secondary',
+  size = 'sm',
+  className,
+  ...rest
+}: MenuButtonProps) {
+  return (
+    <AriaButton
+      {...rest}
+      className={classNames(buttonStyles.button, className)}
+      data-kind={kind}
+      data-size={size}
+    />
+  );
+}
+
+export interface MenuProps<T> extends Omit<AriaMenuProps<T>, 'className'> {
+  readonly className?: string;
+  readonly placement?: PopoverProps['placement'];
+}
+
+/** A popover menu: arrow keys move, typing jumps to an item, Enter/Space activate, Escape closes. */
+export function Menu<T extends object>({
+  className,
+  placement = 'bottom start',
+  ...rest
+}: MenuProps<T>) {
+  return (
+    <Popover placement={placement} offset={4} className={classNames(styles.popover)}>
+      <AriaMenu {...rest} className={classNames(styles.menu, className)} />
+    </Popover>
+  );
+}
+
+export interface MenuItemProps extends Omit<AriaMenuItemProps, 'className' | 'children'> {
+  /** The item's label; also used for type-to-select. */
+  readonly children: string;
+  readonly description?: string;
+  /**
+   * Shown on the right, e.g. "⌘↵". React Aria links it to the item through aria-describedby, so screen
+   * readers hear the label as the name and the shortcut as its description. Display only: the
+   * shortcut itself is handled elsewhere.
+   */
+  readonly shortcut?: string;
+  /** A decorative 14 px icon before the label. */
+  readonly icon?: ReactNode;
+}
+
+export function MenuItem({ children, description, shortcut, icon, ...rest }: MenuItemProps) {
+  return (
+    <AriaMenuItem {...rest} textValue={children} className={classNames(styles.item)}>
+      {icon !== undefined && (
+        <span className={styles.icon} aria-hidden="true">
+          {icon}
+        </span>
+      )}
+      <Text slot="label" className={styles.label}>
+        {children}
+      </Text>
+      {description !== undefined && (
+        <Text slot="description" className={styles.description}>
+          {description}
+        </Text>
+      )}
+      {shortcut !== undefined && <Keyboard className={styles.shortcut}>{shortcut}</Keyboard>}
+    </AriaMenuItem>
+  );
+}
+
+export interface MenuSectionProps {
+  /** Sentence-case heading for the group, e.g. "item.created · event". */
+  readonly title: string;
+  readonly children: ReactNode;
+}
+
+export function MenuSection({ title, children }: MenuSectionProps) {
+  return (
+    <AriaMenuSection className={classNames(styles.section)}>
+      <Header className={styles.header}>{title}</Header>
+      {children}
+    </AriaMenuSection>
+  );
+}
+
+export function MenuSeparator() {
+  return <Separator className={classNames(styles.separator)} />;
+}
+```
+
+**`packages/ui/src/components/menu/Menu.module.css`:**
+
+```css
+/* Graphite popover: level 3 (hover surface), 1 px subtle border, 8 px radius, the popover shadow. */
+.popover {
+  min-inline-size: var(--size-node-width);
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-subtle);
+  border-radius: var(--radius-popover);
+  background: var(--color-surface-hover);
+  box-shadow: var(--shadow-popover);
+  color: var(--color-text-primary);
+}
+
+/* Panels and popovers open with opacity + a 4 px slide (Graphite motion); instant under reduced motion. */
+.popover[data-entering] {
+  animation: popover-in var(--duration-panel) ease-out;
+}
+
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-4)));
+  }
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0 var(--space-8);
+  align-items: center;
+  min-block-size: var(--size-row-compact);
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-control);
+  font-family: var(--text-small-font-family);
+  font-size: var(--text-small-font-size);
+  font-weight: var(--text-small-font-weight);
+  line-height: var(--text-small-line-height);
+  cursor: default;
+  outline: none;
+}
+
+.item[data-focused] {
+  background: var(--color-surface-selected);
+}
+
+.item[data-disabled] {
+  opacity: var(--opacity-disabled);
+}
+
+.icon {
+  display: inline-flex;
+  grid-column: 1;
+  color: var(--color-text-tertiary);
+}
+
+.label {
+  grid-column: 2;
+}
+
+.description {
+  grid-column: 2;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption-font-size);
+  line-height: var(--text-caption-line-height);
+}
+
+.shortcut {
+  grid-row: 1;
+  grid-column: 3;
+  color: var(--color-text-muted);
+  font-family: var(--text-mono-small-font-family);
+  font-size: var(--text-mono-small-font-size);
+  line-height: var(--text-mono-small-line-height);
+}
+
+/* Muted text is 4.5:1 on the popover but not on the selected row, so a focused item uses secondary. */
+.item[data-focused] .description,
+.item[data-focused] .shortcut {
+  color: var(--color-text-secondary);
+}
+
+.header {
+  padding: var(--space-4) var(--space-8);
+  color: var(--color-text-muted);
+  font-family: var(--text-caption-font-family);
+  font-size: var(--text-caption-font-size);
+  font-weight: var(--text-caption-font-weight);
+  line-height: var(--text-caption-line-height);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+.separator {
+  margin: var(--space-4) 0;
+  border: 0;
+  border-block-start: var(--border-width-default) solid var(--color-border-subtle);
+}
+```
+
+**`packages/ui/src/components/tooltip/Tooltip.tsx`:**
+
+```tsx
+import type { ComponentProps, ReactNode } from 'react';
+import {
+  Focusable,
+  Tooltip as AriaTooltip,
+  TooltipTrigger,
+  type TooltipProps as AriaTooltipProps,
+} from 'react-aria-components';
+import { classNames } from '../../class-names';
+import styles from './Tooltip.module.css';
+
+export interface TooltipProps {
+  /** Short supplementary text. Never put essential information or interactive content in a tooltip. */
+  readonly content: ReactNode;
+  /** One focusable element, e.g. a Button. It gets `aria-describedby` pointing at the tooltip. */
+  readonly children: ComponentProps<typeof Focusable>['children'];
+  readonly placement?: AriaTooltipProps['placement'];
+  /** Milliseconds of hover before showing. Keyboard focus shows it immediately. */
+  readonly delay?: number;
+}
+
+/** Shows on hover (after a delay) and on keyboard focus; Escape or leaving hides it. */
+export function Tooltip({ content, children, placement = 'top', delay = 600 }: TooltipProps) {
+  return (
+    <TooltipTrigger delay={delay} closeDelay={0}>
+      <Focusable>{children}</Focusable>
+      <AriaTooltip placement={placement} offset={6} className={classNames(styles.tooltip)}>
+        {content}
+      </AriaTooltip>
+    </TooltipTrigger>
+  );
+}
+```
+
+**`packages/ui/src/components/tooltip/Tooltip.module.css`:**
+
+```css
+/* A small popover: same surface, border and shadow as menus, Caption text, 4 px radius. */
+.tooltip {
+  max-inline-size: calc(var(--size-node-width) + var(--space-32));
+  padding: var(--space-4) var(--space-8);
+  border: var(--border-width-default) solid var(--color-border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-hover);
+  box-shadow: var(--shadow-popover);
+  color: var(--color-text-primary);
+  font-family: var(--text-caption-font-family);
+  font-size: var(--text-caption-font-size);
+  font-weight: var(--text-caption-font-weight);
+  line-height: var(--text-caption-line-height);
+}
+
+.tooltip[data-entering] {
+  animation: tooltip-in var(--duration-panel) ease-out;
+}
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+  }
+}
+```
+
+**Tests and stories:**
+- `react-aria-csp.test.ts`, 2 tests: the marker is added; only once.
+- `components/menu/Menu.test.tsx`, 5 tests:
+  - opens with items grouped under the heading
+  - runs the action and closes
+  - keyboard: Enter opens, arrows move, Escape closes and returns focus
+  - name = label, shortcut in `aria-describedby`
+  - trigger styled like Button
+- `components/tooltip/Tooltip.test.tsx`, 3 tests: keyboard focus shows it and links it by `aria-describedby`; hover after delay shows it and leaving hides it; Escape hides it.
+- `Menu.stories.tsx`: Event actions (open by default), Closed.
+- `Tooltip.stories.tsx`: Default, Quick actions.
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm format && pnpm lint && pnpm typecheck && pnpm test   # ui: 49 passed
+pnpm --filter @flowcanvas/ui storybook
+pnpm build && pnpm exec wrangler dev                      # web app under the production CSP
+```
+
+**Run and check it:**
+1. **Components → Menu → Closed:** focus the Actions button and press ArrowDown (opens on the first item), type `c` (jumps to Comment), press Escape (closes, and focus is back on the button).
+2. **Event actions:** compare with the Figma event context menu: heading `item.created · event`, the `⌘↵` shortcut, the description `1 producer · 3 consumers`, the separator.
+3. **Components → Tooltip → Quick actions:** hover a button (600 ms delay) or Tab to it (immediate).
+4. With `wrangler dev` running, open the app and the devtools console: no CSP errors. In Elements → `<head>`, `<meta id="react-aria-pressable-style">` is present.
+
+**Gotchas:**
+- **Never import `react-aria-components` in product code.** Use `@flowcanvas/ui`.
+- **Forgetting `preventReactAriaStyleInjection()` in a new entry point** brings back a CSP console error on every load.
+- **A tooltip must never hold essential information or controls.** It's supplementary (and invisible on touch).
+- **A `<div onClick>` can't be a tooltip trigger.** The child must be focusable.
+
+**Commit:** `feat(ui): add Menu and Tooltip on React Aria Components, CSP-safe`
