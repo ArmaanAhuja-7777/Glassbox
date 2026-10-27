@@ -2060,7 +2060,7 @@ When phase 1a is done you can:
 | 8 | Menu and Tooltip (headless accessible primitives; ADR) | done · `9743475` · Claude · ADR 0008 |
 | 9 | Flow node (all change states, selected, analysing) | done · `6fef1f8` · Claude · ADR 0009 · shadow `0358bba` |
 | 10 | Figma references + Playwright visual comparison with a side-by-side report | done · `7949c92` + `4a325a0` · exports: owner · tests: Claude |
-| 11 | Version page restyled with tokens; Storybook deployed to a free Cloudflare URL | *planned* |
+| 11 | Version page restyled with tokens; Storybook deployed to a free Cloudflare URL | done · `e708c35` `7d94a63` `26df0ee` `de6e08c` · Claude (repo) · owner: Cloudflare catalogue project · ADR 0010 |
 | 12 | Close phase 1a: ADRs, architecture, status, changelog, report, merge | *planned* |
 
 ### Step 1a.1 — Design tokens: source, generator and generated package
@@ -6367,3 +6367,463 @@ pnpm --filter @flowcanvas/e2e exec playwright show-report playwright-report-visu
 - **Baselines are per OS** (`-linux`). A different OS writes its own set; CI needs its own (upgrade-later 16).
 - **The comparison needs the exact Figma default text.** A variant story with different text measures as a large mismatch.
 - **Figma's export bounds include effects** (shadows, halos) even when the effect isn't drawn.
+
+### Step 1a.11 — Menu icons, version page, and the catalogue online
+
+**Goal:**
+1. Finish the Menu to match Figma: icons, inline details, the keycap, and pickers with a tick.
+2. Restyle the version page with the tokens and components.
+3. Put the component catalogue on a free public URL, so phase 1a's *Try it* ("open the component catalogue, flip dark and light, compare with Figma") works from a link.
+
+**Expected outcome:**
+- **Version page** (preview URL or `pnpm dev`): "Flowcanvas", a one-line status, `Build 0.1.0 · <commit>`, **Open the component catalogue**, and **Theme: System**. The theme menu ticks the current choice, switches immediately and remembers it after a reload.
+- **Catalogue:** `https://flowcanvas-catalogue.ahujaarmaan7777.workers.dev`, once the owner has created the Cloudflare project (below).
+- **Tests:** `ui` 62 · `web` 4 · e2e smoke 2 (both under the production CSP) · `pnpm test:visual` 68.
+
+**Concepts:**
+- **Render props.** React Aria's `MenuItem` accepts a function as its children: `({ isSelected, selectionMode }) => …`. The item then draws a tick only when it's selected, while React Aria handles the semantics (`role="menuitemradio"`, `aria-checked`). Docs: https://react-spectrum.adobe.com/react-aria/Menu.html#selection
+- **Controlled selection.**
+  - The theme menu gets `selectedKeys={[theme]}` and `onSelectionChange`. The state lives in `useThemePreference` (step 3), not in the menu.
+  - `disallowEmptySelection` stops a second click from unselecting everything.
+  - `onSelectionChange` receives a `Selection`: either `'all'` or a `Set` of keys. Narrow it before use.
+- **Why the catalogue gets its own origin** (ADR 0010).
+  - Storybook's built HTML has inline `<script>` and `<style>` blocks, which our app's CSP forbids.
+  - Loosening the CSP on the app's origin would weaken the app.
+  - A second Worker gives the catalogue its own origin (`flowcanvas-catalogue.…`). The browser's same-origin policy then keeps anything there away from the app's storage and, later, its sessions.
+- **Per-site headers on Workers static assets.**
+  - A `_headers` file at the root of the assets folder sets response headers per path.
+  - `.assetsignore` lists files not to upload at all (here Storybook's `project.json` metadata).
+  - Storybook's `staticDirs` copies both into the build, so they ship with every build.
+  - Docs: https://developers.cloudflare.com/workers/static-assets/headers/ and https://developers.cloudflare.com/workers/static-assets/binding/#ignoring-assets
+- **Two Workers from one repo.**
+  - Workers Builds runs one project per Worker. Each has its own build command and its own `wrangler.jsonc`, selected with `--config`.
+  - Paths inside a config resolve relative to that config file.
+- **Best-practice vs WCAG rules in axe.**
+  - `region`, `landmark-one-main` and `page-has-heading-one` check a whole page's structure. They are meaningless for one component in isolation, so they are off in Storybook's Accessibility tab.
+  - WCAG A/AA rules stay on, and the version page itself is a real page with `<main>` and `<h1>`.
+
+**Files** (full contents of the new ones; the Menu changes are in `packages/ui/src/components/menu/`):
+
+**`apps/web/src/App.tsx`:**
+
+```tsx
+import { formatBuildInfo, type BuildInfo } from '@flowcanvas/graph-model';
+import {
+  Menu,
+  MenuButton,
+  MenuItem,
+  MenuTrigger,
+  useThemePreference,
+  type ThemePreference,
+} from '@flowcanvas/ui';
+import styles from './App.module.css';
+import { CATALOGUE_URL } from './links';
+
+interface AppProps {
+  readonly buildInfo: BuildInfo;
+}
+
+const THEMES: readonly { readonly id: ThemePreference; readonly label: string }[] = [
+  { id: 'system', label: 'System' },
+  { id: 'dark', label: 'Dark' },
+  { id: 'light', label: 'Light' },
+];
+
+function themeLabel(preference: ThemePreference): string {
+  return THEMES.find((theme) => theme.id === preference)?.label ?? 'System';
+}
+
+export function App({ buildInfo }: AppProps) {
+  const [theme, setTheme] = useThemePreference();
+  return (
+    <main className={styles.page}>
+      <div className={styles.content}>
+        <h1 className={styles.title}>Flowcanvas</h1>
+        <p className={styles.summary}>
+          A canvas-first development environment. This build has the Graphite design system; the
+          canvas comes in the next phases.
+        </p>
+        <dl className={styles.facts}>
+          <dt className={styles.term}>Build</dt>
+          <dd className={styles.build}>{formatBuildInfo(buildInfo)}</dd>
+        </dl>
+        <div className={styles.actions}>
+          <a className={styles.link} href={CATALOGUE_URL}>
+            Open the component catalogue
+          </a>
+          <MenuTrigger>
+            <MenuButton aria-label={`Theme: ${themeLabel(theme)}`}>
+              Theme: {themeLabel(theme)}
+            </MenuButton>
+            <Menu
+              aria-label="Theme"
+              placement="bottom end"
+              selectionMode="single"
+              disallowEmptySelection
+              selectedKeys={[theme]}
+              onSelectionChange={(keys) => {
+                const next = keys === 'all' ? undefined : THEMES.find(({ id }) => keys.has(id));
+                if (next !== undefined) setTheme(next.id);
+              }}
+            >
+              {THEMES.map(({ id, label }) => (
+                <MenuItem
+                  key={id}
+                  id={id}
+                  {...(id === 'system' ? { description: 'follows your OS' } : {})}
+                >
+                  {label}
+                </MenuItem>
+              ))}
+            </Menu>
+          </MenuTrigger>
+        </div>
+      </div>
+    </main>
+  );
+}
+```
+
+**`apps/web/src/App.module.css`:**
+
+```css
+/* The version page: one quiet column, centred on the canvas. */
+.page {
+  display: grid;
+  place-items: center;
+  min-block-size: 100dvh;
+  padding: var(--space-24);
+  box-sizing: border-box;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  inline-size: 100%;
+  max-inline-size: calc(2 * var(--size-node-width));
+}
+
+.title {
+  margin: 0;
+  font-family: var(--text-title-font-family);
+  font-size: var(--text-title-font-size);
+  font-weight: var(--text-title-font-weight);
+  line-height: var(--text-title-line-height);
+  letter-spacing: var(--text-title-letter-spacing);
+  color: var(--color-text-primary);
+}
+
+.summary {
+  margin: 0;
+  font-family: var(--text-body-font-family);
+  font-size: var(--text-body-font-size);
+  font-weight: var(--text-body-font-weight);
+  line-height: var(--text-body-line-height);
+  color: var(--color-text-secondary);
+}
+
+.facts {
+  display: flex;
+  gap: var(--space-8);
+  align-items: baseline;
+  margin: 0;
+}
+
+.term {
+  font-family: var(--text-caption-font-family);
+  font-size: var(--text-caption-font-size);
+  font-weight: var(--text-caption-font-weight);
+  line-height: var(--text-caption-line-height);
+  color: var(--color-text-muted);
+}
+
+.build {
+  margin: 0;
+  font-family: var(--text-mono-font-family);
+  font-size: var(--text-mono-font-size);
+  font-weight: var(--text-mono-font-weight);
+  line-height: var(--text-mono-line-height);
+  color: var(--color-text-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-16);
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Links are underlined text, not accent-coloured: in Graphite the accent means selection and focus only. */
+.link {
+  border-radius: var(--radius-control);
+  font-family: var(--text-small-strong-font-family);
+  font-size: var(--text-small-strong-font-size);
+  font-weight: var(--text-small-strong-font-weight);
+  line-height: var(--text-small-strong-line-height);
+  color: var(--color-text-primary);
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: var(--space-4);
+  transition: text-decoration-color var(--duration-hover) ease-out;
+}
+
+.link:hover {
+  text-decoration-color: var(--color-text-primary);
+}
+```
+
+**`apps/web/src/links.ts`:**
+
+```ts
+/** The component catalogue (Storybook), deployed from `main` to its own Worker (packages/ui/wrangler.jsonc). */
+export const CATALOGUE_URL = 'https://flowcanvas-catalogue.ahujaarmaan7777.workers.dev';
+```
+
+**`apps/web/src/App.test.tsx`:**
+
+```tsx
+import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it } from 'vitest';
+import { App } from './App';
+import { CATALOGUE_URL } from './links';
+
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+  delete document.documentElement.dataset.theme;
+});
+
+const buildInfo = { version: '0.1.0', commit: '7e59ec1a2b3c' };
+
+describe('App', () => {
+  it('shows the product name', () => {
+    render(<App buildInfo={buildInfo} />);
+    expect(screen.getByRole('heading', { name: 'Flowcanvas' })).toBeTruthy();
+  });
+
+  it('shows the version and short commit it was built from', () => {
+    render(<App buildInfo={buildInfo} />);
+    expect(screen.getByText('0.1.0 · 7e59ec1')).toBeTruthy();
+  });
+
+  it('links to the component catalogue', () => {
+    render(<App buildInfo={buildInfo} />);
+    const link = screen.getByRole('link', { name: 'Open the component catalogue' });
+    expect(link.getAttribute('href')).toBe(CATALOGUE_URL);
+  });
+
+  it('follows the system theme by default and switches theme from the menu', async () => {
+    const user = userEvent.setup();
+    render(<App buildInfo={buildInfo} />);
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+
+    await user.click(screen.getByRole('button', { name: 'Theme: System' }));
+    await user.click(screen.getByRole('menuitemradio', { name: 'Light' }));
+
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(screen.getByRole('button', { name: 'Theme: Light' })).toBeTruthy();
+    expect(localStorage.getItem('flowcanvas-theme')).toBe('light');
+  });
+});
+```
+
+**`e2e/tests/smoke.spec.ts`:**
+
+```ts
+import { expect, test } from '@playwright/test';
+
+test('shows the product name and the version it was built from', async ({ page }) => {
+  const pageErrors: Error[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error));
+
+  await page.goto('/');
+
+  await expect(page).toHaveTitle('Flowcanvas');
+  await expect(page.getByRole('heading', { name: 'Flowcanvas' })).toBeVisible();
+
+  const expectedCommit = process.env.E2E_EXPECTED_COMMIT?.slice(0, 7);
+  const buildLine = expectedCommit ? `0.1.0 · ${expectedCommit}` : /^0\.1\.0 · [0-9a-f]{7}$/;
+  await expect(page.getByText(buildLine)).toBeVisible();
+
+  expect(pageErrors).toEqual([]);
+});
+
+test('switches theme from the menu and links to the component catalogue', async ({ page }) => {
+  const cspViolations: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && message.text().includes('Content Security Policy')) {
+      cspViolations.push(message.text());
+    }
+  });
+
+  await page.goto('/');
+  await expect(page.getByRole('link', { name: 'Open the component catalogue' })).toHaveAttribute(
+    'href',
+    /^https:\/\/flowcanvas-catalogue\./,
+  );
+
+  await page.getByRole('button', { name: /^Theme: / }).click();
+  await page.getByRole('menuitemradio', { name: 'Light' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
+  // The choice is remembered across reloads.
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Theme: Light' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
+  expect(cspViolations).toEqual([]);
+});
+```
+
+**`packages/ui/wrangler.jsonc`:**
+
+```jsonc
+// The component catalogue (Storybook), on its own Worker so it gets its own origin and CSP.
+// Deployed by Cloudflare Workers Builds; see docs/build-steps.md, step 1a.11.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "flowcanvas-catalogue",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./storybook-static",
+  },
+  "preview_urls": true,
+  "workers_dev": true,
+  "send_metrics": false,
+}
+```
+
+**`packages/ui/.storybook/public/_headers`:**
+
+```text
+# Security headers for the component catalogue (its own Worker and origin, see packages/ui/wrangler.jsonc).
+# Storybook's built pages use inline scripts and styles, so this CSP allows 'unsafe-inline'; that's why the
+# catalogue never shares an origin with the app. It holds only static demo content: no cookies, no data.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+```
+
+**`packages/ui/.storybook/public/.assetsignore`:**
+
+```text
+# Not served: Storybook build metadata.
+project.json
+```
+
+**`packages/ui/.storybook/main.ts`:**
+
+```ts
+import type { StorybookConfig } from '@storybook/react-vite';
+
+const config: StorybookConfig = {
+  stories: ['../src/**/*.stories.@(ts|tsx)'],
+  // _headers and .assetsignore for the Cloudflare deploy are copied to the build root.
+  staticDirs: ['./public'],
+  addons: ['@storybook/addon-docs', '@storybook/addon-a11y', '@storybook/addon-themes'],
+  framework: { name: '@storybook/react-vite', options: {} },
+  core: {
+    // Telemetry is off by default across the project (CLAUDE.md, non-negotiable rule 5).
+    disableTelemetry: true,
+  },
+};
+
+export default config;
+```
+
+**`packages/ui/.storybook/preview.ts`:**
+
+```ts
+import { withThemeByDataAttribute } from '@storybook/addon-themes';
+import type { Preview } from '@storybook/react-vite';
+import { preventReactAriaStyleInjection } from '../src/react-aria-csp';
+import '../src/styles/global.css';
+
+preventReactAriaStyleInjection();
+
+const preview: Preview = {
+  decorators: [
+    // The toolbar's theme switch sets data-theme on <html>, exactly like the app does.
+    withThemeByDataAttribute({
+      themes: { dark: 'dark', light: 'light' },
+      defaultTheme: 'dark',
+      attributeName: 'data-theme',
+    }),
+  ],
+  parameters: {
+    layout: 'padded',
+    backgrounds: { disable: true },
+    a11y: {
+      test: 'error',
+      // Page-level best-practice rules don't apply to a component shown on its own (no page landmarks or h1).
+      config: {
+        rules: [
+          { id: 'region', enabled: false },
+          { id: 'landmark-one-main', enabled: false },
+          { id: 'page-has-heading-one', enabled: false },
+        ],
+      },
+    },
+  },
+};
+
+export default preview;
+```
+
+`apps/web/package.json`: `lint` is now `eslint . && stylelint "src/**/*.css"`; new dev dependencies `stylelint` and `@testing-library/user-event` (catalog).
+
+**Owner task: create the catalogue project in Cloudflare.** Same flow as the app (phase 1, step 11): Workers & Pages → Create → Import a repository → `ArmaanAhuja-7777/Glassbox`.
+
+| Field | Value |
+| --- | --- |
+| Project name | `flowcanvas-catalogue` (must equal `name` in `packages/ui/wrangler.jsonc`) |
+| Build command | `corepack enable && pnpm install --frozen-lockfile && pnpm --filter @flowcanvas/ui build-storybook` |
+| Deploy command | `pnpm exec wrangler deploy --config packages/ui/wrangler.jsonc` |
+| Enable preview builds | **on** |
+| Non-production branch deploy command | `pnpm exec wrangler versions upload --config packages/ui/wrangler.jsonc` |
+| Protect with Cloudflare Access | **off** (upgrade-later item 11) |
+| Advanced → Path (root directory) | `/` |
+| Advanced → API token | "Create new token" |
+| Advanced → Variables | `NODE_VERSION` = `24`, `SKIP_DEPENDENCY_INSTALL` = `true`, `TURBO_TELEMETRY_DISABLED` = `1`, `COREPACK_ENABLE_DOWNLOAD_PROMPT` = `0`, `WRANGLER_SEND_METRICS` = `false`, `STORYBOOK_DISABLE_TELEMETRY` = `1` |
+
+The production deploy runs from `main`, so the catalogue URL works after phase 1a is merged. Until then, use the **preview URL** of the `phase/1a-design-system` branch from the project's Deployments page.
+
+**Commands (local):**
+
+```fish
+pnpm install
+pnpm --filter @flowcanvas/ui build-storybook
+pnpm exec wrangler deploy --config packages/ui/wrangler.jsonc --dry-run   # "Read 99 files from the assets directory"
+pnpm exec wrangler dev --config packages/ui/wrangler.jsonc --port 8788    # the catalogue in Cloudflare's runtime, headers applied
+curl -sI http://127.0.0.1:8788/ | grep -i content-security-policy
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8788/project.json   # 404: not deployed
+
+pnpm build --filter=@flowcanvas/web && pnpm exec wrangler dev --port 8787  # the app, strict CSP
+E2E_BASE_URL=http://127.0.0.1:8787 pnpm --filter @flowcanvas/e2e test:e2e  # 2 passed, no CSP violations
+pnpm test:visual                                                           # 68 passed
+```
+
+**Run and check it:**
+1. **App** (`pnpm dev`, or the branch preview URL):
+   - The page is centred on the canvas colour.
+   - **Theme: System** opens a menu with a tick on System. Choose Light: the page turns light and the button says "Theme: Light".
+   - Reload: it stays light.
+   - Keyboard: Tab to the button, then Enter, arrows and Enter.
+2. **Open the component catalogue:**
+   - The link goes to the catalogue URL. It works once the owner's Cloudflare project has deployed `main`; until then, use the branch preview URL.
+   - Use the toolbar's theme switch (paintbrush) to flip dark and light, and compare **Components → Flow node → Figma variants** and **Menu → Event actions** with the Figma Components page and screen 27.
+3. **Accessibility tab:** 0 violations on component stories.
+4. **Headers:** `curl -sI <catalogue URL>` shows the catalogue's CSP; `curl -sI <app URL>` shows the strict one.
+
+**Gotchas:**
+- **Don't move the catalogue under the app's domain** to save a project. It would need the app's CSP loosened (ADR 0010).
+- **A file in `.storybook/public/` ships to the public catalogue.** Never put anything private there.
+- **The theme menu's `onSelectionChange` can receive `'all'`.** Handle it, even though single selection never sends it.
+- **Bundle size:** using React Aria's menu on the page added about 50 kB gzipped. Upgrade-later item 18 adds a budget before the canvas arrives.
+
+**Commits:** `feat(ui): menu rows with icons, inline details and a shortcut keycap, as in Figma` · `feat(ui): single-choice menus with a tick, as in Figma's pickers` · `feat(web): restyle the version page with Graphite tokens, theme menu and catalogue link` · `feat(ui): deploy the component catalogue to its own Cloudflare Worker`

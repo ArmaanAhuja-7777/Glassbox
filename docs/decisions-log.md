@@ -156,3 +156,17 @@ Engineering decisions:
 - **Screen exports** are kept once per screen (full 1440 × 900 frames at 2x); the crop areas are recorded in `crops.json`.
 - **Baselines are per platform** (`-linux` in the file name). CI needs baselines generated on its own OS: upgrade-later item 16.
 
+## 28 Oct 2026: menu details, version page, catalogue hosting (phase 1a, step 11)
+
+- **Menu rows follow Figma screen 27** (owner asked for the icons):
+  - a 14 px icon (new token `size.icon.xs`)
+  - the description on the label's line, optionally in the code font
+  - the shortcut in an outlined keycap
+  - Figma's eight-ray "spark" icon is approximated by Lucide `Sparkle`.
+- **Single-choice menus** (`selectionMode="single"`) show a tick on the chosen item, as in Figma's agent picker (screen 30). React Aria exposes the items as `menuitemradio` with `aria-checked`.
+- **Version page:** product name, a one-line honest status, the build line, a link to the catalogue and a theme menu (System / Dark / Light, remembered in local storage).
+  - Links are underlined primary text, not accent-coloured: Graphite keeps the accent for selection and focus.
+  - Bundle: 121 kB gzipped (was 69 kB), because the page now uses React Aria's menu, popover and focus management. This is within the cost ADR 0008 measured.
+- **Catalogue on its own Worker and origin** (ADR 0010), because Storybook needs inline scripts and styles.
+- **Storybook's Accessibility tab** no longer runs three page-level best-practice rules (`region`, `landmark-one-main`, `page-has-heading-one`). A single component has no page around it; the WCAG rules still run, there and in `pnpm test:visual`.
+
