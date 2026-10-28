@@ -14,6 +14,7 @@ All notable changes to this project are documented here. The format is based on 
 - Component catalogue (Storybook) with dark/light switch and accessibility checks, deployed to its own Cloudflare Worker.
 - Visual tests: every story in both themes against approved baselines, axe on every story, and a side-by-side comparison with the Figma components within measured budgets.
 - Version page rebuilt with the design system: theme menu (System / Dark / Light, remembered) and a link to the catalogue.
+- **Signal palette** for the five change states and the selection accent (owner decision): clearer, colour-blind-friendlier hues on the unchanged greys, in dark and light.
 
 ### Changed
 

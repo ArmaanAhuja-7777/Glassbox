@@ -9,7 +9,7 @@ Oct 21, 2026 · @Manan
 **The decision in five lines:**
 
 1. **Two separate visual channels.** Hue encodes *what changed* (added, modified, removed, affected, out of scope). Line style and glyphs encode *how it is known* (observed, resolved, convention, suggested, unknown). The two never compete.
-2. **One accent.** A muted steel blue, used only for selection and focus. The single primary action on screen is an off-white button with dark text, never a blue one.
+2. **One accent.** A clear signal blue, used only for selection and focus. The single primary action on screen is an off-white button with dark text, never a blue one.
 3. **Hierarchy by lightness, not shadows.** Surfaces step up in lightness as they come forward; borders are 1 px and quiet.
 4. **Dense but calm type.** Inter at a 13 px base, three weights, tabular numbers; JetBrains Mono for code, paths and prompts.
 5. **Small, consistent radii and a 4 px grid** for a precise, tool-like feel.
@@ -40,9 +40,9 @@ Oct 21, 2026 · @Manan
 
 ## Colour system
 
-> **Colour values updated 26 Oct 2026: muted palette.** The colour values in this section are the final muted palette, matching the Figma file and its generator scripts. The original saturated blue accent and change-state values are kept at the end of this section, marked *superseded*, for history only. Everything else in this document (principles, type, spacing, radii, motion, components) is unchanged and remains authoritative. Tokens are named by role (`surface/canvas`, `state/added/solid` and so on) so screens stay bound when values change.
+> **Colour values updated 28 Oct 2026: Signal palette.** The owner replaced the muted change-state and accent hues with the **Signal** palette. The muted set read as generated: equal lightness, evenly spaced pastel hues. It was also the hardest set to tell apart, and its lavender sat next to the blue accent. The neutrals are unchanged. Source of truth: `packages/tokens/source/color.*.tokens.json`, which match the values below and the generator scripts' `HEX` maps. Earlier palettes are kept at the end of this section, marked *superseded*, for history only. Everything else in this document (principles, type, spacing, radii, motion, components) is unchanged and remains authoritative. Tokens are named by role (`surface/canvas`, `state/added/solid` and so on) so screens stay bound when values change.
 
-**One neutral scale (Slate), one muted steel-blue accent, and five muted change-state hues tuned to similar perceived lightness.** Define every value in OKLCH in code; the hex values below are the sRGB equivalents used in Figma.
+**One neutral scale (Slate), one signal-blue accent, and five change-state hues (the Signal palette), each tuned to its own strength rather than to one shared lightness.** Define every value in OKLCH in code; the hex values below are the sRGB equivalents used in Figma.
 
 ### Neutral: Slate (dark theme)
 
@@ -82,17 +82,17 @@ A grey with a slight cool tint. Pure greys look dead on screens; a touch of blue
 | `text/tertiary` | #6B7380 | 9 | Icons at rest, edges, placeholders, disabled marks. **Non-text only** (3:1); never for text |
 | `text/on-accent` | #0B0C0E | — | Text on `surface/inverse` and on `accent/solid` |
 
-### Accent: muted steel blue
+### Accent: signal blue
 
 Used for exactly two things: the current selection and keyboard focus. It is **not** used for the primary button.
 
 | Token | Hex (dark) | Role |
 | --- | --- | --- |
-| `accent/solid` | #7487AD | Selection outline, focus ring, selected tab underline, source tag fill |
-| `accent/hover` | #8496BB | Hover on accent elements |
-| `accent/tint` | #182031 | Selected background tint, selection halo |
-| `accent/ring` | #34405A | Subtle focus ring and halo |
-| `accent/text` | #A9B7D3 | Links, file:line links, accent text |
+| `accent/solid` | #4C8DEB | Selection outline, focus ring, selected tab underline, source tag fill |
+| `accent/hover` | #5B9DFC | Hover on accent elements |
+| `accent/tint` | #1F2A3A | Selected background tint, selection halo |
+| `accent/ring` | #2A4367 | Subtle focus ring and halo |
+| `accent/text` | #80A9E6 | Links, file:line links, accent text |
 
 ### Primary button
 
@@ -100,19 +100,19 @@ Used for exactly two things: the current selection and keyboard focus. It is **n
 
 ### Change states (hue channel)
 
-All five are muted shades of their hue at similar perceived lightness, so no state looks more important than another. Each has a solid for borders, bars and markers, a tint for backgrounds, and a text colour for labels on the tint.
+Five clear hues, each tuned to its own strength (the Signal palette), so states are easy to tell apart, including for colour-blind users, while the grey interface stays quiet. Each has a solid for borders, bars and markers, a tint for backgrounds, and a text colour for labels on the tint.
 
 | State | Name | Solid | Tint | Text | Shape cue that always accompanies it |
 | --- | --- | --- | --- | --- | --- |
-| Added | sage | #6E9C82 | #18221D | #9FC2AD | Left bar + "+ added" tag |
-| Modified | ochre | #B39B6B | #24211A | #D2BE93 | Left bar + "\~ modified" tag |
-| Removed | clay | #B07473 | #261B1B | #CFA09F | Ghosted node + strikethrough |
-| Possibly affected | lavender | #8C83B0 | #1F1D29 | #B5AED3 | Dashed outline |
-| Out of selection | mauve | #A97A96 | #251C22 | #C9A3BA | Dashed outline + "outside selection" tag |
+| Added | green | #3F9C6B | #1D2C2A | #65B186 | Left bar + "+ added" tag |
+| Modified | amber | #DDB04A | #322E25 | #EFCC83 | Left bar + "\~ modified" tag |
+| Removed | coral red | #E4655C | #332528 | #E39289 | Ghosted node + strikethrough |
+| Possibly affected | violet | #9579E6 | #28273A | #AA9CE1 | Dashed outline |
+| Out of selection | pink | #DE7FBA | #322834 | #ECA4CF | Dashed outline + "outside selection" tag |
 
 Tokens: `state/<added|modified|removed|affected|scope>/<solid|tint|text>`.
 
-**Why "possibly affected" is not orange:** orange and amber are nearly indistinguishable for many colour-blind users and in peripheral vision; lavender against ochre is not.
+**Why "possibly affected" is not orange:** orange and amber are nearly indistinguishable for many colour-blind users and in peripheral vision; violet against amber is not.
 
 ### Provenance (form channel, no hue)
 
@@ -130,14 +130,14 @@ The running app inside a live frame is the user's own UI. These tokens are only 
 
 ### Status colours
 
-Tests and runtime health reuse the same hues with standard meanings: pass = added sage, warning = modified ochre, fail = removed clay. They appear in the review bar and test panel, rarely on nodes, so the overlap does not cause confusion.
+Tests and runtime health reuse the same hues with standard meanings: pass = added green, warning = modified amber, fail = removed coral red. They appear in the review bar and test panel, rarely on nodes, so the overlap does not cause confusion.
 
 ### Light theme
 
 **Approved 27 Oct 2026 (phase 1a, step 2).** Same 40 roles as dark, inverted lightness:
 - Surfaces get lighter as they come forward: canvas `#FCFCFD`, panels `#F6F7F9`, nodes `#FFFFFF`.
-- The muted state hues keep their character, with darker solids and text and pale tints.
-- The accent stays steel blue, darkened to `#4E6390`.
+- The Signal state hues keep their character, with darker solids and text and pale tints (state solids ≥ 3.6:1 on white, tag text ≥ 5:1 on its tint).
+- The accent stays signal blue, darkened to `#3374D0`.
 - **Primary button in light: near-black `surface/inverse` (`#1E2228`) with off-white `text/on-accent` (`#FCFCFD`)**, so it remains the strongest element on the screen (the inverse of the dark theme's off-white button).
 - `preview/*` colours are unchanged (live frames show the user's own app).
 
@@ -159,30 +159,32 @@ Source of truth: `packages/tokens/source/color.light.tokens.json`. Contrast is e
 | `text/muted` | #666E7A |
 | `text/tertiary` | #868D98 |
 | `text/on-accent` | #FCFCFD |
-| `accent/solid` | #4E6390 |
-| `accent/hover` | #43578A |
-| `accent/tint` | #E9EDF5 |
-| `accent/ring` | #B8C4DB |
-| `accent/text` | #3D5287 |
-| `state/added/solid` | #4C8063 |
-| `state/added/tint` | #E6F0EA |
-| `state/added/text` | #2E5E43 |
-| `state/modified/solid` | #957A40 |
-| `state/modified/tint` | #F4EFE2 |
-| `state/modified/text` | #66511F |
-| `state/removed/solid` | #A0585A |
-| `state/removed/tint` | #F6E7E7 |
-| `state/removed/text` | #7A393C |
-| `state/affected/solid` | #7064A0 |
-| `state/affected/tint` | #ECEAF5 |
-| `state/affected/text` | #514585 |
-| `state/scope/solid` | #93607F |
-| `state/scope/tint` | #F5E8F0 |
-| `state/scope/text` | #6E3C5B |
+| `accent/solid` | #3374D0 |
+| `accent/hover` | #2365BF |
+| `accent/tint` | #EBF1FA |
+| `accent/ring` | #B8CEEF |
+| `accent/text` | #3766AA |
+| `state/added/solid` | #369464 |
+| `state/added/tint` | #EBF4EF |
+| `state/added/text` | #077648 |
+| `state/modified/solid` | #A97E00 |
+| `state/modified/tint` | #F6F2E6 |
+| `state/modified/text` | #876000 |
+| `state/removed/solid` | #DA5C53 |
+| `state/removed/tint` | #FBEFEE |
+| `state/removed/text` | #A54B44 |
+| `state/affected/solid` | #8E71DE |
+| `state/affected/tint` | #F4F1FC |
+| `state/affected/text` | #6E5BA9 |
+| `state/scope/solid` | #C1659F |
+| `state/scope/tint` | #F9F0F5 |
+| `state/scope/text` | #994C7D |
 | `edge/observed` | #5C6470 |
 | `edge/default` | #868D98 |
 
 ### Superseded values (history only, do not use)
+
+The muted palette, used 26–28 Oct 2026 (dark solid / tint / text): accent steel blue #7487AD (hover #8496BB, tint #182031, ring #34405A, text #A9B7D3); added sage #6E9C82 / #18221D / #9FC2AD, modified ochre #B39B6B / #24211A / #D2BE93, removed clay #B07473 / #261B1B / #CFA09F, affected lavender #8C83B0 / #1F1D29 / #B5AED3, out of selection mauve #A97A96 / #251C22 / #C9A3BA. Light: accent #4E6390; states #4C8063, #957A40, #A0585A, #7064A0, #93607F.
 
 The original saturated palette, replaced on 26 Oct 2026: Blue accent 3/7/9/11 = #14203D / #2F4A8A / #3A6FF0 / #8EAEFF (hover #4C7DFF), used for the primary button with white text; change states (step 3 / 9 / 11, dark): added #10261C / #2FA36B / #5BD195, modified #2A2210 / #D39B2A / #F0C064, removed #2E1416 / #E5484D / #FF8A8D, affected #1F1838 / #8E6CEF / #B9A3FF, out of selection #2E1426 / #D6409F / #F38FC9; old light theme canvas #FCFCFD, panels #F8F9FA, text #16191D / #5C6470.
 
@@ -292,18 +294,18 @@ All motion respects the system's "reduce motion" setting, falling back to instan
 | Secondary text Slate 11 on panel Slate 2 | 7.9 : 1 | 4.5 : 1 | Pass |
 | Icons and placeholders Slate 9 on panel Slate 2 | 3.9 : 1 | 3 : 1 (non-text) | Pass; not for body text |
 | Primary button: #0B0C0E on #E6E8EB | 15.9 : 1 | 4.5 : 1 | Pass |
-| Link and accent text #A9B7D3 on panel | 9.2 : 1 | 4.5 : 1 | Pass |
-| Focus ring and selection #7487AD on canvas / on node | 5.4 / 4.8 : 1 | 3 : 1 (non-text) | Pass |
-| Source tag: #0B0C0E on #7487AD | 5.4 : 1 | 4.5 : 1 | Pass |
-| Change tags (text on tint), all five hues | 7.3 – 8.8 : 1 | 4.5 : 1 | Pass |
-| Change-state solids (bars, dashed outlines) on canvas | 5.2 – 7.3 : 1 | 3 : 1 (non-text) | Pass |
+| Link and accent text #80A9E6 on panel | 7.7 : 1 | 4.5 : 1 | Pass |
+| Focus ring and selection #4C8DEB on canvas / on node | 5.9 / 5.2 : 1 | 3 : 1 (non-text) | Pass |
+| Source tag: #0B0C0E on #4C8DEB | 5.9 : 1 | 4.5 : 1 | Pass |
+| Change tags (text on tint), all five hues | 5.7 – 8.8 : 1 | 4.5 : 1 | Pass |
+| Change-state solids (bars, dashed outlines) on canvas | 5.7 – 9.7 : 1 | 3 : 1 (non-text) | Pass |
 | Edges #6B7380 on canvas | 4.1 : 1 | 3 : 1 | Pass (Slate 8 scored 2.5 : 1, too faint for meaningful lines) |
 | Tertiary #6B7380 on node #181B20 | 3.6 : 1 | 3 : 1 (non-text) | Pass for icons and placeholders; not for body text |
 | Light: text #16191D on canvas #FCFCFD / secondary #5C6470 on panel #F6F7F9 | 17.2 / 5.6 : 1 | 4.5 : 1 | Pass |
-| Light: state text on tint (five hues) / primary button #FCFCFD on #1E2228 | 6.4 – 7.2 / 15.6 : 1 | 4.5 : 1 | Pass |
-| Light: tertiary on nodes / edges / focus ring / state solids | 3.4 / 3.3 / 6.0 / 4.0 – 5.1 : 1 | 3 : 1 (non-text) | Pass |
+| Light: state text on tint (five hues) / primary button #FCFCFD on #1E2228 | 5.0 – 5.1 / 15.6 : 1 | 4.5 : 1 | Pass |
+| Light: tertiary on nodes / edges / focus ring / state solids | 3.4 / 3.3 / 4.5 / 3.6 – 3.7 : 1 | 3 : 1 (non-text) | Pass |
 
-Ratios recalculated on 26 Oct 2026 from the muted hex values.
+Ratios recalculated on 28 Oct 2026 from the Signal hex values.
 
 **Beyond contrast:**
 

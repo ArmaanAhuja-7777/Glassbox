@@ -54,75 +54,75 @@
     },
     "accent": {
       "solid": {
-        "$value": "#4E6390"
+        "$value": "#3374D0"
       },
       "hover": {
-        "$value": "#43578A"
+        "$value": "#2365BF"
       },
       "tint": {
-        "$value": "#E9EDF5"
+        "$value": "#EBF1FA"
       },
       "ring": {
-        "$value": "#B8C4DB"
+        "$value": "#B8CEEF"
       },
       "text": {
-        "$value": "#3D5287"
+        "$value": "#3766AA"
       }
     },
     "state": {
       "added": {
         "solid": {
-          "$value": "#4C8063"
+          "$value": "#369464"
         },
         "tint": {
-          "$value": "#E6F0EA"
+          "$value": "#EBF4EF"
         },
         "text": {
-          "$value": "#2E5E43"
+          "$value": "#077648"
         }
       },
       "modified": {
         "solid": {
-          "$value": "#957A40"
+          "$value": "#A97E00"
         },
         "tint": {
-          "$value": "#F4EFE2"
+          "$value": "#F6F2E6"
         },
         "text": {
-          "$value": "#66511F"
+          "$value": "#876000"
         }
       },
       "removed": {
         "solid": {
-          "$value": "#A0585A"
+          "$value": "#DA5C53"
         },
         "tint": {
-          "$value": "#F6E7E7"
+          "$value": "#FBEFEE"
         },
         "text": {
-          "$value": "#7A393C"
+          "$value": "#A54B44"
         }
       },
       "affected": {
         "solid": {
-          "$value": "#7064A0"
+          "$value": "#8E71DE"
         },
         "tint": {
-          "$value": "#ECEAF5"
+          "$value": "#F4F1FC"
         },
         "text": {
-          "$value": "#514585"
+          "$value": "#6E5BA9"
         }
       },
       "scope": {
         "solid": {
-          "$value": "#93607F"
+          "$value": "#C1659F"
         },
         "tint": {
-          "$value": "#F5E8F0"
+          "$value": "#F9F0F5"
         },
         "text": {
-          "$value": "#6E3C5B"
+          "$value": "#994C7D"
         }
       }
     },

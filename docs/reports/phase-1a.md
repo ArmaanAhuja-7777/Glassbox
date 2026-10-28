@@ -82,7 +82,11 @@ There is no video recording: recordings arrive with the see-and-test harness in 
    - toggle off knob in `text/secondary`
    - selection halo on the Flow node, which Figma's export omits
 5. **Light theme** was proposed and approved by the owner (Figma is dark only). Popover shadow per theme (approved).
-6. **Version 0.2.0** for this phase. Each phase that adds features bumps the minor version.
+6. **Signal palette** (owner decision, 28 Oct 2026).
+   - The change-state and accent colours were replaced: the muted set looked generated and was the hardest to tell apart.
+   - Code, the Graphite doc, `CLAUDE.md` and the Figma generator scripts now use Signal.
+   - The Figma file itself is updated by changing its 20 colour variables, then re-exporting the component PNGs.
+7. **Version 0.2.0** for this phase. Each phase that adds features bumps the minor version.
 
 ## Decision records added
 
@@ -94,6 +98,8 @@ There is no video recording: recordings arrive with the see-and-test harness in 
 ## Known issues and follow-ups
 
 - **CI still can't run** (upgrade-later 8). Phase 1 and 1a acceptance both rest on local checks plus Cloudflare previews.
+- **The Figma comparison waits on the Figma update.** Until the owner updates the 20 colour variables and re-exports the 20 component PNGs, `figma.spec.ts` fails on colour. Layout is unchanged.
+- **Screenshot comparison is now colour-exact** (`threshold: 0`). The default tolerance let a whole palette change pass unnoticed.
 - **Visual baselines are Linux-only.** CI needs its own (upgrade-later 16).
 - **A saved theme can flash on load** (upgrade-later 17).
 - **No bundle-size budget yet** (upgrade-later 18).

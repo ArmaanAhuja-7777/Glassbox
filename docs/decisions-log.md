@@ -175,3 +175,42 @@ Engineering decisions:
 - **Product version 0.2.0** (root `package.json`). Each phase that adds features bumps the minor version; the smoke test reads the version from `package.json` instead of hard-coding it.
 - **The web build now has the root `package.json` as a Turbo input** (`$TURBO_ROOT$/package.json`). Without it, the version bump reused the cached 0.1.0 build; the smoke test caught it.
 
+## 28–29 Oct 2026: Signal palette for change states and the accent (owner decision)
+
+**Owner decision:** the muted state and accent hues looked AI-generated. All five shared one lightness and softness, evenly spaced around the colour wheel as pastel tints. After reviewing six alternatives on real nodes (review page with contrast and colour-blind checks), the owner chose **Signal**: clearer signals, each hue tuned to its own strength, on the unchanged quiet greys.
+
+**Dark values** (solid / tint / text):
+
+| State | Values |
+| --- | --- |
+| added (green) | #3F9C6B / #1D2C2A / #65B186 |
+| modified (amber) | #DDB04A / #322E25 / #EFCC83 |
+| removed (coral red) | #E4655C / #332528 / #E39289 |
+| affected (violet) | #9579E6 / #28273A / #AA9CE1 |
+| outside selection (pink) | #DE7FBA / #322834 / #ECA4CF |
+| accent (signal blue) | #4C8DEB, with hover #5B9DFC, tint #1F2A3A, ring #2A4367, text #80A9E6 |
+
+**Light values:** derived from the same hues.
+- State solids are at least 3.6:1 on white, and tag text is at least 5:1 on its tint.
+- The accent is #3374D0.
+- Contrast is enforced by the `packages/tokens` tests.
+
+**Measured gains over the muted set:**
+- The closest pair of state colours is 12.5 apart (muted: 5.0).
+- Under deuteranopia it is 6.8 (muted: 2.9); under protanopia 6.9 (muted: 3.9).
+- The accent is 9.6 from the nearest state (muted: 3.5, lavender next to steel blue).
+
+Signal is close to, but softer than, the original saturated palette replaced on 26 Oct.
+
+**Where the change landed:**
+- tokens (both themes)
+- the Graphite colour section, light table, accessibility ratios and history
+- `CLAUDE.md` colour list and source priority (the tokens now win on colour values)
+- the design-brief note
+- the generator scripts' `HEX` maps
+- the visual report colours
+
+**Engineering finding:** the catalogue regression test used Playwright's default per-pixel colour tolerance (0.2), and **all 62 screenshots passed after the palette changed**. Now `threshold: 0`: 32 coloured stories failed as they should, and after approving the new baselines two reruns were identical. Same machine and browser, so exact pixels are stable.
+
+**Figma:** the file's fills are bound to Figma Variables, so the owner updates 20 colour variables (accent ×5, states ×15) and re-exports the 20 component PNGs. Until then, the Figma comparison test fails on colour (Tag up to 8.3%, Flow node Selected 10.1%, against budgets of 6–7%).
+
