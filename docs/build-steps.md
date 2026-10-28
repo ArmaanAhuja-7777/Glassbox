@@ -6883,3 +6883,44 @@ After the merge:
 
 **Commits:** `chore: release 0.2.0, close phase 1a` (docs, version, Turbo input)
 
+
+## Phase 1b — See-and-test harness
+
+**From the build plan:**
+- **Build:** staging and per-PR preview URLs; "Open demo project" that starts the current stage's forks in workspaces; end-to-end tests that drive the browser app and record video; screenshot comparison against Figma exports; What's new; Labs switches.
+- **Done when:** every merged phase produces a link, a test report and a recording without manual steps.
+- **Try it:** open the preview link, click Open demo project, watch the recording in the CI report.
+
+**Amended by the owner (29 Oct 2026, decisions log):**
+- No automated Figma comparison. Figma is a reference reviewed by eye; visual tests compare against our own approved baselines.
+- A six-repo, deliberately varied test corpus.
+- The "Open demo project" button moves to phase 1d.
+- Reports are published to a Cloudflare Worker.
+- What's new and Labs are built from the existing components.
+- CI stays on GitHub Actions; the owner clears the billing lock later.
+
+**What we're doing and why:**
+- After every change and every merge, CI (the "robot") builds the app, puts it at a link, runs all the tests, records a video of each phase's "Try it" walkthrough, publishes a report and posts the links on the PR. Nobody runs anything by hand.
+- This is what lets the owner check every later phase without setup and without taking test results on trust. It also catches anything that breaks an earlier phase on the PR that broke it.
+- In the app: **What's new** shows what changed in each build. **Labs** holds switches for half-built features, so they can go live hidden.
+- The six test repos are frozen at exact commits, so later analysis is tested on varied, stable real code.
+
+**Expected outcome:**
+- Every PR and merge produces a preview link, a published report with videos of the walkthroughs, and a PR comment with both links.
+- The app has a What's new panel and Settings → Labs.
+- `corpus/manifest.json` pins six repos, and a check verifies each copy.
+
+The CI parts can only run on GitHub once the billing lock is cleared. Until then they are verified locally with `act`, so the phase stays *in review* until Actions run.
+
+### Steps (planned)
+
+| # | Step | Status |
+| --- | --- | --- |
+| 1 | Retire the Figma comparison test (keep our own baselines and axe); docs | *planned* |
+| 2 | Video and trace for every end-to-end test; one walkthrough file per phase (`e2e/try-it/`) | *planned* |
+| 3 | `flowcanvas-reports` Worker: publish a run's report with videos at its own URL (owner: Cloudflare API token) | *planned* |
+| 4 | CI workflows: checks, visual tests in Playwright's Docker image, walkthroughs against the PR preview or staging, publish the report, comment the links; verified locally with `act` | *planned* |
+| 5 | What's new: `CHANGELOG.md` turned into data at build time; panel in the app | *planned* |
+| 6 | Labs: typed switch list (off by default, marked as preview), Settings → Labs page | *planned* |
+| 7 | Test corpus: six pinned private copies (owner creates them), `corpus/manifest.json`, a check of commit, licence and stack | *planned* |
+| 8 | Close phase 1b: docs, report, PR | *planned* |

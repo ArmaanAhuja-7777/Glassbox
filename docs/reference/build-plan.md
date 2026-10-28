@@ -4,6 +4,12 @@ Oct 13, 2026 · @Manan
 
 **This plan builds the product in 96 small phases across 10 stages. Every stage ends with software that runs and does something useful, and the final phase leaves the complete canvas-first IDE described in the research report.** Web apps get full support first (stages 0–6). Every other kind of software follows, one category at a time, tested on forked GitHub repos (stages 7–8). Then come team and platform features (stage 9).
 
+> **Owner amendments** (details and dates in `docs/decisions-log.md`):
+> - **Colours:** the Signal palette replaces the muted palette (28 Oct 2026).
+> - **No automated Figma comparison:** Figma is a visual reference reviewed by eye, and visual tests compare against our own approved baselines (29 Oct 2026).
+> - **Test corpus:** six varied repos from phase 1b onward (Rallly, Documenso, Inbox Zero, Twenty, Excalidraw, Medusa) instead of two (29 Oct 2026).
+> - **"Open demo project":** the button moves from 1b to 1d (29 Oct 2026).
+
 ## How this plan works
 
 **Phase size.** Each phase is scoped to about 1–2 weeks for a team of 2–3 engineers, working with AI agents. Most phases can be split in half if a week runs short. Nothing in a phase depends on a later phase.

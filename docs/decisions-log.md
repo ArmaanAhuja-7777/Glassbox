@@ -215,3 +215,31 @@ Signal is close to, but softer than, the original saturated palette replaced on 
 **Figma:** the file's fills are bound to Figma Variables, so the owner updates 20 colour variables (accent ×5, states ×15) and re-exports the 20 component PNGs. Until then, the Figma comparison test fails on colour (Tag up to 8.3%, Flow node Selected 10.1%, against budgets of 6–7%).
 
 **Update 29 Oct 2026:** the owner decided not to update Figma or re-export now (only colours changed). The four affected Figma-comparison budgets were raised, with the reason in the test file, and restoring them is upgrade-later item 19.
+
+## 29 Oct 2026: phase 1b scope (owner decisions)
+
+1. **No automated comparison with Figma.**
+   - Figma and the prototype screenshots (`docs/reference/screens/`) are the visual *reference*: Claude builds from them with our own components, and the owner reviews the result by eye.
+   - What stays automated: visual regression against **our own approved baselines** (every catalogue story and, later, every screen, both themes, pixel-exact) plus axe accessibility checks.
+   - The phase 1a Figma comparison test (`e2e/visual/figma.spec.ts`) is retired in phase 1b, step 1. The exported PNGs stay in `docs/reference/figma-exports/` as reference images.
+   - The build plan's "screenshot comparison against Figma exports" (phase 1b, and "Figma comparison" in "See it and test it") is amended accordingly.
+   - Also amended: tokens are owned by code (`packages/tokens/source`); Figma is not their source.
+2. **A larger, deliberately varied test corpus from now on.** Two similar Next.js apps can't show that analysis generalises.
+   - The stage-1 corpus becomes **six** repos chosen to differ in framework, size, data layer, background work, real-time behaviour, AI/external services and repo shape.
+   - Each is a public open-source project, kept as a private copy pinned to an exact commit (decision A8). Stack and licence are verified when pinning, and recorded in `corpus/manifest.json`.
+
+   | Repo | Why it's in the set |
+   | --- | --- |
+   | Rallly | Scheduling polls. Small Next.js app with tRPC and Prisma: the simple baseline |
+   | Documenso | Document signing. File uploads, PDF processing and email; medium |
+   | Inbox Zero | Email assistant. AI model calls, OAuth, external APIs and background processing |
+   | Twenty | CRM. Large monorepo with a NestJS + GraphQL backend, a React front end and job queues |
+   | Excalidraw | Whiteboard. Client-only React app on Vite, canvas rendering and real-time collaboration, no server database |
+   | Medusa | Commerce platform. Large Node.js backend framework (modules, workflows, events) with an admin dashboard |
+
+   The build plan's later additions (Dub, PhET, and the waves in stages 7–8) still come on top.
+3. **CI stays on GitHub Actions.** The owner will clear the billing lock later; no alternative CI. Until then, workflows are written and verified locally (with `act`, which runs Actions workflows in Docker), and phase 1b's Done-when can't be proven on GitHub. So 1b stays *in review* until Actions run.
+4. **"Open demo project" button moves to phase 1d** (when cloud workspaces exist). Phase 1b sets up the pinned corpus and its manifest.
+5. **Test reports and recordings are published to a third free Cloudflare Worker** (`flowcanvas-reports`), one page per run, linked from the PR.
+6. **What's new and Labs are built from the existing components** (no Figma design for them). They move into the app shell in phase 2.
+
