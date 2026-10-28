@@ -2,9 +2,9 @@
 
 - Version: `0.2.0`
 - Branch: `phase/1a-design-system`
-- Pull request: opened at the end of this phase (link in `docs/STATUS.md` after merge)
+- Pull request: https://github.com/ArmaanAhuja-7777/Glassbox/pull/3 (merged as `ec07da3`)
 - Dates: 27–28 Oct 2026
-- Status: **in review**
+- Status: **accepted** by the owner on 29 Oct 2026
 
 ## From the build plan
 
@@ -44,6 +44,13 @@
 | Tabs | Screen 06 | Matches |
 | Panel | Screen 06 | Matches |
 | Menu | Screen 27 | Matches after step 11 (icons, inline detail, keycap); the "Ask" icon is Lucide `Sparkle` |
+
+## After the merge (29 Oct 2026)
+
+| Check | Result |
+| --- | --- |
+| Staging `https://flowcanvas.ahujaarmaan7777.workers.dev` | `E2E_BASE_URL=… E2E_EXPECTED_COMMIT=ec07da3 pnpm --filter @flowcanvas/e2e test:e2e`: 2 passed (version page `0.2.0 · ec07da3`, theme menu, catalogue link, no CSP violations) |
+| Catalogue `https://flowcanvas-catalogue.ahujaarmaan7777.workers.dev` | Deployed from `main`: its CSP header present, `project.json` 404, stories render with no console errors; the added state bar is `rgb(63, 156, 107)` = Signal `#3F9C6B` |
 
 ## How to try it
 
