@@ -2061,7 +2061,7 @@ When phase 1a is done you can:
 | 9 | Flow node (all change states, selected, analysing) | done · `6fef1f8` · Claude · ADR 0009 · shadow `0358bba` |
 | 10 | Figma references + Playwright visual comparison with a side-by-side report | done · `7949c92` + `4a325a0` · exports: owner · tests: Claude |
 | 11 | Version page restyled with tokens; Storybook deployed to a free Cloudflare URL | done · `e708c35` `7d94a63` `26df0ee` `de6e08c` · Claude (repo) + owner (Cloudflare catalogue project) · ADR 0010 · verified on previews of `3231df2` |
-| 12 | Close phase 1a: ADRs, architecture, status, changelog, report, merge | *planned* |
+| 12 | Close phase 1a: ADRs, architecture, status, changelog, report, merge | in review · PR open, merge awaits the owner's approval |
 
 ### Step 1a.1 — Design tokens: source, generator and generated package
 
@@ -6845,3 +6845,41 @@ pnpm test:visual                                                           # 68 
 - **Bundle size:** using React Aria's menu on the page added about 50 kB gzipped. Upgrade-later item 18 adds a budget before the canvas arrives.
 
 **Commits:** `feat(ui): menu rows with icons, inline details and a shortcut keycap, as in Figma` · `feat(ui): single-choice menus with a tick, as in Figma's pickers` · `feat(web): restyle the version page with Graphite tokens, theme menu and catalogue link` · `feat(ui): deploy the component catalogue to its own Cloudflare Worker`
+
+### Step 1a.12 — Close phase 1a
+
+**Goal:** leave the phase documented, versioned and reviewable: architecture, changelog, status, report, the upgrade-later review, then a pull request that merges only with the owner's approval.
+
+**What changed:**
+- `ARCHITECTURE.md`: the new packages (`tokens`, `figma-tokens`, `ui`), a design-system pipeline diagram, the catalogue deploy path and the security posture.
+- `CHANGELOG.md`: release `0.2.0`. The in-app "What's new" panel is built in phase 1b, which seeds it from this file.
+- `docs/STATUS.md`: phase 1a **in review**.
+- `docs/reports/phase-1a.md`: results per Done-when item, Figma comparison numbers, the by-eye checklist for screen-only components, evidence, deviations, ADRs 0007–0010, known issues, the upgrade-later review and the next phase.
+- **Version 0.2.0** in the root `package.json`. The smoke test now reads the version from that file.
+
+**Concept: cache inputs must include everything a build reads.**
+- Turbo decides whether to rebuild from a hash of the package's files.
+- The web build also reads the **root** `package.json` (for the version), which lives outside the package, so the bump reused the old cached build and the page still said 0.1.0. The updated smoke test caught it.
+- Fix: in `turbo.json`, `"@flowcanvas/web#build"` gets `"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/package.json"]`. The next run reported "cache miss" and the page showed 0.2.0.
+- Docs: https://turborepo.com/docs/reference/configuration#inputs
+
+**Run and check it (the phase):**
+
+```fish
+pnpm install
+pnpm format:check && pnpm lint && pnpm typecheck && pnpm test   # 143 unit/component tests
+pnpm build && pnpm test:e2e                                     # 2 passed; page shows 0.2.0 · <commit>
+pnpm test:visual                                                # 68 passed; report in e2e/visual-report/index.html
+pnpm --filter @flowcanvas/ui storybook                          # catalogue on http://localhost:6006
+```
+
+Previews:
+- app: `https://phase-1a-design-system-flowcanvas.ahujaarmaan7777.workers.dev`
+- catalogue: `https://phase-1a-design-system-flowcanvas-catalogue.ahujaarmaan7777.workers.dev`
+
+After the merge:
+- staging: `https://flowcanvas.ahujaarmaan7777.workers.dev`
+- catalogue: `https://flowcanvas-catalogue.ahujaarmaan7777.workers.dev`
+
+**Commits:** `chore: release 0.2.0, close phase 1a` (docs, version, Turbo input)
+

@@ -17,6 +17,7 @@
     },
     "@flowcanvas/web#build": {
       "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/package.json"],
       "outputs": ["dist/**"],
       "env": ["FLOWCANVAS_COMMIT"]
     },

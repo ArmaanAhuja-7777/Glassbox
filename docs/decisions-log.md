@@ -170,3 +170,8 @@ Engineering decisions:
 - **Catalogue on its own Worker and origin** (ADR 0010), because Storybook needs inline scripts and styles.
 - **Storybook's Accessibility tab** no longer runs three page-level best-practice rules (`region`, `landmark-one-main`, `page-has-heading-one`). A single component has no page around it; the WCAG rules still run, there and in `pnpm test:visual`.
 
+## 28 Oct 2026: closing phase 1a
+
+- **Product version 0.2.0** (root `package.json`). Each phase that adds features bumps the minor version; the smoke test reads the version from `package.json` instead of hard-coding it.
+- **The web build now has the root `package.json` as a Turbo input** (`$TURBO_ROOT$/package.json`). Without it, the version bump reused the cached 0.1.0 build; the smoke test caught it.
+

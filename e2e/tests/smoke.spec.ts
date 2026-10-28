@@ -1,4 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
+
+// The product version lives in the root package.json; the page must show exactly that.
+const { version } = JSON.parse(
+  readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
+) as { version: string };
 
 test('shows the product name and the version it was built from', async ({ page }) => {
   const pageErrors: Error[] = [];
@@ -10,7 +16,9 @@ test('shows the product name and the version it was built from', async ({ page }
   await expect(page.getByRole('heading', { name: 'Flowcanvas' })).toBeVisible();
 
   const expectedCommit = process.env.E2E_EXPECTED_COMMIT?.slice(0, 7);
-  const buildLine = expectedCommit ? `0.1.0 · ${expectedCommit}` : /^0\.1\.0 · [0-9a-f]{7}$/;
+  const buildLine = expectedCommit
+    ? `${version} · ${expectedCommit}`
+    : new RegExp(`^${version.replaceAll('.', '\\.')} · [0-9a-f]{7}$`);
   await expect(page.getByText(buildLine)).toBeVisible();
 
   expect(pageErrors).toEqual([]);
