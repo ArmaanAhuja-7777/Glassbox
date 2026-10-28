@@ -1,0 +1,13 @@
+// The component catalogue (Storybook), on its own Worker so it gets its own origin and CSP.
+// Deployed by Cloudflare Workers Builds; see docs/build-steps.md, step 1a.11.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "flowcanvas-catalogue",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./storybook-static",
+  },
+  "preview_urls": true,
+  "workers_dev": true,
+  "send_metrics": false,
+}

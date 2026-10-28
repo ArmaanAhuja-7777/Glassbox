@@ -1,0 +1,180 @@
+{
+  "$description": "Graphite light theme (proposal, phase 1a step 2). Same roles as dark; contrast checked by packages/tokens tests.",
+  "color": {
+    "$type": "color",
+    "surface": {
+      "canvas": {
+        "$value": "#FCFCFD"
+      },
+      "panel": {
+        "$value": "#F6F7F9"
+      },
+      "raised": {
+        "$value": "#FFFFFF"
+      },
+      "hover": {
+        "$value": "#EEF0F3"
+      },
+      "selected": {
+        "$value": "#E6E9EE"
+      },
+      "inverse": {
+        "$value": "#1E2228"
+      }
+    },
+    "border": {
+      "subtle": {
+        "$value": "#E3E6EA"
+      },
+      "control": {
+        "$value": "#D2D6DC"
+      },
+      "strong": {
+        "$value": "#B4BAC3"
+      }
+    },
+    "text": {
+      "primary": {
+        "$value": "#16191D"
+      },
+      "secondary": {
+        "$value": "#5C6470"
+      },
+      "muted": {
+        "$value": "#666E7A",
+        "$description": "Captions, section labels and metadata text. Passes 4.5:1 on canvas, panel, raised and hover; on selected rows use text.secondary."
+      },
+      "tertiary": {
+        "$value": "#868D98",
+        "$description": "Icons at rest, edges, placeholders, disabled marks. Non-text only (3:1); never for text."
+      },
+      "on-accent": {
+        "$value": "#FCFCFD"
+      }
+    },
+    "accent": {
+      "solid": {
+        "$value": "#3374D0"
+      },
+      "hover": {
+        "$value": "#2365BF"
+      },
+      "tint": {
+        "$value": "#EBF1FA"
+      },
+      "ring": {
+        "$value": "#B8CEEF"
+      },
+      "text": {
+        "$value": "#3766AA"
+      }
+    },
+    "state": {
+      "added": {
+        "solid": {
+          "$value": "#369464"
+        },
+        "tint": {
+          "$value": "#EBF4EF"
+        },
+        "text": {
+          "$value": "#077648"
+        }
+      },
+      "modified": {
+        "solid": {
+          "$value": "#A97E00"
+        },
+        "tint": {
+          "$value": "#F6F2E6"
+        },
+        "text": {
+          "$value": "#876000"
+        }
+      },
+      "removed": {
+        "solid": {
+          "$value": "#DA5C53"
+        },
+        "tint": {
+          "$value": "#FBEFEE"
+        },
+        "text": {
+          "$value": "#A54B44"
+        }
+      },
+      "affected": {
+        "solid": {
+          "$value": "#8E71DE"
+        },
+        "tint": {
+          "$value": "#F4F1FC"
+        },
+        "text": {
+          "$value": "#6E5BA9"
+        }
+      },
+      "scope": {
+        "solid": {
+          "$value": "#C1659F"
+        },
+        "tint": {
+          "$value": "#F9F0F5"
+        },
+        "text": {
+          "$value": "#994C7D"
+        }
+      }
+    },
+    "edge": {
+      "observed": {
+        "$value": "#5C6470"
+      },
+      "default": {
+        "$value": "#868D98"
+      }
+    },
+    "preview": {
+      "surface": {
+        "$value": "#FFFFFF"
+      },
+      "ink": {
+        "$value": "#1F2328"
+      },
+      "muted": {
+        "$value": "#6E7781"
+      },
+      "line": {
+        "$value": "#E5E7EB"
+      },
+      "brand": {
+        "$value": "#1F2328"
+      }
+    }
+  },
+  "shadow": {
+    "$type": "shadow",
+    "popover": {
+      "$value": {
+        "color": "rgba(16, 24, 40, 0.12)",
+        "offsetX": {
+          "value": 0,
+          "unit": "px"
+        },
+        "offsetY": {
+          "value": 8,
+          "unit": "px"
+        },
+        "blur": {
+          "value": 24,
+          "unit": "px"
+        },
+        "spread": {
+          "value": 0,
+          "unit": "px"
+        }
+      },
+      "$description": "Popovers only; never nodes or panels. Light surfaces need far less: a soft slate-tinted shadow plus the 1 px border."
+    }
+  }
+}

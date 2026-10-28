@@ -27,7 +27,7 @@ All reference material lives in `docs/reference/`. Screenshots of a clickable pr
 | **Decisions log** (`docs/decisions-log.md`) | Answers to open questions, with dates | Check it before raising a question that may already be settled |
 | **Upgrade later** (`docs/upgrade-later.md`) | Things deliberately deferred (now / later / trigger) | Add an entry whenever we choose a cheaper or simpler option for now; review it at the end of every phase |
 
-**Priority when sources disagree:** Build plan (scope, order, acceptance) → **muted palette as in the Figma file and generator scripts (colour values only)** → Graphite design language (everything visual except colour values: principles, type, spacing, radii, motion, components) → Figma screens → Design brief → Research report. Graphite's own colour section has been updated to the muted values; if any older saturated value appears anywhere, the muted palette wins. If the conflict matters, stop and ask.
+**Priority when sources disagree:** Build plan (scope, order, acceptance) → **colour tokens in `packages/tokens/source` (Signal palette, owner decision 28 Oct 2026; colour values only)** → Graphite design language (everything visual except colour values: principles, type, spacing, radii, motion, components) → Figma screens → Design brief → Research report. Graphite's colour section and the Figma generator scripts' `HEX` maps match the tokens. If an older value (the muted or the original saturated palette) appears anywhere, including the Figma file until it is regenerated, the tokens win. If the conflict matters, stop and ask.
 
 ## 3. The product in one paragraph (confirm you understand it)
 
@@ -45,7 +45,7 @@ Flowcanvas is a canvas-first, AI-native development environment that replaces th
 6. **Wrap agents, don't build one.** All agent work goes through the Agent Client Protocol (plus Claude Code hooks where useful). The product does not make code edits with its own model.
 7. **Checkpoints never touch the user's branches.** Use shadow refs (e.g. `refs/flowcanvas/checkpoints/<session>/<step>`).
 8. **Test repos are public forks only.** Use the forks named in the build plan, pinned to exact commits. Never use the user's own projects as test data.
-9. **Design tokens only.** No hard-coded colours, sizes, radii or fonts in components. Everything comes from the Graphite tokens generated from Figma.
+9. **Design tokens only.** No hard-coded colours, sizes, radii or fonts in components. Everything comes from the Graphite tokens in `@flowcanvas/tokens` (enforced by Stylelint for CSS).
 10. **No placeholder features.** Mock data is allowed only in tests, the component catalogue, or behind a Labs switch clearly labelled as preview.
 11. **Ask, don't guess, on product decisions.** On pure engineering choices, decide, record the decision (section 9) and move on.
 
@@ -200,17 +200,17 @@ When you make a significant technical choice (a library, a data format, a protoc
 ## 10. Design implementation rules
 
 - **Tokens come from Figma.** Build `tools/figma-tokens` in phase 1a to read a Figma variables JSON export and turn it into CSS variables and typed TS tokens. Until the real export is available, it reads a hand-written seed JSON with the values below, recorded in a temporary ADR. Re-run it whenever Figma changes; never hand-edit generated files.
-- **Graphite principles:** near-achromatic slate chrome; colour only carries meaning; change state by muted hue; provenance by line form only (solid, check mark, dotted, open stub); one steel-blue accent for selection and focus only.
-- **Colour tokens (dark theme, final muted palette):**
+- **Graphite principles:** near-achromatic slate chrome; colour only carries meaning; change state by hue (Signal palette); provenance by line form only (solid, check mark, dotted, open stub); one signal-blue accent for selection and focus only.
+- **Colour tokens (dark theme; Signal palette for states and accent, 28 Oct 2026):**
   - Surfaces: `surface/canvas` #0B0C0E, `surface/panel` #111317, `surface/raised` #181B20, `surface/hover` #1E2228, `surface/selected` #252A31, `surface/inverse` #E6E8EB
   - Borders: `border/subtle` #2C323A, `border/control` #383F49, `border/strong` #4A525E
-  - Text: `text/primary` #EDEFF2, `text/secondary` #A3AAB5, `text/tertiary` #6B7380, `text/on-accent` #0B0C0E
-  - Accent (steel blue, selection and focus only): `accent/solid` #7487AD, `accent/hover` #8496BB, `accent/tint` #182031, `accent/ring` #34405A, `accent/text` #A9B7D3
-  - States (solid / tint / text): added (sage) #6E9C82 / #18221D / #9FC2AD · modified (ochre) #B39B6B / #24211A / #D2BE93 · removed (clay) #B07473 / #261B1B / #CFA09F · affected (lavender) #8C83B0 / #1F1D29 / #B5AED3 · outside selection (mauve) `state/scope/*` #A97A96 / #251C22 / #C9A3BA
+  - Text: `text/primary` #EDEFF2, `text/secondary` #A3AAB5, `text/muted` #818995 (captions, labels, metadata), `text/tertiary` #6B7380 (non-text only: icons, edges, placeholders), `text/on-accent` #0B0C0E
+  - Accent (signal blue, selection and focus only): `accent/solid` #4C8DEB, `accent/hover` #5B9DFC, `accent/tint` #1F2A3A, `accent/ring` #2A4367, `accent/text` #80A9E6
+  - States (solid / tint / text): added (green) #3F9C6B / #1D2C2A / #65B186 · modified (amber) #DDB04A / #322E25 / #EFCC83 · removed (coral red) #E4655C / #332528 / #E39289 · affected (violet) #9579E6 / #28273A / #AA9CE1 · outside selection (pink) `state/scope/*` #DE7FBA / #322834 / #ECA4CF
   - Edges: `edge/observed` #A3AAB5, `edge/default` #6B7380
   - App preview (inside mock live frames): `preview/surface` #FFFFFF, `preview/ink` #1F2328, `preview/muted` #6E7781, `preview/line` #E5E7EB, `preview/brand` #1F2328
   - **Primary button:** `surface/inverse` background (#E6E8EB) with `text/on-accent` text (#0B0C0E). Never a blue button.
-  - Light theme: not yet defined; propose one in phase 1a for approval.
+  - Light theme: approved 27 Oct 2026, state and accent hues moved to Signal 28 Oct 2026; values in `packages/tokens/source/color.light.tokens.json` and the Graphite doc.
 - **Type and spacing:** Inter for UI, JetBrains Mono for code, paths and prompts. Text styles: Display 24/32 600, Title 20/28 600, Heading 15/22 600, Body 13/20 400, Body strong 13/20 500, Small 12/16 400, Small strong 12/16 500, Caption 11/14 500, Mono 12/18 400, Mono small 11/16 400. Letter-spacing −1.5% on Display, −1% on Title and Heading. 4 px grid; radii 4 / 6 / 8 / 10. Sentence-case labels, no ALL CAPS.
 - **Layout:** the Figma screens use a 40 px top bar (project, branch, Graph / Sequence / Code switch, search, workspace status, share, avatar), a 44 px rail and a 40 px review bar. The Figma file is the layout reference.
 - **Components first.** Build each component in `packages/ui` with all its variants and states, show it in the catalogue, and compare it with the Figma component before using it in screens.

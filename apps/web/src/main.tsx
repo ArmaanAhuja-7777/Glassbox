@@ -1,6 +1,10 @@
+import '@flowcanvas/ui/styles.css';
+import { preventReactAriaStyleInjection } from '@flowcanvas/ui';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+
+preventReactAriaStyleInjection();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

@@ -1,6 +1,9 @@
 dist/
+storybook-static/
 coverage/
 .turbo/
 pnpm-lock.yaml
 docs/reference/
 *.md
+packages/tokens/css/tokens.css
+packages/tokens/src/tokens.generated.ts

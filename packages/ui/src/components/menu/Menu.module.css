@@ -1,0 +1,150 @@
+/* Graphite popover: level 3 (hover surface), 1 px subtle border, 8 px radius, the popover shadow. */
+.popover {
+  min-inline-size: var(--size-node-width);
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-subtle);
+  border-radius: var(--radius-popover);
+  background: var(--color-surface-hover);
+  box-shadow: var(--shadow-popover);
+  color: var(--color-text-primary);
+}
+
+/* Panels and popovers open with opacity + a 4 px slide (Graphite motion); instant under reduced motion. */
+.popover[data-entering] {
+  animation: popover-in var(--duration-panel) ease-out;
+}
+
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-4)));
+  }
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+
+/* Figma menu row: icon, label, an inline detail, then the shortcut keycap on the right; 8 px gaps. */
+.item {
+  display: flex;
+  gap: var(--space-8);
+  align-items: center;
+  min-block-size: var(--size-row-compact);
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-control);
+  font-family: var(--text-small-font-family);
+  font-size: var(--text-small-font-size);
+  font-weight: var(--text-small-font-weight);
+  line-height: var(--text-small-line-height);
+  cursor: default;
+  outline: none;
+}
+
+.item[data-focused] {
+  background: var(--color-surface-selected);
+}
+
+.item[data-disabled] {
+  opacity: var(--opacity-disabled);
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-text-tertiary);
+}
+
+.icon svg {
+  width: var(--size-icon-xs);
+  height: var(--size-icon-xs);
+  stroke-width: var(--icon-stroke-width);
+}
+
+.item[data-focused] .icon {
+  color: var(--color-text-primary);
+}
+
+.label {
+  white-space: nowrap;
+}
+
+.description {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-family: var(--text-caption-font-family);
+  font-size: var(--text-caption-font-size);
+  font-weight: var(--text-caption-font-weight);
+  line-height: var(--text-caption-line-height);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.description[data-mono] {
+  font-family: var(--text-mono-small-font-family);
+  font-size: var(--text-mono-small-font-size);
+  font-weight: var(--text-mono-small-font-weight);
+  line-height: var(--text-mono-small-line-height);
+}
+
+/* Shortcut and tick sit at the right edge of the row. */
+.end {
+  display: flex;
+  flex: none;
+  gap: var(--space-8);
+  align-items: center;
+  margin-inline-start: auto;
+}
+
+/* The keycap: 1 px control border. */
+.shortcut {
+  padding: 0 calc(var(--space-4) + var(--space-2) / 2);
+  border: var(--border-width-default) solid var(--color-border-control);
+  border-radius: var(--radius-control);
+  color: var(--color-text-muted);
+  font-family: var(--text-mono-small-font-family);
+  font-size: var(--text-mono-small-font-size);
+  line-height: var(--text-mono-small-line-height);
+}
+
+/* Reserves the tick's width on every item, so labels don't shift when the selection changes. */
+.check {
+  display: inline-flex;
+  width: var(--size-icon-xs);
+  height: var(--size-icon-xs);
+  color: var(--color-text-primary);
+}
+
+.check svg {
+  width: 100%;
+  height: 100%;
+  stroke-width: var(--icon-stroke-width);
+}
+
+/* Muted text is 4.5:1 on the popover but not on the selected row, so a focused item uses secondary. */
+.item[data-focused] .description,
+.item[data-focused] .shortcut {
+  color: var(--color-text-secondary);
+}
+
+.header {
+  padding: var(--space-4) var(--space-8);
+  color: var(--color-text-muted);
+  font-family: var(--text-caption-font-family);
+  font-size: var(--text-caption-font-size);
+  font-weight: var(--text-caption-font-weight);
+  line-height: var(--text-caption-line-height);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+.separator {
+  margin: var(--space-4) 0;
+  border: 0;
+  border-block-start: var(--border-width-default) solid var(--color-border-subtle);
+}

@@ -1,0 +1,48 @@
+/* Figma Tag: 1 px / 6 px padding, 4 px radius, Caption text, tint background with same-hue text. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: calc(var(--space-2) / 2) calc(var(--space-4) + var(--space-2));
+  border-radius: var(--radius-control);
+  font-family: var(--text-caption-font-family);
+  font-size: var(--text-caption-font-size);
+  font-weight: var(--text-caption-font-weight);
+  line-height: var(--text-caption-line-height);
+  letter-spacing: var(--text-caption-letter-spacing);
+  white-space: nowrap;
+}
+
+.tag[data-tone='added'] {
+  background: var(--color-state-added-tint);
+  color: var(--color-state-added-text);
+}
+
+.tag[data-tone='modified'] {
+  background: var(--color-state-modified-tint);
+  color: var(--color-state-modified-text);
+}
+
+.tag[data-tone='removed'] {
+  background: var(--color-state-removed-tint);
+  color: var(--color-state-removed-text);
+}
+
+.tag[data-tone='affected'] {
+  background: var(--color-state-affected-tint);
+  color: var(--color-state-affected-text);
+}
+
+.tag[data-tone='scope'] {
+  background: var(--color-state-scope-tint);
+  color: var(--color-state-scope-text);
+}
+
+.tag[data-tone='neutral'] {
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
+}
+
+.tag[data-tone='accent'] {
+  background: var(--color-accent-tint);
+  color: var(--color-accent-text);
+}

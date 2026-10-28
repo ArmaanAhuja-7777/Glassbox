@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-28 — Phase 1a: design system in code
+
+### Added
+
+- `@flowcanvas/tokens`: the Graphite tokens (muted palette, Slate scale, text styles, spacing, radii, sizes, motion, shadows) as DTCG JSON, generated into CSS variables and typed TypeScript, in a dark theme and a new light theme. Contrast is checked by tests.
+- `tools/figma-tokens`: the generator, reading the Figma variables export format.
+- `@flowcanvas/ui`: Button, Tag, Input, Toggle, Tabs, Panel, Menu (icons, details, shortcuts, single-choice picker), Tooltip and Flow node (change states, failing and analysing status, selection, 12 node-type icons), with self-hosted Inter and JetBrains Mono, theme switching and reduced motion.
+- Component catalogue (Storybook) with dark/light switch and accessibility checks, deployed to its own Cloudflare Worker.
+- Visual tests: every story in both themes against approved baselines, axe on every story, and a side-by-side comparison with the Figma components within measured budgets.
+- Version page rebuilt with the design system: theme menu (System / Dark / Light, remembered) and a link to the catalogue.
+- **Signal palette** for the five change states and the selection accent (owner decision): clearer, colour-blind-friendlier hues on the unchanged greys, in dark and light.
+
+### Changed
+
+- Product version 0.2.0. The web build now rebuilds when the root version changes.
+
+### Security
+
+- The app keeps its strict CSP: React Aria's injected style is pre-empted. The catalogue, which needs inline scripts, is isolated on its own origin with its own headers.
+- Storybook telemetry disabled; Storybook's build metadata is not deployed.
+
 ## [0.1.0] — 2026-10-27 — Phase 1: project skeleton
 
 ### Added

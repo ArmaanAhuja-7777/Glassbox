@@ -6,13 +6,18 @@
   "scripts": {
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:visual": "playwright test --config playwright.visual.config.ts"
   },
   "devDependencies": {
+    "@axe-core/playwright": "catalog:",
     "@flowcanvas/web": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
+    "@types/pngjs": "catalog:",
     "eslint": "catalog:",
+    "pixelmatch": "catalog:",
+    "pngjs": "catalog:",
     "typescript": "catalog:"
   }
 }

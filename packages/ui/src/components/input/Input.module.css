@@ -1,0 +1,81 @@
+/* Graphite input: raised fill, control border, 6 px radius (Graphite "nodes and inputs"; the Figma screens draw 4 px). */
+.field {
+  display: inline-flex;
+  gap: var(--space-8);
+  align-items: center;
+  inline-size: 100%;
+  block-size: var(--size-control-md);
+  padding: 0 calc(var(--space-8) + var(--space-2));
+  border: var(--border-width-default) solid var(--color-border-control);
+  border-radius: var(--radius-node);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  transition:
+    border-color var(--duration-hover) ease-out,
+    box-shadow var(--duration-hover) ease-out;
+}
+
+.field[data-size='sm'] {
+  block-size: var(--size-control-sm);
+}
+
+.field:hover {
+  border-color: var(--color-border-strong);
+}
+
+/* Focus: accent border plus a 2 px accent-tint halo (Graphite input "selected / focused"). */
+.field:focus-within {
+  border-color: var(--color-accent-solid);
+  box-shadow: 0 0 0 var(--border-width-halo) var(--color-accent-tint);
+}
+
+.field[data-invalid] {
+  border-color: var(--color-state-removed-solid);
+}
+
+.field[data-disabled] {
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}
+
+.input {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--text-small-font-family);
+  font-size: var(--text-small-font-size);
+  font-weight: var(--text-small-font-weight);
+  line-height: var(--text-small-line-height);
+  letter-spacing: var(--text-small-letter-spacing);
+}
+
+.field[data-mono] .input {
+  font-family: var(--text-mono-small-font-family);
+  font-size: var(--text-mono-small-font-size);
+  line-height: var(--text-mono-small-line-height);
+}
+
+/* The field draws the focus state, so the inner input doesn't add the global outline. */
+.input:focus-visible {
+  outline: none;
+}
+
+.input:disabled {
+  cursor: not-allowed;
+}
+
+/* Placeholders are text, so they use text/muted (4.5:1), not tertiary. */
+.input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+.adornment {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  color: var(--color-text-tertiary);
+}

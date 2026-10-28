@@ -1,0 +1,41 @@
+{
+  "$description": "Where each component sits in the full-screen Figma exports, in Figma (1x) pixels: [x, y, width, height]. The exports are 2x. Each crop is shown next to the matching story in the Figma comparison report.",
+  "crops": [
+    {
+      "name": "Input (focused, mono)",
+      "screen": "02-clone-repository.png",
+      "rect": [477, 325, 486, 48],
+      "story": "components-input--mono"
+    },
+    {
+      "name": "Toggle (settings rows)",
+      "screen": "17-settings-privacy.png",
+      "rect": [352, 140, 728, 470],
+      "story": "components-toggle--settings-rows"
+    },
+    {
+      "name": "Tabs (pill: view switch)",
+      "screen": "06-workspace-after-session.png",
+      "rect": [512, 2, 204, 36],
+      "story": "components-tabs--pill"
+    },
+    {
+      "name": "Tabs (underline: inspector)",
+      "screen": "06-workspace-after-session.png",
+      "rect": [1090, 136, 344, 38],
+      "story": "components-tabs--underline"
+    },
+    {
+      "name": "Panel (entry points)",
+      "screen": "06-workspace-after-session.png",
+      "rect": [44, 40, 248, 540],
+      "story": "components-panel--entry-points"
+    },
+    {
+      "name": "Menu (event context menu)",
+      "screen": "27-prompt-from-flow-or-event.png",
+      "rect": [244, 512, 284, 232],
+      "story": "components-menu--event-actions"
+    }
+  ]
+}

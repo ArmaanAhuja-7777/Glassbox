@@ -5,6 +5,9 @@ build/
 .turbo/
 *.tsbuildinfo
 
+# storybook
+storybook-static/
+
 # tests
 coverage/
 playwright-report/
@@ -21,3 +24,7 @@ blob-report/
 .DS_Store
 *.log
 .idea/
+
+# visual tests (baselines in e2e/visual/__screenshots__ ARE committed)
+visual-report/
+playwright-report-visual/

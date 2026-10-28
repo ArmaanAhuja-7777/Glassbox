@@ -1,6 +1,6 @@
 {
   "name": "flowcanvas",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Canvas-first, AI-native development environment (working name)",
   "type": "module",
@@ -16,13 +16,16 @@
     "test:e2e": "FLOWCANVAS_COMMIT=$(git rev-parse HEAD) turbo run test:e2e",
     "lint": "turbo run lint",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test:visual": "turbo run build-storybook --filter=@flowcanvas/ui && pnpm --filter @flowcanvas/e2e --fail-if-no-match test:visual",
+    "test:visual:update": "turbo run build-storybook --filter=@flowcanvas/ui && pnpm --filter @flowcanvas/e2e --fail-if-no-match test:visual --update-snapshots"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
     "eslint": "catalog:",
     "eslint-config-prettier": "catalog:",
     "prettier": "catalog:",
+    "stylelint": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",

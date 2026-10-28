@@ -12,17 +12,17 @@
     const FONTS = [['Inter', 'Regular'], ['Inter', 'Medium'], ['Inter', 'Semi Bold'], ['JetBrains Mono', 'Regular'], ['JetBrains Mono', 'Medium']];
     await Promise.all(FONTS.map(([family, style]) => figma.loadFontAsync({ family, style })));
 
-    // Muted Graphite palette: neutral shades of each hue
+    // Graphite palette: Slate neutrals; Signal state and accent hues (owner decision 28 Oct 2026)
     const HEX = {
       'surface/canvas': '#0B0C0E', 'surface/panel': '#111317', 'surface/raised': '#181B20', 'surface/hover': '#1E2228', 'surface/selected': '#252A31', 'surface/inverse': '#E6E8EB',
       'border/subtle': '#2C323A', 'border/control': '#383F49', 'border/strong': '#4A525E',
       'text/primary': '#EDEFF2', 'text/secondary': '#A3AAB5', 'text/tertiary': '#6B7380', 'text/on-accent': '#0B0C0E',
-      'accent/solid': '#7487AD', 'accent/hover': '#8496BB', 'accent/tint': '#182031', 'accent/ring': '#34405A', 'accent/text': '#A9B7D3',
-      'state/added/solid': '#6E9C82', 'state/added/tint': '#18221D', 'state/added/text': '#9FC2AD',
-      'state/modified/solid': '#B39B6B', 'state/modified/tint': '#24211A', 'state/modified/text': '#D2BE93',
-      'state/removed/solid': '#B07473', 'state/removed/tint': '#261B1B', 'state/removed/text': '#CFA09F',
-      'state/affected/solid': '#8C83B0', 'state/affected/tint': '#1F1D29', 'state/affected/text': '#B5AED3',
-      'state/scope/solid': '#A97A96', 'state/scope/tint': '#251C22', 'state/scope/text': '#C9A3BA',
+      'accent/solid': '#4C8DEB', 'accent/hover': '#5B9DFC', 'accent/tint': '#1F2A3A', 'accent/ring': '#2A4367', 'accent/text': '#80A9E6',
+      'state/added/solid': '#3F9C6B', 'state/added/tint': '#1D2C2A', 'state/added/text': '#65B186',
+      'state/modified/solid': '#DDB04A', 'state/modified/tint': '#322E25', 'state/modified/text': '#EFCC83',
+      'state/removed/solid': '#E4655C', 'state/removed/tint': '#332528', 'state/removed/text': '#E39289',
+      'state/affected/solid': '#9579E6', 'state/affected/tint': '#28273A', 'state/affected/text': '#AA9CE1',
+      'state/scope/solid': '#DE7FBA', 'state/scope/tint': '#322834', 'state/scope/text': '#ECA4CF',
       'edge/observed': '#A3AAB5', 'edge/default': '#6B7380',
       'preview/surface': '#FFFFFF', 'preview/ink': '#1F2328', 'preview/muted': '#6E7781', 'preview/line': '#E5E7EB', 'preview/brand': '#1F2328'
     };

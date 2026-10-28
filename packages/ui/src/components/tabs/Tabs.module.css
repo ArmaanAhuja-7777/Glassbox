@@ -1,0 +1,79 @@
+.list {
+  display: flex;
+  align-items: center;
+}
+
+/* Underline (inspector, panels): 16 px apart, a hairline under the row, 2 px accent under the selected tab. */
+.list[data-variant='underline'] {
+  gap: var(--space-16);
+  border-block-end: var(--border-width-default) solid var(--color-border-subtle);
+}
+
+/* Pill (review bar): compact, the selected tab gets the selected surface. */
+.list[data-variant='pill'] {
+  gap: var(--space-4);
+}
+
+.tab {
+  position: relative;
+  display: inline-flex;
+  gap: var(--space-4);
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--text-small-font-family);
+  font-size: var(--text-small-font-size);
+  font-weight: var(--text-small-font-weight);
+  line-height: var(--text-small-line-height);
+  letter-spacing: var(--text-small-letter-spacing);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--duration-hover) ease-out,
+    background-color var(--duration-hover) ease-out;
+}
+
+.tab:hover {
+  color: var(--color-text-primary);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--color-text-primary);
+  font-weight: var(--text-small-strong-font-weight);
+}
+
+.list[data-variant='underline'] .tab {
+  padding-block: 0 calc(var(--space-8) - var(--border-width-default));
+}
+
+.list[data-variant='underline'] .tab[aria-selected='true']::after {
+  position: absolute;
+  inset: auto 0 calc(-1 * var(--border-width-default));
+  block-size: var(--border-width-state-bar);
+  background: var(--color-accent-solid);
+  content: '';
+}
+
+.list[data-variant='pill'] .tab {
+  padding: var(--space-4) calc(var(--space-8) + var(--space-2));
+  border-radius: var(--radius-control);
+}
+
+.list[data-variant='pill'] .tab:hover {
+  background: var(--color-surface-hover);
+}
+
+.list[data-variant='pill'] .tab[aria-selected='true'] {
+  background: var(--color-surface-selected);
+}
+
+.count {
+  color: var(--color-text-muted);
+  font-weight: var(--text-small-font-weight);
+}
+
+.panel {
+  padding-block-start: var(--space-12);
+}

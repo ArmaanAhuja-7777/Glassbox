@@ -87,3 +87,131 @@ Decision: **resolve the billing lock later and continue building now.** Until th
 - Phase 1 can't be fully accepted until the workflow runs green on GitHub.
 
 The repository stays public for now; making it private again is a separate choice. While public, no secrets, personal or account details go into it, and forks of AGPL test repos stay out of it (decision A8). Tracked in `docs/upgrade-later.md` (items 8 and 9).
+
+## 27 Oct 2026: light theme approved (phase 1a, step 2)
+
+The owner approved the proposed Graphite light theme: same 40 colour roles as dark, all WCAG AA pairs passing (enforced by tests), and a **near-black primary button with off-white text** in light (the inverse of dark's off-white button). Values: `packages/tokens/source/color.light.tokens.json` and the Graphite doc's "Light theme" section.
+
+## 27 Oct 2026: caption colour, `text/muted` (phase 1a, step 4)
+
+axe-core in Storybook found that captions in `text/tertiary` fail WCAG AA (4.08:1 dark, 3.26:1 light; text needs 4.5:1). The owner chose **option B**: a new token **`text/muted`** (dark `#818995`, light `#666E7A`, ≥ 4.5:1 on canvas, panel, raised and hover) for captions, section labels and metadata. `text/tertiary` is **non-text only** from now on (icons, edges, placeholders, disabled marks). Metadata on selected rows uses `text/secondary`. Enforced by the token contrast tests.
+
+## 27 Oct 2026: Input and Toggle details (phase 1a, step 6)
+
+Engineering decisions, made within the design rules:
+- **Input radius 6 px**, following Graphite ("6 nodes and inputs"), which ranks above the Figma screens (they draw 4 px).
+- **Placeholders use `text/muted`** (4.9:1 dark, 5.2:1 light). Placeholders are text, so `text/tertiary` (3.6 / 3.35) would fail AA. This tightens the 27 Oct caption decision: `text/tertiary` is never used for any text.
+- **Toggle off knob uses `text/secondary`** (Figma: tertiary), so the knob that shows the state has ≥ 3:1 against its track (6.2 dark, 4.9 light; tertiary would be 3.0 / 2.75).
+
+Input border: owner chose **option A** (keep `border/control`, 1.6:1). Every input has a visible label and the focus state passes. Logged for an accessibility review before public beta (`docs/upgrade-later.md` item 15).
+
+## 27 Oct 2026: headless primitives (phase 1a, step 8)
+
+Engineering decision (ADR 0008): **React Aria Components** for menus, tooltips and future overlays, after testing React Aria, Radix and Base UI under the production CSP. React Aria's one injected `<style>` is pre-empted by `preventReactAriaStyleInjection()` plus the same rule in `global.css`. Also recorded: ADR 0007 (`@flowcanvas/ui` is consumed as source).
+
+Popover shadow per theme (owner approved, 27 Oct 2026): dark keeps `0 8 24 rgba(0, 0, 0, 0.4)`; light uses `0 8 24 rgba(16, 24, 40, 0.12)`, a soft slate tint, because the dark value looked heavy on light surfaces. `shadow.popover` moved from the base tokens into both theme files.
+
+## 27 Oct 2026: Flow node (phase 1a, step 9)
+
+Engineering decisions, made to keep accessibility and the 4 px grid; step 10 compares the result with Figma:
+
+- **Icons:** Lucide via `lucide-react` (ADR 0009), with one icon per node type.
+- **State model:**
+  - `change` (added, modified, removed, affected, outside selection), `status` (failing, analysing) and `selected` are three independent props. Figma has them as nine separate variants, but in the product a node can be modified *and* failing *and* selected.
+  - Each shows its own tag.
+  - The state bar and border follow the change; a failing node with no change gets the clay bar, as in the Figma "Failing" variant.
+- **Dimming:**
+  - Removed and analysing nodes dim the title to `text/secondary` instead of setting opacity 0.55 (Figma) or 0.4 (Graphite motion table). Opacity would drop the location text below 4.5:1.
+  - Removed nodes keep the strikethrough and the "− removed" tag.
+  - `opacity.ghost` stays in the tokens for canvas-level ghosting, which needs a contrast check when it's used.
+- **Location text:** uses `text/muted`, not Figma's tertiary, following the 1a.4 caption decision.
+- **Spacing follows Figma exactly** (corrected in step 10, after the screenshot comparison showed 1–2 px offsets):
+  - 9 px vertical and 10 px right padding inside the 1 px border, 12 px left, 10 px between icon and text.
+  - The node is 216 × 56 px, as in Figma. Step 9 had snapped these to the 4 px grid, which moved the text by 1–2 px.
+- **Tags sit top-right beside the title, as in Figma** (corrected in step 10). The title wraps in the space left; two tags (change and status) stack. Step 9 had wrapped tags below the title instead, which made the "outside selection" variant differ from Figma. A single very long identifier now breaks mid-word, as Figma does.
+- **Selection outline is drawn inside the edge** (1 px border plus a 0.5 px inset ring, like Figma's 1.5 px inside stroke), with the 3 px accent-tint halo outside.
+- **Tag symbols** ("+", "~", "−") are hidden from screen readers, which hear "modified" rather than "tilde modified".
+- **Left out on purpose** (each belongs to the phase that adds the behaviour; no placeholder features):
+  - hover quick actions
+  - edge ports
+  - framework or timing badges
+  - the "new node appears" animation
+
+## 27 Oct 2026: visual tests and the Figma comparison (phase 1a, step 10)
+
+Engineering decisions:
+
+- **Two kinds of visual test:**
+  - The **Figma comparison** (`e2e/visual/figma.spec.ts`) checks each Tag, Button and Flow node variant against the owner's Figma exports (dark, 2x), with a mismatch budget per variant. It also writes a side-by-side report.
+  - The **catalogue regression** (`e2e/visual/catalogue.spec.ts`) checks every story in both themes against approved baselines of our own rendering, plus axe (WCAG 2.0–2.2 A/AA).
+- **Mismatch budgets** were measured, then set just above the measurement:
+  - **Floor, 2–4%: font rasterisation.** Figma draws Inter 3; we self-host Inter 4, which has slightly different glyph widths. A 1–2 px layout error measures 5–15%, so it fails.
+  - **Higher budgets cover deliberate differences:**
+    - location text in `text/muted` (contrast)
+    - removed-node strikethrough and no opacity dimming (Graphite, contrast)
+    - Figma's selected node being 57 px tall
+    - Figma's bordered button export being 2 px wider
+- **The selection halo is excluded from the comparison.** Figma's component export reserves room for it but draws it transparent (spread on a drop shadow does not export). Graphite and Figma screen 06 show it, and the catalogue baseline covers it.
+- **Components that exist only inside Figma screens** (Input, Toggle, Tabs, Panel, Menu) are compared by eye in the report. Their crops (`docs/reference/figma-exports/screens/crops.json`) contain other content, so a pixel score would mean nothing. Tooltip has no Figma reference; it follows Graphite.
+- **Screen exports** are kept once per screen (full 1440 × 900 frames at 2x); the crop areas are recorded in `crops.json`.
+- **Baselines are per platform** (`-linux` in the file name). CI needs baselines generated on its own OS: upgrade-later item 16.
+
+## 28 Oct 2026: menu details, version page, catalogue hosting (phase 1a, step 11)
+
+- **Menu rows follow Figma screen 27** (owner asked for the icons):
+  - a 14 px icon (new token `size.icon.xs`)
+  - the description on the label's line, optionally in the code font
+  - the shortcut in an outlined keycap
+  - Figma's eight-ray "spark" icon is approximated by Lucide `Sparkle`.
+- **Single-choice menus** (`selectionMode="single"`) show a tick on the chosen item, as in Figma's agent picker (screen 30). React Aria exposes the items as `menuitemradio` with `aria-checked`.
+- **Version page:** product name, a one-line honest status, the build line, a link to the catalogue and a theme menu (System / Dark / Light, remembered in local storage).
+  - Links are underlined primary text, not accent-coloured: Graphite keeps the accent for selection and focus.
+  - Bundle: 121 kB gzipped (was 69 kB), because the page now uses React Aria's menu, popover and focus management. This is within the cost ADR 0008 measured.
+- **Catalogue on its own Worker and origin** (ADR 0010), because Storybook needs inline scripts and styles.
+- **Storybook's Accessibility tab** no longer runs three page-level best-practice rules (`region`, `landmark-one-main`, `page-has-heading-one`). A single component has no page around it; the WCAG rules still run, there and in `pnpm test:visual`.
+
+## 28 Oct 2026: closing phase 1a
+
+- **Product version 0.2.0** (root `package.json`). Each phase that adds features bumps the minor version; the smoke test reads the version from `package.json` instead of hard-coding it.
+- **The web build now has the root `package.json` as a Turbo input** (`$TURBO_ROOT$/package.json`). Without it, the version bump reused the cached 0.1.0 build; the smoke test caught it.
+
+## 28–29 Oct 2026: Signal palette for change states and the accent (owner decision)
+
+**Owner decision:** the muted state and accent hues looked AI-generated. All five shared one lightness and softness, evenly spaced around the colour wheel as pastel tints. After reviewing six alternatives on real nodes (review page with contrast and colour-blind checks), the owner chose **Signal**: clearer signals, each hue tuned to its own strength, on the unchanged quiet greys.
+
+**Dark values** (solid / tint / text):
+
+| State | Values |
+| --- | --- |
+| added (green) | #3F9C6B / #1D2C2A / #65B186 |
+| modified (amber) | #DDB04A / #322E25 / #EFCC83 |
+| removed (coral red) | #E4655C / #332528 / #E39289 |
+| affected (violet) | #9579E6 / #28273A / #AA9CE1 |
+| outside selection (pink) | #DE7FBA / #322834 / #ECA4CF |
+| accent (signal blue) | #4C8DEB, with hover #5B9DFC, tint #1F2A3A, ring #2A4367, text #80A9E6 |
+
+**Light values:** derived from the same hues.
+- State solids are at least 3.6:1 on white, and tag text is at least 5:1 on its tint.
+- The accent is #3374D0.
+- Contrast is enforced by the `packages/tokens` tests.
+
+**Measured gains over the muted set:**
+- The closest pair of state colours is 12.5 apart (muted: 5.0).
+- Under deuteranopia it is 6.8 (muted: 2.9); under protanopia 6.9 (muted: 3.9).
+- The accent is 9.6 from the nearest state (muted: 3.5, lavender next to steel blue).
+
+Signal is close to, but softer than, the original saturated palette replaced on 26 Oct.
+
+**Where the change landed:**
+- tokens (both themes)
+- the Graphite colour section, light table, accessibility ratios and history
+- `CLAUDE.md` colour list and source priority (the tokens now win on colour values)
+- the design-brief note
+- the generator scripts' `HEX` maps
+- the visual report colours
+
+**Engineering finding:** the catalogue regression test used Playwright's default per-pixel colour tolerance (0.2), and **all 62 screenshots passed after the palette changed**. Now `threshold: 0`: 32 coloured stories failed as they should, and after approving the new baselines two reruns were identical. Same machine and browser, so exact pixels are stable.
+
+**Figma:** the file's fills are bound to Figma Variables, so the owner updates 20 colour variables (accent ×5, states ×15) and re-exports the 20 component PNGs. Until then, the Figma comparison test fails on colour (Tag up to 8.3%, Flow node Selected 10.1%, against budgets of 6–7%).
+
+**Update 29 Oct 2026:** the owner decided not to update Figma or re-export now (only colours changed). The four affected Figma-comparison budgets were raised, with the reason in the test file, and restoring them is upgrade-later item 19.

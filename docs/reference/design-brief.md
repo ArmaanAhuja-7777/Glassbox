@@ -2,7 +2,7 @@
 
 Oct 17, 2026 · @Manan
 
-> **Superseded values (note added 26 Oct 2026).** Some values in this brief are out of date: 44 px top and review bars (now 40 px), the #4C8DFF accent (now muted steel blue #7487AD, used for selection and focus only), orange "possibly affected" (now lavender), purple "out of scope" (now mauve), "small uppercase labels" (now sentence case) and the foundation hex values. The **Graphite design language** (with the muted palette) and the **Figma file** override this brief on all visual values. This brief remains the reference for screen behaviour and interactions. See `docs/decisions-log.md`.
+> **Superseded values (note added 26 Oct 2026, colours updated 28 Oct 2026).** Some values in this brief are out of date: 44 px top and review bars (now 40 px), the #4C8DFF accent (now signal blue #4C8DEB, used for selection and focus only), orange "possibly affected" (now violet), purple "out of scope" (now pink), "small uppercase labels" (now sentence case) and the foundation hex values. The **Graphite design language** (with the Signal palette, 28 Oct 2026) and the **Figma file** override this brief on all visual values; for colour values the tokens in `packages/tokens/source` win. This brief remains the reference for screen behaviour and interactions. See `docs/decisions-log.md`.
 
 **This brief describes every screen, panel, component and state the finished product needs, so it can be designed in Figma from start to finish.** "Flowcanvas" is used as a working name. The example project throughout is a teacher-facing copy-checking website, because it exercises every feature: live UI, uploads, background jobs, AI calls, a database and teacher review.
 

@@ -1,0 +1,85 @@
+/* The version page: one quiet column, centred on the canvas. */
+.page {
+  display: grid;
+  place-items: center;
+  min-block-size: 100dvh;
+  padding: var(--space-24);
+  box-sizing: border-box;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  inline-size: 100%;
+  max-inline-size: calc(2 * var(--size-node-width));
+}
+
+.title {
+  margin: 0;
+  font-family: var(--text-title-font-family);
+  font-size: var(--text-title-font-size);
+  font-weight: var(--text-title-font-weight);
+  line-height: var(--text-title-line-height);
+  letter-spacing: var(--text-title-letter-spacing);
+  color: var(--color-text-primary);
+}
+
+.summary {
+  margin: 0;
+  font-family: var(--text-body-font-family);
+  font-size: var(--text-body-font-size);
+  font-weight: var(--text-body-font-weight);
+  line-height: var(--text-body-line-height);
+  color: var(--color-text-secondary);
+}
+
+.facts {
+  display: flex;
+  gap: var(--space-8);
+  align-items: baseline;
+  margin: 0;
+}
+
+.term {
+  font-family: var(--text-caption-font-family);
+  font-size: var(--text-caption-font-size);
+  font-weight: var(--text-caption-font-weight);
+  line-height: var(--text-caption-line-height);
+  color: var(--color-text-muted);
+}
+
+.build {
+  margin: 0;
+  font-family: var(--text-mono-font-family);
+  font-size: var(--text-mono-font-size);
+  font-weight: var(--text-mono-font-weight);
+  line-height: var(--text-mono-line-height);
+  color: var(--color-text-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-16);
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Links are underlined text, not accent-coloured: in Graphite the accent means selection and focus only. */
+.link {
+  border-radius: var(--radius-control);
+  font-family: var(--text-small-strong-font-family);
+  font-size: var(--text-small-strong-font-size);
+  font-weight: var(--text-small-strong-font-weight);
+  line-height: var(--text-small-strong-line-height);
+  color: var(--color-text-primary);
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: var(--space-4);
+  transition: text-decoration-color var(--duration-hover) ease-out;
+}
+
+.link:hover {
+  text-decoration-color: var(--color-text-primary);
+}
