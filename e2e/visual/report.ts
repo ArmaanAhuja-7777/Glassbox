@@ -40,7 +40,7 @@ export function writeReport(folder: URL, rows: readonly ReportRow[]): URL {
 body{margin:24px;background:#0b0c0e;color:#edeff2;font:13px/20px system-ui,sans-serif}
 h1{font-size:20px}h2{font-size:15px;margin-top:32px}table{border-collapse:collapse}
 th,td{border-bottom:1px solid #2c323a;padding:8px 12px;text-align:left;vertical-align:top}
-img{display:block;max-width:560px;height:auto;zoom:.5}.muted{color:#818995}.pass{color:#9fc2ad}.fail{color:#cfa09f}
+img{display:block;max-width:560px;height:auto;zoom:.5}.muted{color:#818995}.pass{color:#65b186}.fail{color:#e39289}
 </style></head><body><h1>Figma comparison</h1>
 <p class="muted">Figma exports (dark, 2x) next to our components rendered at 2x. Red pixels in the difference image differ beyond the colour threshold; anti-aliasing is ignored. Screen crops contain different content, so they are reviewed by eye.</p>
 ${sections}</body></html>`;

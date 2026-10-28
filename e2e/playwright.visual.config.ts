@@ -10,7 +10,8 @@ export default defineConfig({
   // Screenshot baselines are only comparable on the same OS and browser build; {platform} keeps them apart.
   snapshotPathTemplate: '{testDir}/__screenshots__/{arg}-{platform}{ext}',
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report-visual' }]],
-  expect: { toHaveScreenshot: { animations: 'disabled', caret: 'hide' } },
+  // threshold 0: any colour change counts. Playwright's default (0.2) let a whole palette change pass unnoticed.
+  expect: { toHaveScreenshot: { animations: 'disabled', caret: 'hide', threshold: 0 } },
   use: {
     baseURL: storybookUrl,
     // Figma exports are 2x, so we render at 2x too.
