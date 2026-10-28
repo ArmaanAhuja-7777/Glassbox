@@ -9,7 +9,11 @@ export default defineConfig({
   forbidOnly: isCi,
   // Screenshot baselines are only comparable on the same OS and browser build; {platform} keeps them apart.
   snapshotPathTemplate: '{testDir}/__screenshots__/{arg}-{platform}{ext}',
-  reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report-visual' }]],
+  reporter: [
+    ['list'],
+    ['html', { open: 'never', outputFolder: 'playwright-report-visual' }],
+    ['json', { outputFile: 'reports-data/visual.json' }],
+  ],
   // threshold 0: any colour change counts. Playwright's default (0.2) let a whole palette change pass unnoticed.
   expect: {
     toHaveScreenshot: {

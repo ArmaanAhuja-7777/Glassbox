@@ -77,6 +77,8 @@ push / merge        ──► Cloudflare Workers Builds (project flowcanvas-cata
                         catalogue from main: flowcanvas-catalogue.<subdomain>.workers.dev (packages/ui/wrangler.jsonc)
 push / PR           ──► GitHub Actions CI (lint, typecheck, unit, build, e2e): defined in .github/workflows/ci.yml,
                         currently unable to start (account billing lock; docs/upgrade-later.md item 8)
+test runs           ──► e2e/scripts/publish-report.ts ──► Worker flowcanvas-reports (ADR 0011): one version per run,
+                        alias per PR (pr-<n>-flowcanvas-reports.<subdomain>.workers.dev), main address = latest from main
 control plane       ──► docker build -f services/control-plane/Dockerfile .  (local only; deploy deferred to phase 1c)
 ```
 

@@ -11,9 +11,12 @@ export default defineConfig({
   testDir: './try-it',
   forbidOnly: isCi,
   retries: isCi ? 2 : 0,
-  reporter: isCi
-    ? [['github'], ['html', { open: 'never' }]]
-    : [['list'], ['html', { open: 'never' }]],
+  // The JSON summary feeds the published reports page (scripts/publish-report.ts).
+  reporter: [
+    isCi ? ['github'] : ['list'],
+    ['html', { open: 'never' }],
+    ['json', { outputFile: 'reports-data/walkthroughs.json' }],
+  ],
   use: {
     baseURL: externalBaseUrl ?? localPreviewUrl,
   },

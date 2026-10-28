@@ -1,0 +1,9 @@
+# Security headers for the test-reports site (its own Worker and origin, ADR 0011).
+# Playwright's HTML report and trace viewer need inline scripts and styles, blob: media and a service worker,
+# so this policy is looser than the app's; that's why reports never share an origin with the app.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  X-Robots-Tag: noindex, nofollow
