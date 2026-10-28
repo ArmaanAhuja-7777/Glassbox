@@ -6920,7 +6920,7 @@ The CI parts can only run on GitHub once the billing lock is cleared. Until then
 | 2 | Video and trace for every end-to-end test; one walkthrough file per phase (`e2e/try-it/`) | done · see commit below · Claude |
 | 3 | `flowcanvas-reports` Worker: publish a run's report with videos at its own URL (owner: Cloudflare API token) | done · see commit below · Claude (code) + owner (token, secrets, `wrangler login`) · ADR 0011 |
 | 4a | Visual tests in Playwright's Docker image, locally and in CI (one set of baselines) | done · see commit below · Claude · ADR 0012 |
-| 4b | CI workflow: checks, visual, walkthroughs against the deployed preview or staging, publish the report, comment on the PR; verified with `actionlint` and `act` | *planned* |
+| 4b | CI workflow: checks, visual, walkthroughs against the deployed preview or staging, publish the report, comment on the PR; verified with `actionlint` and `act` | done · `7b8536e` · Claude (owner: `act`, repo variable) · first GitHub run waits for upgrade-later 8 |
 | 5 | What's new: `CHANGELOG.md` turned into data at build time; panel in the app | *planned* |
 | 6 | Labs: typed switch list (off by default, marked as preview), Settings → Labs page | *planned* |
 | 7 | Test corpus: six pinned private copies (owner creates them), `corpus/manifest.json`, a check of commit, licence and stack | *planned* |
@@ -7594,4 +7594,340 @@ pnpm test:visual:update     # only after reviewing a deliberate visual change
 - **Don't run `pnpm install` inside the container.** It shares your `node_modules`.
 
 **Commit:** `test(e2e): run visual tests in the Playwright Docker image`
+
+### Step 1b.4b — The CI workflow
+
+**Goal:** on every PR and every push to `main`, GitHub Actions does everything with no manual steps:
+1. checks
+2. visual tests (in the Playwright image)
+3. walkthroughs against the **deployed** preview, or staging on `main`
+4. publishing the report
+5. one PR comment with the links
+
+Until the billing lock is lifted, the workflow is verified locally.
+
+**Concepts:**
+- **Jobs, `needs:` and artifacts.** Jobs run on fresh machines; `needs:` orders them; artifacts carry files between them (both reports go to `publish`). https://docs.github.com/actions/writing-workflows
+- **Container jobs.** `container:` runs a job inside the Playwright image, the same one as `pnpm test:visual` locally (ADR 0012). A first step checks the tag matches `@playwright/test` in the catalog.
+- **Testing what's deployed.** Cloudflare builds the preview while CI runs. `e2e/scripts/wait-for-deploy.ts` reads the page's JavaScript bundle until it contains this commit, with a 10-minute limit, then the walkthroughs run against that URL.
+  - The branch preview address is the branch name lowercased, with every run of other characters turned into `-`, then `-flowcanvas.<subdomain>.workers.dev`.
+  - The subdomain comes from the repo variable `CLOUDFLARE_WORKERS_SUBDOMAIN`.
+- **`if: ${{ !cancelled() }}`** runs `publish` even when tests failed, so failures get a report too. `cancel-in-progress` only for PRs, so every merge to `main` gets its report.
+- **Least privilege.** The workflow is read-only. Only `publish` gets `pull-requests: write`, and only it sees the Cloudflare secrets. Fork PRs have no secrets, so publishing and commenting are skipped instead of failing.
+- **One updating comment.** `gh pr comment --edit-last --create-if-none` edits CI's previous comment instead of adding one per push.
+- **`actionlint`** checks workflow syntax, expressions and shell scripts without running anything. https://github.com/rhysd/actionlint
+- **`act`** runs workflow jobs locally in Docker, from the **committed** state of the commit under test. Uncommitted edits aren't used, exactly as on GitHub. https://nektosact.com
+
+**What changed:**
+- `.github/workflows/ci.yml` rewritten with four jobs: `checks`, `visual`, `walkthroughs`, `publish`. Every action is pinned to a commit SHA; `actions/download-artifact` v8.0.2 is new.
+- `e2e/scripts/wait-for-deploy.ts` (new).
+- `e2e/scripts/publish-report.ts` also writes `reports-data/comment.md`. `PREVIEW_URL` adds the preview link.
+- Owner: `act` installed (`sudo pacman -S act`, 0.2.89); repo variable `CLOUDFLARE_WORKERS_SUBDOMAIN` set.
+
+**`.github/workflows/ci.yml`:**
+
+```yaml
+name: CI
+
+# On every pull request and every push to main: checks, visual tests, walkthroughs against the deployed
+# preview (or staging), then one published report with videos, linked from the PR (phase 1b).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Cancel superseded PR runs; let every main run finish so each merge gets its report.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  # Test the commit that was pushed, not GitHub's temporary merge commit.
+  COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  checks:
+    name: Lint, typecheck, unit tests, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.COMMIT }}
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  visual:
+    name: Visual and accessibility (catalogue)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Same image as `pnpm test:visual` on every machine, so the approved screenshots match (ADR 0012).
+    # Keep the tag equal to @playwright/test in pnpm-workspace.yaml (checked below).
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --ipc=host --init
+    env:
+      FLOWCANVAS_IN_PLAYWRIGHT_IMAGE: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.COMMIT }}
+      - name: Image matches the Playwright version
+        run: |
+          expected="v$(sed -n "s/^  '@playwright\/test': //p" pnpm-workspace.yaml)-noble"
+          grep -q "mcr.microsoft.com/playwright:${expected}" .github/workflows/ci.yml \
+            || { echo "Update the container image in ci.yml to playwright:${expected}"; exit 1; }
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:visual
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: report-visual
+          path: |
+            e2e/playwright-report-visual/
+            e2e/reports-data/visual.json
+          retention-days: 14
+
+  walkthroughs:
+    name: Walkthroughs (try-it) on the deployed app
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --ipc=host --init
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.COMMIT }}
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Cloudflare builds the preview (PRs) or staging (main) at the same time; wait for this exact commit.
+      - name: Wait for the deployment of this commit
+        id: deploy
+        working-directory: e2e
+        env:
+          CLOUDFLARE_WORKERS_SUBDOMAIN: ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            node scripts/wait-for-deploy.ts --branch "$HEAD_REF" --commit "$COMMIT"
+          else
+            node scripts/wait-for-deploy.ts --url "https://flowcanvas.${CLOUDFLARE_WORKERS_SUBDOMAIN}.workers.dev/" --commit "$COMMIT"
+          fi
+      - name: Walkthroughs
+        run: pnpm --filter @flowcanvas/e2e test:e2e
+        env:
+          E2E_BASE_URL: ${{ steps.deploy.outputs.url }}
+          E2E_EXPECTED_COMMIT: ${{ env.COMMIT }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: report-walkthroughs
+          path: |
+            e2e/playwright-report/
+            e2e/reports-data/walkthroughs.json
+          retention-days: 14
+
+  publish:
+    name: Publish report and comment
+    needs: [visual, walkthroughs]
+    # Also after failures, so a failing run still gets a report; never for cancelled runs.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.COMMIT }}
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: report-*
+          path: e2e
+          merge-multiple: true
+      # Secrets aren't available to pull requests from forks; skip publishing there instead of failing.
+      - name: Publish the report
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
+        working-directory: e2e
+        env:
+          PREVIEW_URL: ${{ needs.walkthroughs.outputs.url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            pnpm publish-report --alias "pr-$PR_NUMBER"
+          else
+            pnpm publish-report --alias main --production
+          fi
+      - name: Comment on the pull request
+        if: ${{ github.event_name == 'pull_request' && env.CLOUDFLARE_API_TOKEN != '' && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body-file e2e/reports-data/comment.md
+```
+
+**`e2e/scripts/wait-for-deploy.ts`:**
+
+```ts
+/**
+ * Waits until a deployed copy of the web app serves a given commit, so tests never run against the
+ * previous deployment while Cloudflare is still building (it starts at the same time as CI).
+ *
+ *   node scripts/wait-for-deploy.ts --branch phase/1b-see-and-test --commit <sha>   the branch's preview
+ *   node scripts/wait-for-deploy.ts --url https://flowcanvas.<sub>.workers.dev --commit <sha>   e.g. staging
+ *
+ * The subdomain comes from CLOUDFLARE_WORKERS_SUBDOMAIN. Prints the URL, and writes `url=` to GITHUB_OUTPUT in CI.
+ */
+import { appendFileSync } from 'node:fs';
+import { setTimeout as sleep } from 'node:timers/promises';
+import { parseArgs } from 'node:util';
+
+const WORKER = 'flowcanvas';
+
+function fail(message: string): never {
+  console.error(`wait-for-deploy: ${message}`);
+  process.exit(1);
+}
+
+/**
+ * Cloudflare's branch alias for a Workers Builds preview: lowercase, every run of other characters becomes a
+ * dash, trimmed, and short enough that `<alias>-flowcanvas` fits a 63-character DNS label.
+ */
+function branchAlias(branch: string): string {
+  return branch
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 62 - WORKER.length)
+    .replace(/-+$/, '');
+}
+
+/** The commit the deployment was built from, read from its JavaScript bundle (the version line embeds it). */
+async function servesCommit(base: string, shortCommit: string): Promise<boolean> {
+  const page = await fetch(base, { cache: 'no-store' });
+  if (!page.ok) return false;
+  const html = await page.text();
+  const scripts = [...html.matchAll(/src="(\/assets\/[^"]+\.js)"/g)].map((match) => match[1]);
+  for (const script of scripts) {
+    if (script === undefined) continue;
+    const bundle = await fetch(new URL(script, base), { cache: 'no-store' });
+    if (bundle.ok && (await bundle.text()).includes(shortCommit)) return true;
+  }
+  return false;
+}
+
+async function main(): Promise<void> {
+  const { values } = parseArgs({
+    options: {
+      url: { type: 'string' },
+      branch: { type: 'string' },
+      commit: { type: 'string' },
+      timeout: { type: 'string', default: '600' },
+    },
+  });
+  if (values.commit === undefined || !/^[0-9a-f]{7,40}$/.test(values.commit)) {
+    fail('pass --commit <sha>');
+  }
+  const shortCommit = values.commit.slice(0, 7);
+  let base = values.url;
+  if (base === undefined) {
+    const subdomain = process.env.CLOUDFLARE_WORKERS_SUBDOMAIN;
+    if (values.branch === undefined || subdomain === undefined || subdomain === '') {
+      fail('pass --url, or --branch with CLOUDFLARE_WORKERS_SUBDOMAIN set');
+    }
+    base = `https://${branchAlias(values.branch)}-${WORKER}.${subdomain}.workers.dev/`;
+  }
+
+  const deadline = Date.now() + Number(values.timeout) * 1000;
+  console.log(`Waiting for ${base} to serve ${shortCommit}…`);
+  for (;;) {
+    try {
+      if (await servesCommit(base, shortCommit)) break;
+    } catch (error) {
+      console.log(`  not reachable yet (${(error as Error).message})`);
+    }
+    if (Date.now() > deadline) {
+      fail(
+        `${base} still doesn't serve ${shortCommit} after ${values.timeout} s. Check the Cloudflare build.`,
+      );
+    }
+    await sleep(10_000);
+  }
+  console.log(`${base} serves ${shortCommit}.`);
+  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `url=${base}\n`);
+}
+
+await main();
+```
+
+**Commands (local verification):**
+
+```fish
+docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12          # no output = no problems
+# A sample PR event for this branch (head.sha = the pushed commit under test)
+act pull_request -j checks -e pr-event.json -P ubuntu-24.04=catthehacker/ubuntu:act-24.04 \
+  --var CLOUDFLARE_WORKERS_SUBDOMAIN=ahujaarmaan7777 --artifact-server-path /tmp/act-artifacts
+act pull_request -j visual …          # same flags
+act pull_request -j walkthroughs …    # waits for the branch preview at that commit
+# The publish job's script, with the same inputs:
+PREVIEW_URL=<preview> pnpm --filter @flowcanvas/e2e publish-report --alias pr-test
+```
+
+**Results (29 Oct 2026, commit `7b8536e`):**
+
+| Check | Result |
+| --- | --- |
+| `actionlint` | no problems |
+| `act` checks | all steps pass: install, format, lint, types, unit tests, build |
+| `act` visual | version check, install inside the image, `pnpm test:visual`: 58 passed |
+| `act` walkthroughs | waited until the preview served `7b8536e` (2 s, already built), then 2 passed against it |
+| publish path | `https://pr-test-flowcanvas-reports.ahujaarmaan7777.workers.dev` live; `comment.md` lists the preview, report and run links and both suites' results |
+| Fails when it should | `wait-for-deploy` with a commit that isn't deployed exits 1 after the limit; the version check failed on a commit whose workflow lacked the image |
+
+**Not verifiable locally** (done in upgrade-later 8, before phase 1b is accepted):
+- **`upload-artifact`** fails under `act` with "Unexpected end of JSON input". `act`'s local artifact server doesn't speak the protocol `upload-artifact` v7 uses, so the artifact hand-off to `publish` can't run locally.
+- **The real PR comment** needs a PR and the Actions token.
+
+**Gotchas:**
+- **`act` tests the committed state** of the commit under test. Commit (and push, for the walkthroughs' preview) before running it.
+- **A Playwright upgrade must also change the container tag** in `ci.yml`; the version check fails the run until it does.
+- **Branch names map to preview addresses** by the alias rule above. If Cloudflare ever changes it, pass `--url` to `wait-for-deploy`.
+
+**Commit:** `ci: test the deployed preview, publish reports and comment on PRs`
 

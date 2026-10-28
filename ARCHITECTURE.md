@@ -75,8 +75,10 @@ push to a PR branch ──► Cloudflare Workers Builds ──► build web ─�
 merge to main       ──► Cloudflare Workers Builds ──► build web ──► wrangler deploy ──► staging: flowcanvas.<subdomain>.workers.dev
 push / merge        ──► Cloudflare Workers Builds (project flowcanvas-catalogue) ──► turbo run build-storybook ──► previews per branch,
                         catalogue from main: flowcanvas-catalogue.<subdomain>.workers.dev (packages/ui/wrangler.jsonc)
-push / PR           ──► GitHub Actions CI (lint, typecheck, unit, build, e2e): defined in .github/workflows/ci.yml,
-                        currently unable to start (account billing lock; docs/upgrade-later.md item 8)
+push / PR           ──► GitHub Actions CI (.github/workflows/ci.yml): checks · visual in the Playwright image ·
+                        walkthroughs against the PR preview (or staging on main) once it serves the commit ·
+                        publish to flowcanvas-reports + one PR comment. Can't start yet (billing lock, upgrade-later 8);
+                        verified locally with actionlint and act
 test runs           ──► e2e/scripts/publish-report.ts ──► Worker flowcanvas-reports (ADR 0011): one version per run,
                         alias per PR (pr-<n>-flowcanvas-reports.<subdomain>.workers.dev), main address = latest from main
 control plane       ──► docker build -f services/control-plane/Dockerfile .  (local only; deploy deferred to phase 1c)
