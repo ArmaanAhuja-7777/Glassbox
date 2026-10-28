@@ -30,7 +30,12 @@ const COMPONENTS = [
     folder: 'tag',
     story: 'components-tag--figma-variants',
     budget: 0.06,
-    overrides: {},
+    overrides: {
+      // Figma still has the muted palette; the tokens moved to Signal (28 Oct 2026). Restore to 6% once
+      // Figma's colour variables are updated and the PNGs re-exported (upgrade-later item 19).
+      'Tone=Accent': 0.09,
+      'Tone=Added': 0.09,
+    },
   },
   {
     folder: 'button',
@@ -51,7 +56,10 @@ const COMPONENTS = [
       'State=Modified': 0.07,
       'State=Failing': 0.07,
       // Figma's selected node is 57 px tall (its 1.5 px stroke rounds the auto height up); ours stays 56.
-      'State=Selected': 0.07,
+      // Plus the outline colour: Figma has the muted steel blue, the tokens Signal blue (was 7%; item 19).
+      'State=Selected': 0.11,
+      // Violet dashed outline vs Figma's muted lavender (was 5%; item 19).
+      'State=Affected': 0.06,
       // Strikethrough (Graphite) and no opacity dimming of the location (contrast).
       'State=Removed': 0.08,
     },

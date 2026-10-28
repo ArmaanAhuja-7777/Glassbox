@@ -98,7 +98,7 @@ There is no video recording: recordings arrive with the see-and-test harness in 
 ## Known issues and follow-ups
 
 - **CI still can't run** (upgrade-later 8). Phase 1 and 1a acceptance both rest on local checks plus Cloudflare previews.
-- **The Figma comparison waits on the Figma update.** Until the owner updates the 20 colour variables and re-exports the 20 component PNGs, `figma.spec.ts` fails on colour. Layout is unchanged.
+- **Figma still shows the old colours** (owner decision: no re-export for now). The four variants the colour change affects have raised budgets: Tag Accent and Added 9%, Flow node Selected 11%, Affected 6%. The other 16 keep theirs. Updating Figma and restoring the budgets is upgrade-later item 19.
 - **Screenshot comparison is now colour-exact** (`threshold: 0`). The default tolerance let a whole palette change pass unnoticed.
 - **Visual baselines are Linux-only.** CI needs its own (upgrade-later 16).
 - **A saved theme can flash on load** (upgrade-later 17).

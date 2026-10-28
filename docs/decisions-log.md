@@ -214,3 +214,4 @@ Signal is close to, but softer than, the original saturated palette replaced on 
 
 **Figma:** the file's fills are bound to Figma Variables, so the owner updates 20 colour variables (accent ×5, states ×15) and re-exports the 20 component PNGs. Until then, the Figma comparison test fails on colour (Tag up to 8.3%, Flow node Selected 10.1%, against budgets of 6–7%).
 
+**Update 29 Oct 2026:** the owner decided not to update Figma or re-export now (only colours changed). The four affected Figma-comparison budgets were raised, with the reason in the test file, and restoring them is upgrade-later item 19.
