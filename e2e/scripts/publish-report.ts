@@ -6,6 +6,7 @@
  *   node scripts/publish-report.ts --alias main --production   also make it the Worker's main address
  *   node scripts/publish-report.ts --alias x --assemble-only   build report-site/ only, for `wrangler dev`
  *
+ * Also writes reports-data/links.json and reports-data/comment.md (the PR comment; PREVIEW_URL adds the preview).
  * Needs Wrangler credentials: `wrangler login` locally, CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in CI.
  */
 import { spawnSync } from 'node:child_process';
@@ -69,6 +70,48 @@ function git(...args: string[]): string {
 const escape = (text: string): string =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+function countsText(summary: Summary): string {
+  return [
+    `${String(summary.passed)} passed`,
+    summary.failed > 0 ? `${String(summary.failed)} failed` : '',
+    summary.flaky > 0 ? `${String(summary.flaky)} flaky` : '',
+    summary.skipped > 0 ? `${String(summary.skipped)} skipped` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/** The PR comment. The marker lets CI find and edit its own comment instead of adding a new one per push. */
+function commentBody(
+  sections: readonly Section[],
+  commit: string,
+  aliasUrl: string | undefined,
+  versionUrl: string | undefined,
+): string {
+  const preview = process.env.PREVIEW_URL;
+  const rows = sections.map(
+    ({ name, summary }) =>
+      `| ${name} | ${summary.failed > 0 ? '❌' : '✅'} ${countsText(summary)} |`,
+  );
+  return [
+    '<!-- flowcanvas-ci -->',
+    `### Preview and test report for \`${commit.slice(0, 7)}\``,
+    '',
+    ...(preview !== undefined && preview !== '' ? [`- **Preview:** ${preview}`] : []),
+    ...(aliasUrl !== undefined
+      ? [`- **Test report:** ${aliasUrl} (videos and traces under Walkthroughs)`]
+      : []),
+    ...(versionUrl !== undefined
+      ? [`- This run only: ${versionUrl} (may expire; the link above always shows the latest run)`]
+      : []),
+    '',
+    '| Suite | Result |',
+    '| --- | --- |',
+    ...rows,
+    '',
+  ].join('\n');
+}
+
 function indexPage(
   sections: readonly Section[],
   commit: string,
@@ -78,14 +121,7 @@ function indexPage(
   const rows = sections
     .map(({ name, folder, summary }) => {
       const state = summary.failed > 0 ? 'failed' : 'passed';
-      const counts = [
-        `${String(summary.passed)} passed`,
-        summary.failed > 0 ? `${String(summary.failed)} failed` : '',
-        summary.flaky > 0 ? `${String(summary.flaky)} flaky` : '',
-        summary.skipped > 0 ? `${String(summary.skipped)} skipped` : '',
-      ]
-        .filter(Boolean)
-        .join(' · ');
+      const counts = countsText(summary);
       return `<li><a href="${folder}/">${escape(name)}</a><span class="${state}">${escape(counts)}</span></li>`;
     })
     .join('\n');
@@ -223,6 +259,10 @@ function main(): void {
 
   const links = { commit, branch, alias, aliasUrl, versionUrl, productionUrl, sections };
   writeFileSync(path('reports-data/links.json'), `${JSON.stringify(links, null, 2)}\n`);
+  writeFileSync(
+    path('reports-data/comment.md'),
+    commentBody(sections, commit, aliasUrl, versionUrl),
+  );
   const lines = [
     `Report for ${message}`,
     aliasUrl ? `  latest for ${alias}: ${aliasUrl}` : '',

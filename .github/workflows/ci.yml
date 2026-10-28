@@ -1,5 +1,8 @@
 name: CI
 
+# On every pull request and every push to main: checks, visual tests, walkthroughs against the deployed
+# preview (or staging), then one published report with videos, linked from the PR (phase 1b).
+
 on:
   pull_request:
   push:
@@ -7,13 +10,16 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel superseded PR runs; let every main run finish so each merge gets its report.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
+  # Test the commit that was pushed, not GitHub's temporary merge commit.
+  COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   checks:
@@ -23,8 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Test the commit that was pushed, not GitHub's temporary merge commit.
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ env.COMMIT }}
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -37,29 +42,132 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
-  e2e:
-    name: End-to-end (Playwright)
+  visual:
+    name: Visual and accessibility (catalogue)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
+    # Same image as `pnpm test:visual` on every machine, so the approved screenshots match (ADR 0012).
+    # Keep the tag equal to @playwright/test in pnpm-workspace.yaml (checked below).
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --ipc=host --init
+    env:
+      FLOWCANVAS_IN_PLAYWRIGHT_IMAGE: 1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ env.COMMIT }}
+      - name: Image matches the Playwright version
+        run: |
+          expected="v$(sed -n "s/^  '@playwright\/test': //p" pnpm-workspace.yaml)-noble"
+          grep -q "mcr.microsoft.com/playwright:${expected}" .github/workflows/ci.yml \
+            || { echo "Update the container image in ci.yml to playwright:${expected}"; exit 1; }
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @flowcanvas/e2e exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
-        env:
-          E2E_EXPECTED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      - run: pnpm test:visual
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report
+          name: report-visual
+          path: |
+            e2e/playwright-report-visual/
+            e2e/reports-data/visual.json
+          retention-days: 14
+
+  walkthroughs:
+    name: Walkthroughs (try-it) on the deployed app
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --ipc=host --init
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.COMMIT }}
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Cloudflare builds the preview (PRs) or staging (main) at the same time; wait for this exact commit.
+      - name: Wait for the deployment of this commit
+        id: deploy
+        working-directory: e2e
+        env:
+          CLOUDFLARE_WORKERS_SUBDOMAIN: ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            node scripts/wait-for-deploy.ts --branch "$HEAD_REF" --commit "$COMMIT"
+          else
+            node scripts/wait-for-deploy.ts --url "https://flowcanvas.${CLOUDFLARE_WORKERS_SUBDOMAIN}.workers.dev/" --commit "$COMMIT"
+          fi
+      - name: Walkthroughs
+        run: pnpm --filter @flowcanvas/e2e test:e2e
+        env:
+          E2E_BASE_URL: ${{ steps.deploy.outputs.url }}
+          E2E_EXPECTED_COMMIT: ${{ env.COMMIT }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: report-walkthroughs
           path: |
             e2e/playwright-report/
-            e2e/test-results/
+            e2e/reports-data/walkthroughs.json
           retention-days: 14
+
+  publish:
+    name: Publish report and comment
+    needs: [visual, walkthroughs]
+    # Also after failures, so a failing run still gets a report; never for cancelled runs.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.COMMIT }}
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: report-*
+          path: e2e
+          merge-multiple: true
+      # Secrets aren't available to pull requests from forks; skip publishing there instead of failing.
+      - name: Publish the report
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
+        working-directory: e2e
+        env:
+          PREVIEW_URL: ${{ needs.walkthroughs.outputs.url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            pnpm publish-report --alias "pr-$PR_NUMBER"
+          else
+            pnpm publish-report --alias main --production
+          fi
+      - name: Comment on the pull request
+        if: ${{ github.event_name == 'pull_request' && env.CLOUDFLARE_API_TOKEN != '' && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body-file e2e/reports-data/comment.md
