@@ -27,3 +27,23 @@ test("phase 1b: what's new in this build", async ({ page }) => {
 
   expect(watch.problems()).toEqual([]);
 });
+
+// Phase 1b · Labs: switches for unfinished features, off by default (Settings → Labs from phase 2).
+test('phase 1b: Labs lists previews of unfinished features', async ({ page }) => {
+  const watch = watchForPageProblems(page);
+
+  await test.step('Open the preview link, then Labs', async () => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Labs' }).click();
+  });
+
+  await test.step('Nothing is in preview yet, and Labs says so', async () => {
+    const labs = page.getByRole('dialog', { name: 'Labs' });
+    await expect(labs).toBeVisible();
+    await expect(labs.getByText(/No previews right now/)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(labs).toBeHidden();
+  });
+
+  expect(watch.problems()).toEqual([]);
+});

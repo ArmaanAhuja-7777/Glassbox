@@ -59,4 +59,12 @@ describe('App', () => {
     render(<App buildInfo={buildInfo} />);
     expect(screen.getByRole('button', { name: "What's new" })).toBeTruthy();
   });
+
+  it('opens Labs, which honestly has no previews yet', async () => {
+    const user = userEvent.setup();
+    render(<App buildInfo={buildInfo} />);
+    await user.click(screen.getByRole('button', { name: 'Labs' }));
+    const labs = screen.getByRole('dialog', { name: 'Labs' });
+    expect(labs.textContent).toContain('No previews right now');
+  });
 });

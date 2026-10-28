@@ -6922,7 +6922,7 @@ The CI parts can only run on GitHub once the billing lock is cleared. Until then
 | 4a | Visual tests in Playwright's Docker image, locally and in CI (one set of baselines) | done · see commit below · Claude · ADR 0012 |
 | 4b | CI workflow: checks, visual, walkthroughs against the deployed preview or staging, publish the report, comment on the PR; verified with `actionlint` and `act` | done · `7b8536e` · Claude (owner: `act`, repo variable) · first GitHub run waits for upgrade-later 8 |
 | 5 | What's new: `CHANGELOG.md` turned into data at build time; panel in the app | done · see commit below · Claude |
-| 6 | Labs: typed switch list (off by default, marked as preview), Settings → Labs page | *planned* |
+| 6 | Labs: typed switch list (off by default, marked as preview), Settings → Labs page | done · see commit below · Claude · on the version page until the phase 2 Settings page |
 | 7 | Test corpus: six pinned private copies (owner creates them), `corpus/manifest.json`, a check of commit, licence and stack | *planned* |
 | 8 | Close phase 1b: docs, report, PR | *planned* |
 
@@ -7986,4 +7986,51 @@ pnpm dev                     # open http://localhost:5173 and click "What's new"
 - **The changelog is rendered as text,** with only bold and code. Links and HTML are shown literally, by design.
 
 **Commit:** `feat(web): What's new panel built from the changelog`
+
+### Step 1b.6 — Labs
+
+**Goal:** unfinished features can go live behind a switch: off by default, marked **Preview**, and switchable by the owner to try them early, while normal use is unaffected and `main` stays shippable.
+
+**Concepts:**
+- **Feature flags.** `<LabsFeature id="…">` renders its contents only while that switch is on. Half-built work merges and deploys but stays invisible.
+- **One typed registry** (`apps/web/src/labs/flags.ts`).
+  - Each switch has an id, label, description of what is unfinished, and the phase that finishes it.
+  - A test enforces the rules: unique kebab-case ids, sentence-case labels, a real description, a phase number.
+  - When a feature is finished, delete its entry and wrappers.
+- **React context** (`LabsProvider`, `useLabs`) holds switch states once for the app. https://react.dev/learn/passing-data-deeply-with-context
+- **Testing without a fake product feature.** The provider takes a `flags` list, so tests inject a test-only switch and the real registry stays empty. The panel then says honestly "No previews right now".
+- **Stored per browser for now** (`localStorage`, key `flowcanvas-labs`). Only known switches that are on are read back; junk and blocked storage mean "everything off". Per account after sign-in: upgrade-later 20.
+- **Accessible switches.** Each `Toggle` is named by its row's label (`aria-labelledby`) and described by its description (`aria-describedby`), so a screen reader hears "Canvas minimap, switch, off, Shows … Finished in phase 2."
+
+**Where it lives:** the build plan says "Settings → Labs". There's no Settings page until the app shell (phase 2), so for now a **Labs** button on the version page opens a Popover with the switches, styled as Figma 17 settings rows.
+
+**What changed:**
+
+| Area | Files |
+| --- | --- |
+| Registry (empty), storage, provider, `LabsFeature`, panel | `apps/web/src/labs/flags.ts`, `storage.ts`, `LabsProvider.tsx`, `LabsPanel.tsx`, `LabsPanel.module.css` |
+| Tests (6): off by default and marked Preview; on shows the feature and is remembered; off hides it; honest empty state; storage tolerance; registry rules | `apps/web/src/labs/labs.test.tsx` |
+| Version page: `LabsProvider` around the app; **Labs** popover | `apps/web/src/App.tsx`; `App.test.tsx` (+1) |
+| Walkthrough: open Labs, it says no previews, Escape closes | `e2e/try-it/phase-1b.spec.ts` |
+| Docs | `ARCHITECTURE.md`; upgrade-later 20 |
+
+**Commands:**
+
+```fish
+pnpm --filter @flowcanvas/web test     # 25 passed
+pnpm test:e2e                          # 4 walkthroughs, recorded
+pnpm dev                               # click Labs
+```
+
+**Run and check it:**
+1. `pnpm dev`, then click **Labs**: "No previews right now. Unfinished features appear here as switches, off by default, so you can try them early."
+2. **Adding a switch later** (for example in phase 2): add an entry to `LABS_FLAGS`, and wrap the feature in `<LabsFeature id="…">`. The switch then appears in Labs, off, with a **Preview** tag; turning it on shows the feature and is remembered in this browser.
+3. Verified 29 Oct 2026: 4 walkthroughs pass locally and under `wrangler dev` with the production CSP; the panel was checked by eye in dark.
+
+**Gotchas:**
+- **Never ship a switch on by default.** If it's ready for everyone, delete the switch.
+- **Don't rename a switch id.** Stored choices would be lost; add a new one instead.
+- **Labs isn't access control.** Anyone can turn a switch on, so never hide something unsafe behind it.
+
+**Commit:** `feat(web): Labs switches for unfinished features`
 

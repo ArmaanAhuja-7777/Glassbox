@@ -1,0 +1,48 @@
+/* Settings rows, as on Figma 17: title and description on the left, the switch on the right. */
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  gap: var(--space-16);
+  align-items: center;
+  justify-content: space-between;
+  padding-block: var(--space-12);
+  border-block-end: var(--border-width-default) solid var(--color-border-subtle);
+}
+
+.row:last-child {
+  border-block-end: 0;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.label {
+  display: flex;
+  gap: var(--space-8);
+  align-items: center;
+  font-family: var(--text-body-strong-font-family);
+  font-size: var(--text-body-strong-font-size);
+  font-weight: var(--text-body-strong-font-weight);
+  line-height: var(--text-body-strong-line-height);
+  color: var(--color-text-primary);
+}
+
+.description,
+.empty {
+  margin: 0;
+  font-family: var(--text-small-font-family);
+  font-size: var(--text-small-font-size);
+  line-height: var(--text-small-line-height);
+  color: var(--color-text-secondary);
+}
