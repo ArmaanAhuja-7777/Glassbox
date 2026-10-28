@@ -2061,7 +2061,7 @@ When phase 1a is done you can:
 | 9 | Flow node (all change states, selected, analysing) | done · `6fef1f8` · Claude · ADR 0009 · shadow `0358bba` |
 | 10 | Figma references + Playwright visual comparison with a side-by-side report | done · `7949c92` + `4a325a0` · exports: owner · tests: Claude |
 | 11 | Version page restyled with tokens; Storybook deployed to a free Cloudflare URL | done · `e708c35` `7d94a63` `26df0ee` `de6e08c` · Claude (repo) + owner (Cloudflare catalogue project) · ADR 0010 · verified on previews of `3231df2` |
-| 12 | Close phase 1a: ADRs, architecture, status, changelog, report, merge | in review · PR open, merge awaits the owner's approval |
+| 12 | Close phase 1a: ADRs, architecture, status, changelog, report, merge | done · `08b2c62` + merge `ec07da3` (PR #3) · Claude · phase accepted by owner 29 Oct 2026 |
 
 ### Step 1a.1 — Design tokens: source, generator and generated package
 
