@@ -7180,6 +7180,7 @@ E2E_BASE_URL=https://phase-1b-see-and-test-flowcanvas.ahujaarmaan7777.workers.de
 - **No video after a passing run:** the mode is `retain-on-failure`, or `video` is set outside the project.
 - **Never commit `test-results/` or `playwright-report/`.** They're in `.gitignore`.
 - **Keep `slowMo` out of the visual suite.**
+- **ESLint must ignore Playwright's output.** With traces always on, `playwright-report/` bundles the trace viewer's JavaScript, and `pnpm lint` failed on it. `eslint.config.js` now ignores `**/playwright-report/`, `**/playwright-report-visual/` and `**/test-results/`. Fixed in a follow-up commit; the step's first commit was pushed with that lint failure, because the commit command didn't stop on the failed check. Chain checks with `&&` before `git commit`.
 - **Word steps as the user would say them.** That's what the owner watches.
 
 **Commit:** `test(e2e): record every walkthrough (video and trace), one try-it file per phase`
