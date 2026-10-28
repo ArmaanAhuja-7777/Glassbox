@@ -7,7 +7,7 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test:visual": "playwright test --config playwright.visual.config.ts",
+    "test:visual": "sh scripts/visual.sh",
     "report": "playwright show-report",
     "publish-report": "node scripts/publish-report.ts"
   },

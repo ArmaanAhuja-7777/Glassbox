@@ -6919,7 +6919,8 @@ The CI parts can only run on GitHub once the billing lock is cleared. Until then
 | 1 | Retire the Figma comparison test (keep our own baselines and axe); docs | done · see commit below · Claude |
 | 2 | Video and trace for every end-to-end test; one walkthrough file per phase (`e2e/try-it/`) | done · see commit below · Claude |
 | 3 | `flowcanvas-reports` Worker: publish a run's report with videos at its own URL (owner: Cloudflare API token) | done · see commit below · Claude (code) + owner (token, secrets, `wrangler login`) · ADR 0011 |
-| 4 | CI workflows: checks, visual tests in Playwright's Docker image, walkthroughs against the PR preview or staging, publish the report, comment the links; verified locally with `act` | *planned* |
+| 4a | Visual tests in Playwright's Docker image, locally and in CI (one set of baselines) | done · see commit below · Claude · ADR 0012 |
+| 4b | CI workflow: checks, visual, walkthroughs against the deployed preview or staging, publish the report, comment on the PR; verified with `actionlint` and `act` | *planned* |
 | 5 | What's new: `CHANGELOG.md` turned into data at build time; panel in the app | *planned* |
 | 6 | Labs: typed switch list (off by default, marked as preview), Settings → Labs page | *planned* |
 | 7 | Test corpus: six pinned private copies (owner creates them), `corpus/manifest.json`, a check of commit, licence and stack | *planned* |
@@ -7523,4 +7524,74 @@ pnpm --filter @flowcanvas/e2e publish-report --alias local-check         # publi
 - **Reports are public by link.** Put them behind Access before phase 1d (upgrade-later 11).
 
 **Commit:** `feat(e2e): publish test reports and recordings to their own Worker`
+
+### Step 1b.4a — Visual tests in Playwright's Docker image
+
+**Goal:** screenshots identical on every machine and in CI, so one set of approved baselines works everywhere (upgrade-later 16).
+
+**Why:** baselines taken on CachyOS differ from Ubuntu's by 1–2% of pixels (font smoothing). With the pixel-exact check, CI would fail every screenshot.
+
+**Concepts:**
+- **Docker images as a fixed environment.** Playwright publishes an image with Ubuntu, the matching browsers and fonts (`mcr.microsoft.com/playwright:v1.64.1-noble`). The same image gives the same pixels anywhere. https://playwright.dev/docs/docker
+- **Running a container as yourself.** `--user "$(id -u):$(id -g)"` makes files written into the mounted repo (screenshots, reports) yours, not root's. `-e HOME=/tmp` gives that user a writable home.
+- **Mounting the repo at the same path,** so pnpm's links in `node_modules` resolve, and the installed packages are reused. Host and image are both x86-64 Linux; never run `pnpm install` inside, which would overwrite yours.
+- **One script, two modes.** In CI the job already runs inside the image (`FLOWCANVAS_IN_PLAYWRIGHT_IMAGE=1`), so the script runs the tests directly instead of starting Docker inside Docker.
+
+**What changed:**
+- `e2e/scripts/visual.sh` (new):
+  - starts the image (the tag follows `@playwright/test` in the catalog)
+  - runs as you, mounts the repo, passes arguments such as `--update-snapshots` to Playwright
+- `e2e/playwright.visual.config.ts`: the Storybook server starts with `node node_modules/vite/bin/vite.js preview` in `packages/ui`, because the image has Node but no pnpm.
+- `e2e/package.json`: `test:visual` is `sh scripts/visual.sh`. Root `test:visual`/`test:visual:update` still build Storybook with Turbo first.
+- **52 of 58 baselines retaken in the image.** They differ only in text smoothing; checked side by side.
+- `docs/adr/0012-visual-tests-in-playwright-docker.md`, `ARCHITECTURE.md`; upgrade-later 16 closed.
+
+**`e2e/scripts/visual.sh`:**
+
+```sh
+#!/bin/sh
+# Runs the visual tests inside Playwright's official Docker image, on every machine and in CI, so screenshots
+# are rendered by the same Linux, browser and fonts everywhere and the approved baselines match pixel for pixel.
+# Arguments are passed to `playwright test` (e.g. --update-snapshots).
+set -eu
+cd "$(dirname "$0")/.."
+
+# Already inside the image (CI's container job, or the docker run below): run the tests directly.
+if [ "${FLOWCANVAS_IN_PLAYWRIGHT_IMAGE:-}" = 1 ]; then
+  exec ./node_modules/.bin/playwright test --config playwright.visual.config.ts "$@"
+fi
+
+# The image version always follows the @playwright/test version in the catalog.
+version=$(sed -n "s/^  '@playwright\/test': //p" ../pnpm-workspace.yaml)
+image="mcr.microsoft.com/playwright:v${version}-noble"
+root=$(cd .. && pwd)
+
+# Reuses the installed node_modules (same Linux platform), runs as you so files aren't owned by root,
+# and mounts the repo at the same path so pnpm's links resolve.
+exec docker run --rm --init --ipc=host \
+  --user "$(id -u):$(id -g)" -e HOME=/tmp -e CI -e FLOWCANVAS_IN_PLAYWRIGHT_IMAGE=1 \
+  -v "$root:$root" -w "$root/e2e" \
+  "$image" sh scripts/visual.sh "$@"
+```
+
+**Commands:**
+
+```fish
+docker pull mcr.microsoft.com/playwright:v1.64.1-noble   # once, about 3.6 GB on disk (pnpm test:visual pulls it if missing)
+pnpm test:visual            # 58 passed, inside the image
+pnpm test:visual:update     # only after reviewing a deliberate visual change
+```
+
+**Run and check it (29 Oct 2026):**
+1. `pnpm test:visual` gives 58 passed. The run shows no Docker output, but `docker ps` during the run shows the Playwright container.
+2. Two repeat runs: 58 passed each.
+3. `stat -c %U e2e/visual/__screenshots__/*.png | sort -u` gives your user, not `root`.
+
+**Gotchas:**
+- **"Cannot connect to the Docker daemon":** start Docker (`systemctl start docker`), and make sure your user is in the `docker` group.
+- **Screenshots or reports owned by root:** the container ran without `--user`. Fix with `sudo chown -R $USER e2e`.
+- **Upgrading Playwright** changes the image tag; review and re-approve the baselines.
+- **Don't run `pnpm install` inside the container.** It shares your `node_modules`.
+
+**Commit:** `test(e2e): run visual tests in the Playwright Docker image`
 

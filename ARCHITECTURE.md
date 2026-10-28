@@ -43,7 +43,7 @@ packages/ui components (CSS Modules; Stylelint rejects raw colours, sizes, fonts
 - **Proof:**
   - `tokens` tests check WCAG contrast in both themes.
   - `ui` tests check behaviour and accessibility.
-  - `pnpm test:visual` compares every story in both themes, pixel for pixel, with approved baselines of our own rendering, and runs axe on each (`e2e/visual/`). Figma is not compared automatically; the owner reviews against it by eye.
+  - `pnpm test:visual` compares every story in both themes, pixel for pixel, with approved baselines of our own rendering, and runs axe on each (`e2e/visual/`). It runs inside Playwright's Docker image on every machine and in CI, so the baselines match everywhere (ADR 0012). Figma is not compared automatically; the owner reviews against it by eye.
 
 ## Tooling
 

@@ -32,8 +32,10 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium' }],
   webServer: {
+    // Vite's own binary, not pnpm: the tests run inside Playwright's Docker image, which has Node but no pnpm.
     command:
-      'pnpm --filter @flowcanvas/ui exec vite preview --outDir storybook-static --host 127.0.0.1 --port 6008 --strictPort',
+      'node node_modules/vite/bin/vite.js preview --outDir storybook-static --host 127.0.0.1 --port 6008 --strictPort',
+    cwd: '../packages/ui',
     url: storybookUrl,
     reuseExistingServer: !isCi,
     timeout: 30_000,
