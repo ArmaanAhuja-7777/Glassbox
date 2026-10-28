@@ -1,0 +1,66 @@
+/* Release notes inside the What's new popover: compact sections, readable lists, code in the mono face. */
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.meta {
+  margin: 0;
+  font-family: var(--text-small-font-family);
+  font-size: var(--text-small-font-size);
+  line-height: var(--text-small-line-height);
+  color: var(--color-text-muted);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--text-small-strong-font-family);
+  font-size: var(--text-small-strong-font-size);
+  font-weight: var(--text-small-strong-font-weight);
+  line-height: var(--text-small-strong-line-height);
+  color: var(--color-text-primary);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding-inline-start: var(--space-16);
+}
+
+.list strong {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.list code {
+  font-family: var(--text-mono-small-font-family);
+  font-size: var(--text-mono-small-font-size);
+  color: var(--color-text-primary);
+}
+
+.earlier {
+  padding-block: var(--space-4);
+}
+
+.earlier summary {
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font-family: var(--text-mono-small-font-family);
+  font-size: var(--text-mono-small-font-size);
+  color: var(--color-text-primary);
+}
+
+.earlier[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}

@@ -44,3 +44,9 @@ export {
   type FlowNodeProps,
   type FlowNodeStatus,
 } from './components/flow-node/FlowNode';
+export {
+  Popover,
+  PopoverButton,
+  PopoverTrigger,
+  type PopoverProps,
+} from './components/popover/Popover';

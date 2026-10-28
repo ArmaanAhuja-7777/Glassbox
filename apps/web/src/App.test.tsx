@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
+import releases from 'virtual:changelog';
 import { App } from './App';
 import { CATALOGUE_URL } from './links';
 
@@ -40,5 +41,22 @@ describe('App', () => {
     expect(document.documentElement.dataset.theme).toBe('light');
     expect(screen.getByRole('button', { name: 'Theme: Light' })).toBeTruthy();
     expect(localStorage.getItem('flowcanvas-theme')).toBe('light');
+  });
+
+  it('marks unseen release notes, shows them on demand, then remembers they were seen', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<App buildInfo={buildInfo} />);
+
+    await user.click(screen.getByRole('button', { name: "What's new (new changes)" }));
+    const dialog = screen.getByRole('dialog', { name: "What's new in 0.1.0" });
+    expect(dialog.textContent).toContain('Phase 1: project skeleton');
+
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('button', { name: "What's new" })).toBeTruthy();
+    expect(localStorage.getItem('flowcanvas-whats-new-seen')).toBe(releases[0]?.version);
+
+    unmount();
+    render(<App buildInfo={buildInfo} />);
+    expect(screen.getByRole('button', { name: "What's new" })).toBeTruthy();
   });
 });

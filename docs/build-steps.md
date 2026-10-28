@@ -6921,7 +6921,7 @@ The CI parts can only run on GitHub once the billing lock is cleared. Until then
 | 3 | `flowcanvas-reports` Worker: publish a run's report with videos at its own URL (owner: Cloudflare API token) | done · see commit below · Claude (code) + owner (token, secrets, `wrangler login`) · ADR 0011 |
 | 4a | Visual tests in Playwright's Docker image, locally and in CI (one set of baselines) | done · see commit below · Claude · ADR 0012 |
 | 4b | CI workflow: checks, visual, walkthroughs against the deployed preview or staging, publish the report, comment on the PR; verified with `actionlint` and `act` | done · `7b8536e` · Claude (owner: `act`, repo variable) · first GitHub run waits for upgrade-later 8 |
-| 5 | What's new: `CHANGELOG.md` turned into data at build time; panel in the app | *planned* |
+| 5 | What's new: `CHANGELOG.md` turned into data at build time; panel in the app | done · see commit below · Claude |
 | 6 | Labs: typed switch list (off by default, marked as preview), Settings → Labs page | *planned* |
 | 7 | Test corpus: six pinned private copies (owner creates them), `corpus/manifest.json`, a check of commit, licence and stack | *planned* |
 | 8 | Close phase 1b: docs, report, PR | *planned* |
@@ -7930,4 +7930,60 @@ PREVIEW_URL=<preview> pnpm --filter @flowcanvas/e2e publish-report --alias pr-te
 - **Branch names map to preview addresses** by the alias rule above. If Cloudflare ever changes it, pass `--url` to `wait-for-deploy`.
 
 **Commit:** `ci: test the deployed preview, publish reports and comment on PRs`
+
+### Step 1b.5 — What's new
+
+**Goal:** an in-app panel listing what changed in this build and how to try it, generated from `CHANGELOG.md` so it can never disagree with the changelog.
+
+**Concepts:**
+- **Build-time data with a Vite virtual module.**
+  - A plugin answers `import releases from 'virtual:changelog'` by reading and parsing the root `CHANGELOG.md` during the build. The app ships plain data with no runtime fetch, and the dev server reloads when the changelog changes.
+  - TypeScript learns the module's type from `src/changelog/virtual-changelog.d.ts`.
+  - Docs: https://vite.dev/guide/api-plugin#virtual-modules-convention
+- **Ambient module declarations and types.** Inside `declare module '…' { }`, a relative `import` statement isn't allowed. `tsc` let it pass, but ESLint's type-aware rules then saw the module as untyped. An inline `import('./parse').ChangelogRelease` type works for both.
+- **Parsing a known format** ([Keep a Changelog](https://keepachangelog.com)):
+  - releases (`## [x.y.z] — date — title`), sections (`### Added`), bullet or numbered items, wrapped lines
+  - `Unreleased` is skipped, because it isn't in any build
+  - inline `**bold**` and `` `code` `` become React elements, **never HTML**, so changelog text can't inject markup (a test checks this)
+- **Guard tests that keep docs honest:** the newest changelog release must equal the root `package.json` version, and every release needs a date and content. Bumping the version without a changelog entry fails `pnpm test`.
+- **Cache inputs again.** `CHANGELOG.md` lives outside `apps/web`, so it's an explicit Turbo input of `@flowcanvas/web#build` and `#test` (the version-bump lesson from 1a).
+- **A reusable Popover** (`@flowcanvas/ui`): a non-modal React Aria `Dialog` in a `Popover`, named by its title. Opens from its trigger (`PopoverButton`) by click, Enter or Space; Escape or an outside click closes it, and focus returns to the trigger. Long content scrolls inside it.
+- **The accessibility check caught a real bug.** axe flagged `scrollable-region-focusable`: keyboard users couldn't scroll a long popover, because nothing inside could take focus. The scroll area is now focusable (`tabIndex={0}`) and shows the focus ring (WCAG 2.1.1).
+- **"Changed since you last looked."** The latest release's version is stored in `localStorage` (`flowcanvas-whats-new-seen`) when the panel opens; reading and writing tolerate blocked storage. Until then, the button shows a small dot in the *modified* hue (Graphite keeps the accent for selection), and its accessible name says "(new changes)".
+
+**What changed:**
+
+| Area | Files |
+| --- | --- |
+| Parser and tests (8, incl. the guard on the real changelog) | `apps/web/src/changelog/parse.ts`, `parse.test.ts` |
+| Vite plugin and type | `apps/web/vite.config.ts` (`changelog()`), `src/changelog/virtual-changelog.d.ts` |
+| Panel content and seen memory | `apps/web/src/whats-new/WhatsNew.tsx`, `.module.css`, `seen.ts`, `WhatsNew.test.tsx` |
+| Version page: "What's new" button with dot and popover | `apps/web/src/App.tsx`, `App.module.css`, `App.test.tsx` |
+| Popover component, tests, stories (6 baselines) | `packages/ui/src/components/popover/` |
+| Changelog: a **Try it** section for 0.2.0; tokens wording updated | `CHANGELOG.md` |
+| Walkthrough | `e2e/try-it/phase-1b.spec.ts` |
+| Turbo inputs | `turbo.json` |
+
+**Commands:**
+
+```fish
+pnpm test                    # web 18 · ui 66 · all packages
+pnpm test:e2e                # 3 walkthroughs (phase 1, 1a, 1b), recorded
+pnpm test:visual             # 64 passed (incl. Popover stories), axe on each
+pnpm dev                     # open http://localhost:5173 and click "What's new"
+```
+
+**Run and check it:**
+1. `pnpm dev` and open the app. **What's new** shows a small amber dot.
+2. Click it: "What's new in 0.2.0" with "Phase 1a: design system in code · 2026-10-28", then **Try it** (numbered), **Added**, **Changed**, **Security**, and **Earlier releases** (0.1.0, folded).
+3. Press Escape: focus returns to the button and the dot is gone. Reload: it stays gone.
+4. Edit `CHANGELOG.md` while `pnpm dev` runs: the panel updates.
+5. Verified 29 Oct 2026: walkthroughs pass under `wrangler dev` with the production CSP; screenshots checked in both themes.
+
+**Gotchas:**
+- **Every release needs a changelog entry** with the same version as `package.json`, or `pnpm test` fails.
+- **Write "Try it" steps in the user's words.** They're what the panel shows first.
+- **The changelog is rendered as text,** with only bold and code. Links and HTML are shown literally, by design.
+
+**Commit:** `feat(web): What's new panel built from the changelog`
 

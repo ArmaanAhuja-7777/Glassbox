@@ -83,3 +83,17 @@
 .link:hover {
   text-decoration-color: var(--color-text-primary);
 }
+
+.controls {
+  display: flex;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+/* "Something changed since you last looked": the modified hue (Graphite keeps the accent for selection). */
+.dot {
+  inline-size: calc(var(--space-4) + var(--space-2));
+  block-size: calc(var(--space-4) + var(--space-2));
+  border-radius: var(--radius-control);
+  background: var(--color-state-modified-solid);
+}

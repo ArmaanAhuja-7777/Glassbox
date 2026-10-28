@@ -6,9 +6,15 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [0.2.0] — 2026-10-28 — Phase 1a: design system in code
 
+### Try it
+
+1. Choose **Theme → Light** on this page; reload, and it stays light.
+2. Open the **component catalogue** from the link here, and flip **dark and light** with the paintbrush in its toolbar.
+3. In the catalogue, look at **Flow node**, **Tag**, **Button** and **Menu**: the Signal colours, the change states and the event menu.
+
 ### Added
 
-- `@flowcanvas/tokens`: the Graphite tokens (muted palette, Slate scale, text styles, spacing, radii, sizes, motion, shadows) as DTCG JSON, generated into CSS variables and typed TypeScript, in a dark theme and a new light theme. Contrast is checked by tests.
+- `@flowcanvas/tokens`: the Graphite tokens (colours, Slate scale, text styles, spacing, radii, sizes, motion, shadows) as DTCG JSON, generated into CSS variables and typed TypeScript, in a dark theme and a new light theme. Contrast is checked by tests.
 - `tools/figma-tokens`: the generator, reading the Figma variables export format.
 - `@flowcanvas/ui`: Button, Tag, Input, Toggle, Tabs, Panel, Menu (icons, details, shortcuts, single-choice picker), Tooltip and Flow node (change states, failing and analysing status, selection, 12 node-type icons), with self-hosted Inter and JetBrains Mono, theme switching and reduced motion.
 - Component catalogue (Storybook) with dark/light switch and accessibility checks, deployed to its own Cloudflare Worker.
