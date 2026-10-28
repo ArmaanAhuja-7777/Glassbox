@@ -1,0 +1,72 @@
+[
+  {
+    "group": "tag",
+    "name": "Tone=Accent",
+    "figma": "tag/Tone=Accent.figma.png",
+    "ours": "tag/Tone=Accent.ours.png",
+    "diff": "tag/Tone=Accent.diff.png",
+    "ratio": 0.07972972972972973,
+    "budget": 0.09,
+    "note": "ours 37×16, Figma 38×16 (incl. effects)"
+  },
+  {
+    "group": "tag",
+    "name": "Tone=Added",
+    "figma": "tag/Tone=Added.figma.png",
+    "ours": "tag/Tone=Added.ours.png",
+    "diff": "tag/Tone=Added.diff.png",
+    "ratio": 0.08333333333333333,
+    "budget": 0.09,
+    "note": "ours 37×16, Figma 38×16 (incl. effects)"
+  },
+  {
+    "group": "tag",
+    "name": "Tone=Affected",
+    "figma": "tag/Tone=Affected.figma.png",
+    "ours": "tag/Tone=Affected.ours.png",
+    "diff": "tag/Tone=Affected.diff.png",
+    "ratio": 0.051351351351351354,
+    "budget": 0.06,
+    "note": "ours 37×16, Figma 38×16 (incl. effects)"
+  },
+  {
+    "group": "tag",
+    "name": "Tone=Modified",
+    "figma": "tag/Tone=Modified.figma.png",
+    "ours": "tag/Tone=Modified.ours.png",
+    "diff": "tag/Tone=Modified.diff.png",
+    "ratio": 0.057207207207207206,
+    "budget": 0.06,
+    "note": "ours 37×16, Figma 38×16 (incl. effects)"
+  },
+  {
+    "group": "tag",
+    "name": "Tone=Neutral",
+    "figma": "tag/Tone=Neutral.figma.png",
+    "ours": "tag/Tone=Neutral.ours.png",
+    "diff": "tag/Tone=Neutral.diff.png",
+    "ratio": 0.04279279279279279,
+    "budget": 0.06,
+    "note": "ours 37×16, Figma 38×16 (incl. effects)"
+  },
+  {
+    "group": "tag",
+    "name": "Tone=Removed",
+    "figma": "tag/Tone=Removed.figma.png",
+    "ours": "tag/Tone=Removed.ours.png",
+    "diff": "tag/Tone=Removed.diff.png",
+    "ratio": 0.05405405405405406,
+    "budget": 0.06,
+    "note": "ours 37×16, Figma 38×16 (incl. effects)"
+  },
+  {
+    "group": "tag",
+    "name": "Tone=Scope",
+    "figma": "tag/Tone=Scope.figma.png",
+    "ours": "tag/Tone=Scope.ours.png",
+    "diff": "tag/Tone=Scope.diff.png",
+    "ratio": 0.057207207207207206,
+    "budget": 0.06,
+    "note": "ours 37×16, Figma 38×16 (incl. effects)"
+  }
+]

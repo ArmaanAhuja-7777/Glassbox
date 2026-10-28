@@ -14,10 +14,7 @@
     "@flowcanvas/web": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
-    "@types/pngjs": "catalog:",
     "eslint": "catalog:",
-    "pixelmatch": "catalog:",
-    "pngjs": "catalog:",
     "typescript": "catalog:"
   }
 }

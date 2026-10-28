@@ -1,0 +1,92 @@
+[
+  {
+    "group": "flow-node",
+    "name": "State=Added",
+    "figma": "flow-node/State=Added.figma.png",
+    "ours": "flow-node/State=Added.ours.png",
+    "diff": "flow-node/State=Added.diff.png",
+    "ratio": 0.06218998015873016,
+    "budget": 0.07,
+    "note": "ours 216×56, Figma 216×56 (incl. effects)"
+  },
+  {
+    "group": "flow-node",
+    "name": "State=Affected",
+    "figma": "flow-node/State=Affected.figma.png",
+    "ours": "flow-node/State=Affected.ours.png",
+    "diff": "flow-node/State=Affected.diff.png",
+    "ratio": 0.052496693121693125,
+    "budget": 0.06,
+    "note": "ours 216×56, Figma 216×56 (incl. effects)"
+  },
+  {
+    "group": "flow-node",
+    "name": "State=Analysing",
+    "figma": "flow-node/State=Analysing.figma.png",
+    "ours": "flow-node/State=Analysing.ours.png",
+    "diff": "flow-node/State=Analysing.diff.png",
+    "ratio": 0.033192791005291,
+    "budget": 0.05,
+    "note": "ours 216×56, Figma 216×56 (incl. effects)"
+  },
+  {
+    "group": "flow-node",
+    "name": "State=Default",
+    "figma": "flow-node/State=Default.figma.png",
+    "ours": "flow-node/State=Default.ours.png",
+    "diff": "flow-node/State=Default.diff.png",
+    "ratio": 0.015873015873015872,
+    "budget": 0.05,
+    "note": "ours 216×56, Figma 216×56 (incl. effects)"
+  },
+  {
+    "group": "flow-node",
+    "name": "State=Failing",
+    "figma": "flow-node/State=Failing.figma.png",
+    "ours": "flow-node/State=Failing.ours.png",
+    "diff": "flow-node/State=Failing.diff.png",
+    "ratio": 0.06706762566137567,
+    "budget": 0.07,
+    "note": "ours 216×56, Figma 216×56 (incl. effects)"
+  },
+  {
+    "group": "flow-node",
+    "name": "State=Modified",
+    "figma": "flow-node/State=Modified.figma.png",
+    "ours": "flow-node/State=Modified.ours.png",
+    "diff": "flow-node/State=Modified.diff.png",
+    "ratio": 0.06605489417989419,
+    "budget": 0.07,
+    "note": "ours 216×56, Figma 216×56 (incl. effects)"
+  },
+  {
+    "group": "flow-node",
+    "name": "State=Removed",
+    "figma": "flow-node/State=Removed.figma.png",
+    "ours": "flow-node/State=Removed.ours.png",
+    "diff": "flow-node/State=Removed.diff.png",
+    "ratio": 0.078145667989418,
+    "budget": 0.08,
+    "note": "ours 216×56, Figma 216×56 (incl. effects)"
+  },
+  {
+    "group": "flow-node",
+    "name": "State=Scope",
+    "figma": "flow-node/State=Scope.figma.png",
+    "ours": "flow-node/State=Scope.ours.png",
+    "diff": "flow-node/State=Scope.diff.png",
+    "ratio": 0.038483796296296294,
+    "budget": 0.05,
+    "note": "ours 216×76, Figma 216×76 (incl. effects)"
+  },
+  {
+    "group": "flow-node",
+    "name": "State=Selected",
+    "figma": "flow-node/State=Selected.figma.png",
+    "ours": "flow-node/State=Selected.ours.png",
+    "diff": "flow-node/State=Selected.diff.png",
+    "ratio": 0.10055230669265756,
+    "budget": 0.11,
+    "note": "ours 216×56, Figma 222×63 (incl. effects)"
+  }
+]

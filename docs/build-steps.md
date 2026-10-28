@@ -6916,7 +6916,7 @@ The CI parts can only run on GitHub once the billing lock is cleared. Until then
 
 | # | Step | Status |
 | --- | --- | --- |
-| 1 | Retire the Figma comparison test (keep our own baselines and axe); docs | *planned* |
+| 1 | Retire the Figma comparison test (keep our own baselines and axe); docs | done · see commit below · Claude |
 | 2 | Video and trace for every end-to-end test; one walkthrough file per phase (`e2e/try-it/`) | *planned* |
 | 3 | `flowcanvas-reports` Worker: publish a run's report with videos at its own URL (owner: Cloudflare API token) | *planned* |
 | 4 | CI workflows: checks, visual tests in Playwright's Docker image, walkthroughs against the PR preview or staging, publish the report, comment the links; verified locally with `act` | *planned* |
@@ -6924,3 +6924,64 @@ The CI parts can only run on GitHub once the billing lock is cleared. Until then
 | 6 | Labs: typed switch list (off by default, marked as preview), Settings → Labs page | *planned* |
 | 7 | Test corpus: six pinned private copies (owner creates them), `corpus/manifest.json`, a check of commit, licence and stack | *planned* |
 | 8 | Close phase 1b: docs, report, PR | *planned* |
+
+### Step 1b.1 — Retire the Figma comparison test
+
+**Goal:** remove the automated Figma comparison (owner decision, 29 Oct 2026) and everything that existed only for it. Keep the regression check against our own approved screenshots, and axe.
+
+**Why:**
+- Figma is now a reference reviewed by eye.
+- A test for a dropped requirement is noise. It needs limits re-tuned whenever colours change, and it gives false confidence.
+- Deleting the code it needed removes two dependencies to keep updated and patched.
+
+**Concept: removing a test safely.** Search for every reference before deleting, so no helper, dependency, script, ignore rule or doc is left dangling. Here: `git grep -n "pixelmatch\|pngjs\|images.js\|report.js\|figma-exports\|visual-report\|figma.spec"`. Then run the whole suite and confirm the rest still passes.
+
+**What changed:**
+
+| Change | Files |
+| --- | --- |
+| Deleted the Figma test and its helpers | `e2e/visual/figma.spec.ts`, `images.ts`, `report.ts` |
+| Removed dependencies only it used | `pixelmatch`, `pngjs`, `@types/pngjs` (e2e `package.json`, catalog, lockfile) |
+| Deleted the three "Figma Variants" stories and their 6 baselines | `Tag`, `Button`, `FlowNode` stories; `e2e/visual/__screenshots__/components-*--figma-variants-*` |
+| Dropped the unused ignore rule | `.gitignore` (`visual-report/`) |
+| Exports kept as reference images, with a note | `docs/reference/figma-exports/README.md` |
+| Docs | `ARCHITECTURE.md` (visual tests, token source) |
+
+**A flake found, and its cause removed:**
+- **What happened:** the first run after the change failed one screenshot by 2 pixels: the rounded corners of the Flow node that is both *added* and *analysing* (Combinations, dark).
+- **Cause:** the browser draws animated elements (the analysing shimmer) on their own compositor layer, and their anti-aliased edges can differ by a shade between runs. With pixel-exact baselines (`threshold: 0`, since step 1a.12), that shows up as a change.
+- **Fix:** rather than loosen the check, `e2e/visual/screenshot.css` (wired in through `stylePath` in `playwright.visual.config.ts`) turns all animations and transitions off while a screenshot is taken.
+- **Result:** nothing visible changed (all 58 baselines still matched), and four consecutive runs passed.
+
+```css
+/* e2e/visual/screenshot.css */
+*,
+*::before,
+*::after {
+  animation: none !important;
+  transition: none !important;
+}
+```
+
+Docs: https://playwright.dev/docs/api/class-pageassertions#page-assertions-to-have-screenshot-1-option-style-path
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm lint && pnpm typecheck && pnpm test     # 30 tasks
+pnpm test:visual                             # 58 passed (29 stories × 2 themes), each with axe
+```
+
+**Run and check it:**
+1. `pnpm test:visual` gives 58 passed, with no "Figma comparison report" line.
+2. `git grep -n "pixelmatch\|figma.spec"` finds only history in the docs.
+3. `docs/reference/figma-exports/` still has your exports, with the README.
+
+**Gotchas:**
+- **Playwright never deletes baselines for removed tests.** Remove orphaned PNGs by hand.
+- **Don't change `deviceScaleFactor`.** Every baseline would change.
+- **A pixel-exact check needs a deterministic render.** Freeze anything animated before blaming the check.
+
+**Commit:** `test(e2e): retire the Figma comparison; keep our own baselines and axe`
+

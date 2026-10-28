@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Figma comparison</title>
+    <style>
+      body {
+        margin: 24px;
+        background: #0b0c0e;
+        color: #edeff2;
+        font:
+          13px/20px system-ui,
+          sans-serif;
+      }
+      h1 {
+        font-size: 20px;
+      }
+      h2 {
+        font-size: 15px;
+        margin-top: 32px;
+      }
+      table {
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        border-bottom: 1px solid #2c323a;
+        padding: 8px 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+      img {
+        display: block;
+        max-width: 560px;
+        height: auto;
+        zoom: 0.5;
+      }
+      .muted {
+        color: #818995;
+      }
+      .pass {
+        color: #65b186;
+      }
+      .fail {
+        color: #e39289;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Figma comparison</h1>
+    <p class="muted">
+      Figma exports (dark, 2x) next to our components rendered at 2x. Red pixels in the difference
+      image differ beyond the colour threshold; anti-aliasing is ignored. Screen crops contain
+      different content, so they are reviewed by eye.
+    </p>
+    <h2>button</h2>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Figma</th>
+          <th>Ours</th>
+          <th>Difference</th>
+          <th>Mismatch / budget</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>
+            Kind=Danger
+            <div class="muted">ours 59×28, Figma 59×28 (incl. effects)</div>
+          </th>
+          <td><img src="button/Kind=Danger.figma.png" alt="Figma" /></td>
+          <td><img src="button/Kind=Danger.ours.png" alt="Ours" /></td>
+          <td><img src="button/Kind=Danger.diff.png" alt="Difference" /></td>
+          <td class="pass">2.62% <span class="muted">/ 4.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            Kind=Ghost
+            <div class="muted">ours 59×28, Figma 59×28 (incl. effects)</div>
+          </th>
+          <td><img src="button/Kind=Ghost.figma.png" alt="Figma" /></td>
+          <td><img src="button/Kind=Ghost.ours.png" alt="Ours" /></td>
+          <td><img src="button/Kind=Ghost.diff.png" alt="Difference" /></td>
+          <td class="pass">2.41% <span class="muted">/ 4.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            Kind=Primary
+            <div class="muted">ours 59×28, Figma 59×28 (incl. effects)</div>
+          </th>
+          <td><img src="button/Kind=Primary.figma.png" alt="Figma" /></td>
+          <td><img src="button/Kind=Primary.ours.png" alt="Ours" /></td>
+          <td><img src="button/Kind=Primary.diff.png" alt="Difference" /></td>
+          <td class="pass">2.59% <span class="muted">/ 4.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            Kind=Secondary
+            <div class="muted">ours 59×28, Figma 61×28 (incl. effects)</div>
+          </th>
+          <td><img src="button/Kind=Secondary.figma.png" alt="Figma" /></td>
+          <td><img src="button/Kind=Secondary.ours.png" alt="Ours" /></td>
+          <td><img src="button/Kind=Secondary.diff.png" alt="Difference" /></td>
+          <td class="pass">5.87% <span class="muted">/ 7.0%</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <h2>flow-node</h2>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Figma</th>
+          <th>Ours</th>
+          <th>Difference</th>
+          <th>Mismatch / budget</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>
+            State=Added
+            <div class="muted">ours 216×56, Figma 216×56 (incl. effects)</div>
+          </th>
+          <td><img src="flow-node/State=Added.figma.png" alt="Figma" /></td>
+          <td><img src="flow-node/State=Added.ours.png" alt="Ours" /></td>
+          <td><img src="flow-node/State=Added.diff.png" alt="Difference" /></td>
+          <td class="pass">6.22% <span class="muted">/ 7.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            State=Affected
+            <div class="muted">ours 216×56, Figma 216×56 (incl. effects)</div>
+          </th>
+          <td><img src="flow-node/State=Affected.figma.png" alt="Figma" /></td>
+          <td><img src="flow-node/State=Affected.ours.png" alt="Ours" /></td>
+          <td><img src="flow-node/State=Affected.diff.png" alt="Difference" /></td>
+          <td class="pass">5.25% <span class="muted">/ 6.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            State=Analysing
+            <div class="muted">ours 216×56, Figma 216×56 (incl. effects)</div>
+          </th>
+          <td><img src="flow-node/State=Analysing.figma.png" alt="Figma" /></td>
+          <td><img src="flow-node/State=Analysing.ours.png" alt="Ours" /></td>
+          <td><img src="flow-node/State=Analysing.diff.png" alt="Difference" /></td>
+          <td class="pass">3.32% <span class="muted">/ 5.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            State=Default
+            <div class="muted">ours 216×56, Figma 216×56 (incl. effects)</div>
+          </th>
+          <td><img src="flow-node/State=Default.figma.png" alt="Figma" /></td>
+          <td><img src="flow-node/State=Default.ours.png" alt="Ours" /></td>
+          <td><img src="flow-node/State=Default.diff.png" alt="Difference" /></td>
+          <td class="pass">1.59% <span class="muted">/ 5.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            State=Failing
+            <div class="muted">ours 216×56, Figma 216×56 (incl. effects)</div>
+          </th>
+          <td><img src="flow-node/State=Failing.figma.png" alt="Figma" /></td>
+          <td><img src="flow-node/State=Failing.ours.png" alt="Ours" /></td>
+          <td><img src="flow-node/State=Failing.diff.png" alt="Difference" /></td>
+          <td class="pass">6.71% <span class="muted">/ 7.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            State=Modified
+            <div class="muted">ours 216×56, Figma 216×56 (incl. effects)</div>
+          </th>
+          <td><img src="flow-node/State=Modified.figma.png" alt="Figma" /></td>
+          <td><img src="flow-node/State=Modified.ours.png" alt="Ours" /></td>
+          <td><img src="flow-node/State=Modified.diff.png" alt="Difference" /></td>
+          <td class="pass">6.61% <span class="muted">/ 7.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            State=Removed
+            <div class="muted">ours 216×56, Figma 216×56 (incl. effects)</div>
+          </th>
+          <td><img src="flow-node/State=Removed.figma.png" alt="Figma" /></td>
+          <td><img src="flow-node/State=Removed.ours.png" alt="Ours" /></td>
+          <td><img src="flow-node/State=Removed.diff.png" alt="Difference" /></td>
+          <td class="pass">7.81% <span class="muted">/ 8.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            State=Scope
+            <div class="muted">ours 216×76, Figma 216×76 (incl. effects)</div>
+          </th>
+          <td><img src="flow-node/State=Scope.figma.png" alt="Figma" /></td>
+          <td><img src="flow-node/State=Scope.ours.png" alt="Ours" /></td>
+          <td><img src="flow-node/State=Scope.diff.png" alt="Difference" /></td>
+          <td class="pass">3.85% <span class="muted">/ 5.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            State=Selected
+            <div class="muted">ours 216×56, Figma 222×63 (incl. effects)</div>
+          </th>
+          <td><img src="flow-node/State=Selected.figma.png" alt="Figma" /></td>
+          <td><img src="flow-node/State=Selected.ours.png" alt="Ours" /></td>
+          <td><img src="flow-node/State=Selected.diff.png" alt="Difference" /></td>
+          <td class="pass">10.06% <span class="muted">/ 11.0%</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <h2>Screen crops</h2>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Figma</th>
+          <th>Ours</th>
+          <th>Difference</th>
+          <th>Mismatch / budget</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>
+            Input (focused, mono)
+            <div class="muted">02-clone-repository.png · story components-input--mono</div>
+          </th>
+          <td><img src="screens/input--mono.figma.png" alt="Figma" /></td>
+          <td><img src="screens/input--mono.ours.png" alt="Ours" /></td>
+          <td></td>
+          <td class="muted">review by eye</td>
+        </tr>
+        <tr>
+          <th>
+            Toggle (settings rows)
+            <div class="muted">
+              17-settings-privacy.png · story components-toggle--settings-rows
+            </div>
+          </th>
+          <td><img src="screens/toggle--settings-rows.figma.png" alt="Figma" /></td>
+          <td><img src="screens/toggle--settings-rows.ours.png" alt="Ours" /></td>
+          <td></td>
+          <td class="muted">review by eye</td>
+        </tr>
+        <tr>
+          <th>
+            Tabs (pill: view switch)
+            <div class="muted">06-workspace-after-session.png · story components-tabs--pill</div>
+          </th>
+          <td><img src="screens/tabs--pill.figma.png" alt="Figma" /></td>
+          <td><img src="screens/tabs--pill.ours.png" alt="Ours" /></td>
+          <td></td>
+          <td class="muted">review by eye</td>
+        </tr>
+        <tr>
+          <th>
+            Tabs (underline: inspector)
+            <div class="muted">
+              06-workspace-after-session.png · story components-tabs--underline
+            </div>
+          </th>
+          <td><img src="screens/tabs--underline.figma.png" alt="Figma" /></td>
+          <td><img src="screens/tabs--underline.ours.png" alt="Ours" /></td>
+          <td></td>
+          <td class="muted">review by eye</td>
+        </tr>
+        <tr>
+          <th>
+            Panel (entry points)
+            <div class="muted">
+              06-workspace-after-session.png · story components-panel--entry-points
+            </div>
+          </th>
+          <td><img src="screens/panel--entry-points.figma.png" alt="Figma" /></td>
+          <td><img src="screens/panel--entry-points.ours.png" alt="Ours" /></td>
+          <td></td>
+          <td class="muted">review by eye</td>
+        </tr>
+        <tr>
+          <th>
+            Menu (event context menu)
+            <div class="muted">
+              27-prompt-from-flow-or-event.png · story components-menu--event-actions
+            </div>
+          </th>
+          <td><img src="screens/menu--event-actions.figma.png" alt="Figma" /></td>
+          <td><img src="screens/menu--event-actions.ours.png" alt="Ours" /></td>
+          <td></td>
+          <td class="muted">review by eye</td>
+        </tr>
+      </tbody>
+    </table>
+    <h2>tag</h2>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Figma</th>
+          <th>Ours</th>
+          <th>Difference</th>
+          <th>Mismatch / budget</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>
+            Tone=Accent
+            <div class="muted">ours 37×16, Figma 38×16 (incl. effects)</div>
+          </th>
+          <td><img src="tag/Tone=Accent.figma.png" alt="Figma" /></td>
+          <td><img src="tag/Tone=Accent.ours.png" alt="Ours" /></td>
+          <td><img src="tag/Tone=Accent.diff.png" alt="Difference" /></td>
+          <td class="pass">7.97% <span class="muted">/ 9.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            Tone=Added
+            <div class="muted">ours 37×16, Figma 38×16 (incl. effects)</div>
+          </th>
+          <td><img src="tag/Tone=Added.figma.png" alt="Figma" /></td>
+          <td><img src="tag/Tone=Added.ours.png" alt="Ours" /></td>
+          <td><img src="tag/Tone=Added.diff.png" alt="Difference" /></td>
+          <td class="pass">8.33% <span class="muted">/ 9.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            Tone=Affected
+            <div class="muted">ours 37×16, Figma 38×16 (incl. effects)</div>
+          </th>
+          <td><img src="tag/Tone=Affected.figma.png" alt="Figma" /></td>
+          <td><img src="tag/Tone=Affected.ours.png" alt="Ours" /></td>
+          <td><img src="tag/Tone=Affected.diff.png" alt="Difference" /></td>
+          <td class="pass">5.14% <span class="muted">/ 6.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            Tone=Modified
+            <div class="muted">ours 37×16, Figma 38×16 (incl. effects)</div>
+          </th>
+          <td><img src="tag/Tone=Modified.figma.png" alt="Figma" /></td>
+          <td><img src="tag/Tone=Modified.ours.png" alt="Ours" /></td>
+          <td><img src="tag/Tone=Modified.diff.png" alt="Difference" /></td>
+          <td class="pass">5.72% <span class="muted">/ 6.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            Tone=Neutral
+            <div class="muted">ours 37×16, Figma 38×16 (incl. effects)</div>
+          </th>
+          <td><img src="tag/Tone=Neutral.figma.png" alt="Figma" /></td>
+          <td><img src="tag/Tone=Neutral.ours.png" alt="Ours" /></td>
+          <td><img src="tag/Tone=Neutral.diff.png" alt="Difference" /></td>
+          <td class="pass">4.28% <span class="muted">/ 6.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            Tone=Removed
+            <div class="muted">ours 37×16, Figma 38×16 (incl. effects)</div>
+          </th>
+          <td><img src="tag/Tone=Removed.figma.png" alt="Figma" /></td>
+          <td><img src="tag/Tone=Removed.ours.png" alt="Ours" /></td>
+          <td><img src="tag/Tone=Removed.diff.png" alt="Difference" /></td>
+          <td class="pass">5.41% <span class="muted">/ 6.0%</span></td>
+        </tr>
+        <tr>
+          <th>
+            Tone=Scope
+            <div class="muted">ours 37×16, Figma 38×16 (incl. effects)</div>
+          </th>
+          <td><img src="tag/Tone=Scope.figma.png" alt="Figma" /></td>
+          <td><img src="tag/Tone=Scope.ours.png" alt="Ours" /></td>
+          <td><img src="tag/Tone=Scope.diff.png" alt="Difference" /></td>
+          <td class="pass">5.72% <span class="muted">/ 6.0%</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>

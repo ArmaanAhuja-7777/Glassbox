@@ -14,7 +14,7 @@ The system as it is **today** (end of phase 1a). Kept current at the end of ever
 | `@flowcanvas/graph-model` | `packages/graph-model` | Shared library (browser and Node) | `BuildInfo` type and `formatBuildInfo()`; becomes the flow graph model in phase 6 |
 | `@flowcanvas/engine` | `packages/engine` | Inside each user workspace (later) | Wired-in placeholder package; indexer arrives in phase 4 |
 | `@flowcanvas/workspace-agent` | `workspace/agent` | Inside each user workspace VM (later) | Wired-in placeholder package; daemon arrives in phase 1d |
-| `@flowcanvas/e2e` | `e2e` | Developer machine / CI | Playwright: smoke tests against any URL; visual tests (catalogue baselines, Figma comparison, axe) |
+| `@flowcanvas/e2e` | `e2e` | Developer machine / CI | Playwright: smoke tests against any URL; visual tests (catalogue baselines in both themes, axe) |
 
 Dependencies between packages:
 - `web → ui, graph-model`
@@ -26,7 +26,7 @@ Dependencies between packages:
 ## Design system
 
 ```
-packages/tokens/source/*.tokens.json   (DTCG; a hand-kept seed until Figma variables can be exported: decision A3, upgrade-later 14)
+packages/tokens/source/*.tokens.json   (DTCG; the source of truth for tokens; Figma is a reference only, decisions log 29 Oct 2026)
         │  pnpm --filter @flowcanvas/tokens generate   (tools/figma-tokens; a test fails if the output is stale)
         ▼
 packages/tokens/css/tokens.css  +  src/tokens.generated.ts
@@ -43,7 +43,7 @@ packages/ui components (CSS Modules; Stylelint rejects raw colours, sizes, fonts
 - **Proof:**
   - `tokens` tests check WCAG contrast in both themes.
   - `ui` tests check behaviour and accessibility.
-  - `pnpm test:visual` compares every story in both themes with approved baselines, runs axe on each, and compares the Figma components with the owner's exports within per-variant budgets (`e2e/visual/`).
+  - `pnpm test:visual` compares every story in both themes, pixel for pixel, with approved baselines of our own rendering, and runs axe on each (`e2e/visual/`). Figma is not compared automatically; the owner reviews against it by eye.
 
 ## Tooling
 
@@ -96,5 +96,5 @@ pnpm install
 pnpm dev            # web on http://localhost:5173, control plane on http://127.0.0.1:8080
 pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e
 pnpm --filter @flowcanvas/ui storybook   # catalogue on http://localhost:6006
-pnpm test:visual                         # catalogue baselines, axe, Figma comparison (report: e2e/visual-report/index.html)
+pnpm test:visual                         # catalogue baselines in both themes, axe
 ```
