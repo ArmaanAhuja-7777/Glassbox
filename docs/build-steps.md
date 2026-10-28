@@ -6917,7 +6917,7 @@ The CI parts can only run on GitHub once the billing lock is cleared. Until then
 | # | Step | Status |
 | --- | --- | --- |
 | 1 | Retire the Figma comparison test (keep our own baselines and axe); docs | done · see commit below · Claude |
-| 2 | Video and trace for every end-to-end test; one walkthrough file per phase (`e2e/try-it/`) | *planned* |
+| 2 | Video and trace for every end-to-end test; one walkthrough file per phase (`e2e/try-it/`) | done · see commit below · Claude |
 | 3 | `flowcanvas-reports` Worker: publish a run's report with videos at its own URL (owner: Cloudflare API token) | *planned* |
 | 4 | CI workflows: checks, visual tests in Playwright's Docker image, walkthroughs against the PR preview or staging, publish the report, comment the links; verified locally with `act` | *planned* |
 | 5 | What's new: `CHANGELOG.md` turned into data at build time; panel in the app | *planned* |
@@ -6984,4 +6984,203 @@ pnpm test:visual                             # 58 passed (29 stories × 2 themes
 - **A pixel-exact check needs a deterministic render.** Freeze anything animated before blaming the check.
 
 **Commit:** `test(e2e): retire the Figma comparison; keep our own baselines and axe`
+
+### Step 1b.2 — Record every walkthrough, one file per phase
+
+**Goal:** every end-to-end walkthrough produces a **video** and a **trace**, pass or fail. Each phase's "Try it" steps live in one file named after the phase.
+
+**Why:**
+- The Done-when needs a recording without manual steps; Playwright used to keep videos only for failures.
+- A recording is evidence the owner can check.
+- One file per phase is the regression suite the build plan asks for: every walkthrough ever written runs on every change.
+
+**Concepts:**
+- **Video** (`video: { mode: 'on' }`): a `.webm` of the browser per test. https://playwright.dev/docs/videos
+- **Trace** (`trace: 'on'`): a zip holding the page before and after every action, plus console, network and timings, scrubbed in the Trace Viewer. https://playwright.dev/docs/trace-viewer
+- **`test.step()`:** named parts of a test, worded like the "Try it" column. They show in the report and the trace. https://playwright.dev/docs/api/class-test#test-step
+- **Projects:** a named group of settings; here `try-it` records everything. https://playwright.dev/docs/test-projects
+- **`slowMo`:** a pause after each browser action, 500 ms here, so a 2-second walkthrough becomes a watchable ~5 seconds. It doesn't change what is tested, and it isn't used by the visual suite.
+- **HTML report:** each test with its steps, embedded video and trace link. `playwright show-report` serves it locally.
+
+**What changed:**
+- `e2e/tests/smoke.spec.ts` is split into `e2e/try-it/phase-1.spec.ts` (app loads, shows version and commit) and `e2e/try-it/phase-1a.spec.ts` (Theme → Light, reload keeps it, Theme → Dark, catalogue link). Both fail on any page error or CSP violation.
+- `e2e/try-it/support.ts`: the product version from the root `package.json`, the expected commit from `E2E_EXPECTED_COMMIT`, and `watchForPageProblems()`.
+- `e2e/playwright.config.ts`: `testDir: './try-it'`; one project `try-it` with video and trace on, 1280×720, `slowMo` 500.
+- `e2e/package.json`: script `report` (`playwright show-report`). `e2e/tsconfig.json` includes `try-it`.
+
+**`e2e/playwright.config.ts`:**
+
+```ts
+import { defineConfig, devices } from '@playwright/test';
+
+// Point the tests at any deployed copy (PR preview, staging) with E2E_BASE_URL.
+// Without it, Playwright serves the local production build of apps/web itself.
+const externalBaseUrl = process.env.E2E_BASE_URL;
+const localPreviewUrl = 'http://127.0.0.1:4173';
+const isCi = Boolean(process.env.CI);
+
+export default defineConfig({
+  // One walkthrough file per phase: the build plan's "Try it" steps, run on every change.
+  testDir: './try-it',
+  forbidOnly: isCi,
+  retries: isCi ? 2 : 0,
+  reporter: isCi
+    ? [['github'], ['html', { open: 'never' }]]
+    : [['list'], ['html', { open: 'never' }]],
+  use: {
+    baseURL: externalBaseUrl ?? localPreviewUrl,
+  },
+  projects: [
+    {
+      // Every walkthrough is recorded, pass or fail, so anyone can watch exactly what was checked.
+      name: 'try-it',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+        video: { mode: 'on', size: { width: 1280, height: 720 } },
+        trace: 'on',
+        // A short pause after each browser action, so the video is watchable; it doesn't change what is tested.
+        launchOptions: { slowMo: 500 },
+      },
+    },
+  ],
+  ...(externalBaseUrl
+    ? {}
+    : {
+        webServer: {
+          command:
+            'pnpm --filter @flowcanvas/web exec vite preview --host 127.0.0.1 --port 4173 --strictPort',
+          url: localPreviewUrl,
+          reuseExistingServer: !isCi,
+          timeout: 30_000,
+        },
+      }),
+});
+```
+
+**`e2e/try-it/support.ts`:**
+
+```ts
+import { readFileSync } from 'node:fs';
+import type { Page } from '@playwright/test';
+
+// The product version lives in the root package.json; the page must show exactly that.
+export const { version } = JSON.parse(
+  readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
+) as { version: string };
+
+/** Short commit the build under test must show, when the run knows it (CI, or a preview check). */
+export const expectedCommit = process.env.E2E_EXPECTED_COMMIT?.slice(0, 7);
+
+/**
+ * Collects uncaught page errors and Content-Security-Policy violations for the whole walkthrough.
+ * Call it before the first navigation; assert that `problems()` is empty at the end.
+ */
+export function watchForPageProblems(page: Page): { problems: () => string[] } {
+  const found: string[] = [];
+  page.on('pageerror', (error) => found.push(`page error: ${error.message}`));
+  page.on('console', (message) => {
+    if (message.type() === 'error' && message.text().includes('Content Security Policy')) {
+      found.push(`CSP: ${message.text()}`);
+    }
+  });
+  return { problems: () => [...found] };
+}
+```
+
+**`e2e/try-it/phase-1.spec.ts`:**
+
+```ts
+import { expect, test } from '@playwright/test';
+import { expectedCommit, version, watchForPageProblems } from './support.js';
+
+// Phase 1 · Try it: open the staging link; the app loads and shows its version.
+test('phase 1: the app loads and shows its version', async ({ page }) => {
+  const watch = watchForPageProblems(page);
+
+  await test.step('Open the preview link', async () => {
+    await page.goto('/');
+    await expect(page).toHaveTitle('Flowcanvas');
+    await expect(page.getByRole('heading', { name: 'Flowcanvas' })).toBeVisible();
+  });
+
+  await test.step('The page shows the version and the commit it was built from', async () => {
+    const buildLine = expectedCommit
+      ? `${version} · ${expectedCommit}`
+      : new RegExp(`^${version.replaceAll('.', '\\.')} · [0-9a-f]{7}$`);
+    await expect(page.getByText(buildLine)).toBeVisible();
+  });
+
+  expect(watch.problems()).toEqual([]);
+});
+```
+
+**`e2e/try-it/phase-1a.spec.ts`:**
+
+```ts
+import { expect, test } from '@playwright/test';
+import { watchForPageProblems } from './support.js';
+
+// Phase 1a · Try it: open the component catalogue, flip dark and light, compare with Figma.
+// The app side of it: the theme menu and the link to the catalogue (which lives on its own origin).
+test('phase 1a: switch theme and open the component catalogue', async ({ page }) => {
+  const watch = watchForPageProblems(page);
+
+  await test.step('Open the preview link', async () => {
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: /^Theme: / })).toBeVisible();
+  });
+
+  await test.step('Choose Theme → Light', async () => {
+    await page.getByRole('button', { name: /^Theme: / }).click();
+    await page.getByRole('menuitemradio', { name: 'Light' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await expect(page.getByRole('button', { name: 'Theme: Light' })).toBeVisible();
+  });
+
+  await test.step('Reload: the choice is remembered', async () => {
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Theme: Light' })).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  });
+
+  await test.step('Choose Theme → Dark', async () => {
+    await page.getByRole('button', { name: 'Theme: Light' }).click();
+    await page.getByRole('menuitemradio', { name: 'Dark' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  });
+
+  await test.step('The catalogue link points to the component catalogue', async () => {
+    await expect(page.getByRole('link', { name: 'Open the component catalogue' })).toHaveAttribute(
+      'href',
+      /^https:\/\/flowcanvas-catalogue\./,
+    );
+  });
+
+  expect(watch.problems()).toEqual([]);
+});
+```
+
+**Commands:**
+
+```fish
+pnpm test:e2e                                  # 2 passed; builds the web app first
+pnpm --filter @flowcanvas/e2e report           # opens the report: steps, video and trace per walkthrough
+E2E_BASE_URL=https://phase-1b-see-and-test-flowcanvas.ahujaarmaan7777.workers.dev \
+  E2E_EXPECTED_COMMIT=(git rev-parse HEAD) pnpm --filter @flowcanvas/e2e test:e2e   # against the branch preview
+```
+
+**Run and check it:**
+1. `pnpm test:e2e` gives `2 passed`.
+2. `pnpm --filter @flowcanvas/e2e report`: open each test. You see its named steps, a video of the browser doing them, and a trace (click it, then scrub the timeline).
+3. `e2e/test-results/` has a `video.webm` and a `trace.zip` for **both** tests (about 1 MB in total).
+4. Verified 29 Oct 2026 against the branch preview at `1d23c3b`: 2 passed.
+
+**Gotchas:**
+- **No video after a passing run:** the mode is `retain-on-failure`, or `video` is set outside the project.
+- **Never commit `test-results/` or `playwright-report/`.** They're in `.gitignore`.
+- **Keep `slowMo` out of the visual suite.**
+- **Word steps as the user would say them.** That's what the owner watches.
+
+**Commit:** `test(e2e): record every walkthrough (video and trace), one try-it file per phase`
 

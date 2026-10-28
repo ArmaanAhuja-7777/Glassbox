@@ -14,7 +14,7 @@ The system as it is **today** (end of phase 1a). Kept current at the end of ever
 | `@flowcanvas/graph-model` | `packages/graph-model` | Shared library (browser and Node) | `BuildInfo` type and `formatBuildInfo()`; becomes the flow graph model in phase 6 |
 | `@flowcanvas/engine` | `packages/engine` | Inside each user workspace (later) | Wired-in placeholder package; indexer arrives in phase 4 |
 | `@flowcanvas/workspace-agent` | `workspace/agent` | Inside each user workspace VM (later) | Wired-in placeholder package; daemon arrives in phase 1d |
-| `@flowcanvas/e2e` | `e2e` | Developer machine / CI | Playwright: smoke tests against any URL; visual tests (catalogue baselines in both themes, axe) |
+| `@flowcanvas/e2e` | `e2e` | Developer machine / CI | Playwright: one recorded walkthrough per phase (`try-it/`, video and trace) against any URL; visual tests (catalogue baselines in both themes, axe) |
 
 Dependencies between packages:
 - `web → ui, graph-model`
