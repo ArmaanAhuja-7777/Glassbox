@@ -8238,5 +8238,11 @@ GITHUB_TOKEN=(gh auth token) pnpm corpus:check                     # 6 of 6
 docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12   # workflow lint
 ```
 
-**Commit:** `chore: release 0.3.0, close phase 1b`
+**A last flake, fixed at its cause:**
+- **What happened:** after the fresh-clone run passed, a repeat run failed one screenshot by 4 pixels, at the end of the "Release notes" button text on the Popover story, with reddish values.
+- **Cause:** subpixel (LCD) text smoothing, which Chrome turns on or off per compositor layer, so it can differ between runs.
+- **Fix:** `launchOptions: { args: ['--disable-lcd-text'] }` in `e2e/playwright.visual.config.ts` gives grey smoothing always.
+- **Result:** 58 baselines retaken, identical to the eye; three consecutive runs passed 64 of 64 (ADR 0012).
+
+**Commits:** `chore: release 0.3.0, close phase 1b` · `test(e2e): grey text smoothing for deterministic screenshots`
 

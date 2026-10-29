@@ -30,3 +30,5 @@ Option 1.
 - **Docker is required** for `pnpm test:visual`. The image is about 3.6 GB on disk, downloaded once.
 - **A Playwright upgrade means a new image,** and possibly new baselines. Review them as a deliberate change.
 - **The walkthroughs don't need this.** They don't compare pixels, and run against deployed previews.
+- **Grey text smoothing only** (`--disable-lcd-text`, added while closing phase 1b). Chrome switches subpixel (LCD) text smoothing on or off per compositor layer, which made a few text pixels differ between otherwise identical runs: 4 pixels on the Popover story. With grey smoothing, 58 baselines were retaken, unchanged to the eye, and three consecutive runs passed.
+

@@ -28,6 +28,9 @@ export default defineConfig({
     // 2x for sharp screenshots; changing it invalidates every baseline.
     ...devices['Desktop Chrome'],
     deviceScaleFactor: 2,
+    // Grey text smoothing only: Chrome turns subpixel (LCD) smoothing on or off per compositor layer, which
+    // made a few text pixels differ between runs (seen on the Popover story). Pixel-exact baselines need one mode.
+    launchOptions: { args: ['--disable-lcd-text'] },
     viewport: { width: 800, height: 900 },
   },
   projects: [{ name: 'chromium' }],
