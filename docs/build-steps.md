@@ -6924,7 +6924,7 @@ The CI parts can only run on GitHub once the billing lock is cleared. Until then
 | 5 | What's new: `CHANGELOG.md` turned into data at build time; panel in the app | done · see commit below · Claude |
 | 6 | Labs: typed switch list (off by default, marked as preview), Settings → Labs page | done · see commit below · Claude · on the version page until the phase 2 Settings page |
 | 7 | Test corpus: six pinned public forks, `corpus/manifest.json`, a check of fork, commit, licence and stack | done · see commit below · Claude (forks created with the owner's approval) |
-| 8 | Close phase 1b: docs, report, PR | *planned* |
+| 8 | Close phase 1b: docs, report, PR | done · see commit below · Claude · phase in review until Actions runs |
 
 ### Step 1b.1 — Retire the Figma comparison test
 
@@ -8216,4 +8216,27 @@ GITHUB_TOKEN=(gh auth token) pnpm corpus:check        # 6 of 6 repos pass
 - **Forks you push to are public.** Never put secrets or real data in them.
 
 **Commit:** `feat(corpus): six pinned public test repos with a fork, commit, licence and stack check`
+
+### Step 1b.8 — Close phase 1b
+
+**Goal:** leave the phase versioned, documented and reviewable: version 0.3.0, the changelog (which feeds What's new), the report, status and architecture, everything re-run on a fresh clone, and a PR. The phase stays **in review** until GitHub Actions can prove the Done-when.
+
+**What changed:**
+- Root `package.json`: version **0.3.0**.
+- `CHANGELOG.md`: `[0.3.0] — 2026-10-29 — Phase 1b`, with **Try it** first, then Added, Changed and Security. The guard test checks that the newest entry equals the version, and What's new shows it.
+- `docs/reports/phase-1b.md`: results per Done-when item (two marked ⚠ until Actions runs), evidence, deviations, ADRs 0011–0012, known issues, the upgrade-later review and the next phase.
+- `docs/STATUS.md` (1b **in review**) and `ARCHITECTURE.md` (end of phase 1b, version 0.3.0).
+
+**Run and check it (the whole phase):**
+
+```fish
+pnpm install
+pnpm format:check && pnpm lint && pnpm typecheck && pnpm test     # 178 unit/component tests
+pnpm build && pnpm test:e2e                                        # 4 recorded walkthroughs
+pnpm test:visual                                                   # 64, in Playwright's Docker image
+GITHUB_TOKEN=(gh auth token) pnpm corpus:check                     # 6 of 6
+docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12   # workflow lint
+```
+
+**Commit:** `chore: release 0.3.0, close phase 1b`
 

@@ -1,6 +1,6 @@
 # Architecture
 
-The system as it is **today** (end of phase 1a). Kept current at the end of every phase. Why things are this way is in `docs/adr/`; what's deferred is in `docs/upgrade-later.md`.
+The system as it is **today** (end of phase 1b). Kept current at the end of every phase. Why things are this way is in `docs/adr/`; what's deferred is in `docs/upgrade-later.md`.
 
 ## Parts
 
@@ -59,9 +59,9 @@ packages/ui components (CSS Modules; Stylelint rejects raw colours, sizes, fonts
 ## How the version and commit travel
 
 ```
-git commit ──► root package.json "version" (0.2.0; a Turbo input of the web build)
+git commit ──► root package.json "version" (0.3.0; a Turbo input of the web build)
            └─► commit SHA
-                 ├─ web build:     FLOWCANVAS_COMMIT (root `build` script, or Cloudflare's clone) → Vite `define` __FLOWCANVAS_BUILD__ → page text "0.2.0 · abc1234"
+                 ├─ web build:     FLOWCANVAS_COMMIT (root `build` script, or Cloudflare's clone) → Vite `define` __FLOWCANVAS_BUILD__ → page text "0.3.0 · abc1234"
                  └─ control plane: FLOWCANVAS_COMMIT (env / Docker build arg) or `git rev-parse` in dev → GET /health
 ```
 
@@ -85,7 +85,7 @@ test runs           ──► e2e/scripts/publish-report.ts ──► Worker flo
 control plane       ──► docker build -f services/control-plane/Dockerfile .  (local only; deploy deferred to phase 1c)
 ```
 
-## Security posture (phase 1a)
+## Security posture (phase 1b)
 
 - Static UI with a strict Content-Security-Policy (`apps/web/public/_headers`); no inline scripts or styles anywhere in the app (React Aria's injected style is pre-empted).
 - The catalogue runs on its own origin with a looser CSP that Storybook needs (`packages/ui/.storybook/public/_headers`, ADR 0010); it has no cookies or data.
