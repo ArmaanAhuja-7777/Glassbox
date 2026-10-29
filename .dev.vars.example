@@ -1,0 +1,6 @@
+# Local secrets for `wrangler dev` (copy to .dev.vars, which git ignores). Never commit real values.
+DATABASE_URL=postgresql://user:password@ep-example.region.aws.neon.tech/flowcanvas?sslmode=require
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=

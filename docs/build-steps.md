@@ -8295,3 +8295,64 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 **After the merge:** the `main` run (https://github.com/ArmaanAhuja/Flowcanvas/actions/runs/41183867839) passed all four jobs; the walkthroughs ran against staging once it served `157b55f`, and the reports' main address moved to `157b55f`. Phases 1 and 1b accepted (decisions log, 31 Oct 2026).
 
 **Commits:** `docs: move the repository to ArmaanAhuja/Flowcanvas` · `fix(e2e): label the report with the tested commit, not the PR merge commit` · `docs: accept phases 1 and 1b after CI ran on GitHub`
+
+## Phase 1c — Sign-in and control plane
+
+**From the build plan:**
+- **Build:** GitHub and Google sign-in; projects list; workspace records; secrets vault; usage metering skeleton; admin view.
+- **Done when:** a new user signs in, creates a project and sees it listed; saved secrets never appear in logs.
+- **Try it:** sign in with GitHub, create a project, add a secret, confirm the logs show no value.
+
+**Owner decisions (30 Oct 2026, decisions log):**
+- the control plane in the app Worker under `/api`, with free Neon Postgres
+- an allowlist, with the owner as admin
+- sign-in on staging and local development only
+
+**Why this phase matters:** everything from 1d on is per user and per project (workspaces, saved agent keys, usage limits), and this is the first time the product holds sensitive data. Hence the vault and the "never in logs" acceptance test.
+
+**Expected outcome:**
+- At the staging link: sign in with GitHub or Google (allowlisted), and see a projects list.
+- Create a project; add a secret, then shown by name only and never readable back; a workspace-hours meter.
+- An admin page.
+- Canary tests prove secret values never reach logs, responses or pages.
+
+### Steps (planned)
+
+| # | Step | Status |
+| --- | --- | --- |
+| 0 | Owner accounts: Neon database, GitHub OAuth apps (staging + local), Google OAuth client; keys stored as Worker secrets and in `.dev.vars` | *in progress* |
+| 1 | Spike: Hono and Neon on the Workers free plan; ADR | *planned* |
+| 2 | Database schema and migrations | *planned* |
+| 3 | GitHub sign-in, sessions, sign out | *planned* |
+| 4 | Google sign-in, allowlist, admin role | *planned* |
+| 5 | Projects list and create | *planned* |
+| 6 | Secrets vault, Project secrets page, canary tests | *planned* |
+| 7 | Usage metering skeleton and workspace records | *planned* |
+| 8 | Admin view | *planned* |
+| 9 | Logs and redaction across everything; walkthroughs | *planned* |
+| 10 | Close the phase (0.4.0) | *planned* |
+
+### Step 1c.0 — Account setup (owner)
+
+**Goal:** the outside services phase 1c needs, set up on free plans, with every key stored only where it belongs: Cloudflare Worker secrets (staging) and the git-ignored `.dev.vars` (local). Never in the repo, a shell command line or chat.
+
+**Concepts:**
+- **Two environments, two sets of keys.** Staging and local development get separate OAuth apps and separate database branches, so a leaked local key can't touch staging, and local experiments can't damage staging data.
+- **Callback URLs.** After you approve, GitHub and Google send the browser back to a registered address with a one-time code. A GitHub OAuth App accepts exactly one callback URL, hence two apps; a Google client accepts several.
+- **Neon branches.** A Neon project has a `main` branch (staging) and can have a `dev` branch (local): separate copies of the database, both free.
+- **Where secrets live:** `pnpm exec wrangler secret put NAME` prompts for the value and stores it encrypted on the Worker; `.dev.vars` holds local values and is git-ignored.
+
+**Callback URLs:**
+
+| Environment | GitHub | Google |
+| --- | --- | --- |
+| Staging | `https://flowcanvas.ahujaarmaan7777.workers.dev/api/auth/callback/github` | `https://flowcanvas.ahujaarmaan7777.workers.dev/api/auth/callback/google` |
+| Local | `http://localhost:5173/api/auth/callback/github` | `http://localhost:5173/api/auth/callback/google` |
+
+**Values to store:**
+
+| Name | Staging (Worker secret) | Local (`.dev.vars`) |
+| --- | --- | --- |
+| `DATABASE_URL` | Neon `main` branch connection string | Neon `dev` branch connection string |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | "Flowcanvas (staging)" OAuth app | "Flowcanvas (local)" OAuth app |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | the Google client | the same Google client |

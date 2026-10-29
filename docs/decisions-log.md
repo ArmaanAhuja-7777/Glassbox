@@ -272,6 +272,15 @@ Signal is close to, but softer than, the original saturated palette replaced on 
    The evidence files and each licence's SHA-256 are in `corpus/manifest.json`, and `pnpm corpus:check` re-verifies them, also in CI.
 5. **Reports protection deadline relaxed.** Upgrade-later 11 had required protecting the reports site before phase 1d because recordings would show private copies. With public forks it reverts to the general trigger: before reports show real user or project data, or are shared outside the team.
 
+## 30 Oct 2026: phase 1c decisions (owner)
+
+1. **The control plane runs inside the existing app Worker, under `/api`, with a free Neon Postgres database** (option A; no payment method needed).
+   - The service moves from Fastify to a Workers-compatible framework (Hono, same TypeScript).
+   - The API shares the app's origin, so session cookies are first-party and the app's CSP (`connect-src 'self'`) needs no change.
+   - Verified first by a spike (step 1, ADR). Fly.io stays in upgrade-later 12 for when a separate service is needed.
+2. **Sign-in is limited to an allowlist** while in private development, starting with the owner, who is the admin.
+3. **Sign-in works on staging and local development only.** GitHub and Google only redirect to pre-registered addresses, and preview addresses change per branch. Previews show a "sign in on staging" notice.
+
 
 ## 31 Oct 2026: repository moved to another account (owner decision)
 
