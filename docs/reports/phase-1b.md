@@ -1,9 +1,9 @@
 # Phase 1b — See-and-test harness: report
 
 - Version: `0.3.0`
-- Branch: `phase/1b-see-and-test`
+- Branch: `phase/1b-see-and-test`; PR https://github.com/ArmaanAhuja-7777/Glassbox/pull/5, merged as `8a6afbc`
 - Dates: 29 Oct 2026
-- Status: **in review**. It can only be accepted once GitHub Actions runs (upgrade-later 8), because the Done-when is about CI working on GitHub.
+- Status: **in review** (owner decision, 29 Oct 2026). It is accepted once GitHub Actions runs and the upgrade-later item 8 steps pass, because the Done-when is about CI working on GitHub.
 
 ## From the build plan
 
@@ -30,6 +30,14 @@
 | "Open demo project" | ➡ phase 1d (owner decision) | Needs cloud workspaces. 1b delivers the pinned corpus it will open (`corpus/manifest.json`, `pnpm corpus:check`: 6 of 6) |
 | **Done when:** every merged phase produces a link, a report and a recording without manual steps | ⚠ **built, not provable yet** | The workflow (`.github/workflows/ci.yml`) does exactly this, verified job by job with `act`: checks ✅, visual ✅ (58 at that commit), walkthroughs against the preview ✅. Publishing works (`pr-test` report). Unverifiable locally: the artifact hand-off (an `act` limitation) and the real PR comment. **Proven only when Actions runs** (upgrade-later 8) |
 | **Try it:** open the preview, watch the recording in the CI report | ⚠ partly | Preview ✅. The report with recordings is live from a manual publish (link below). The CI-made report waits for Actions |
+
+## After the merge (29 Oct 2026)
+
+| Check | Result |
+| --- | --- |
+| Staging `https://flowcanvas.ahujaarmaan7777.workers.dev` | `wait-for-deploy` saw `8a6afbc`; the 4 walkthroughs passed against it (`E2E_EXPECTED_COMMIT=8a6afbc`) |
+| Catalogue `https://flowcanvas-catalogue.ahujaarmaan7777.workers.dev` | Rebuilt from `main` about a minute after the merge; includes the Popover stories |
+| Reports `https://flowcanvas-reports.ahujaarmaan7777.workers.dev` | Main address moved to the `main` report (published manually with `--production`): commit `8a6afbc`, 4 walkthroughs and 64 visual passed |
 
 ## How to try it
 
