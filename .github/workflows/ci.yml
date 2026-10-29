@@ -41,6 +41,10 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      # The pinned test repos: public forks, commits on their branches, licences unchanged (corpus/manifest.json).
+      - run: pnpm corpus:check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
   visual:
     name: Visual and accessibility (catalogue)

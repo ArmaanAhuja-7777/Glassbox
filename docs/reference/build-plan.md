@@ -7,7 +7,7 @@ Oct 13, 2026 · @Manan
 > **Owner amendments** (details and dates in `docs/decisions-log.md`):
 > - **Colours:** the Signal palette replaces the muted palette (28 Oct 2026).
 > - **No automated Figma comparison:** Figma is a visual reference reviewed by eye, and visual tests compare against our own approved baselines (29 Oct 2026).
-> - **Test corpus:** six varied repos from phase 1b onward (Rallly, Documenso, Inbox Zero, Twenty, Excalidraw, Medusa) instead of two (29 Oct 2026).
+> - **Test corpus:** six varied repos from phase 1b onward instead of two: Rallly, Documenso, LibreChat (replacing Inbox Zero, whose licence restricts commercial use), Twenty, Excalidraw and Medusa, as public forks pinned in `corpus/manifest.json` (29 Oct 2026).
 > - **"Open demo project":** the button moves from 1b to 1d (29 Oct 2026).
 
 ## How this plan works

@@ -6923,7 +6923,7 @@ The CI parts can only run on GitHub once the billing lock is cleared. Until then
 | 4b | CI workflow: checks, visual, walkthroughs against the deployed preview or staging, publish the report, comment on the PR; verified with `actionlint` and `act` | done · `7b8536e` · Claude (owner: `act`, repo variable) · first GitHub run waits for upgrade-later 8 |
 | 5 | What's new: `CHANGELOG.md` turned into data at build time; panel in the app | done · see commit below · Claude |
 | 6 | Labs: typed switch list (off by default, marked as preview), Settings → Labs page | done · see commit below · Claude · on the version page until the phase 2 Settings page |
-| 7 | Test corpus: six pinned private copies (owner creates them), `corpus/manifest.json`, a check of commit, licence and stack | *planned* |
+| 7 | Test corpus: six pinned public forks, `corpus/manifest.json`, a check of fork, commit, licence and stack | done · see commit below · Claude (forks created with the owner's approval) |
 | 8 | Close phase 1b: docs, report, PR | *planned* |
 
 ### Step 1b.1 — Retire the Figma comparison test
@@ -8033,4 +8033,187 @@ pnpm dev                               # click Labs
 - **Labs isn't access control.** Anyone can turn a switch on, so never hide something unsafe behind it.
 
 **Commit:** `feat(web): Labs switches for unfinished features`
+
+### Step 1b.7 — The test corpus
+
+**Goal:** six real, deliberately varied open-source apps, frozen at exact commits, which every phase from 1d on is tested against. Plus an automatic check that they stay as pinned.
+
+**Owner decisions (29 Oct 2026):**
+- **public forks**, not private copies
+- **LibreChat instead of Inbox Zero** (licence)
+- Claude created the forks
+
+**Concepts:**
+- **Why pin a test repo to a commit.** The originals change every day. If tests followed them, a failure could mean "our code broke" or "their code changed", and you couldn't tell which. A pinned commit is a fixed target, re-pinned on purpose.
+- **Forks.** `POST /repos/{owner}/{repo}/forks` (with `default_branch_only`) copies a repo on GitHub's side in seconds, with no download. `gh repo fork` run from inside our repo got confused by our own git remote and silently did nothing; the API call doesn't depend on the current folder.
+- **Reading licences, not just badges.** GitHub's `license` field said `NOASSERTION` for three repos. Reading the files showed:
+  - **Inbox Zero:** AGPL plus extra commercial restrictions (replaced).
+  - **Twenty:** mostly AGPL, with some Enterprise-licensed files and some MIT packages.
+  - **Medusa:** MIT, plus Enterprise Edition materials.
+
+  Documenso, licensed AGPL, also has a commercial `packages/ee`. Rule: never enable those parts.
+- **Evidence over memory.** Each repo's stack was confirmed from its own `package.json` files at the pinned commit. Four guesses were wrong about *where* a dependency lives (for example, Documenso's Prisma is in the root `package.json`), so the manifest records the file that proves each part.
+- **A licence fingerprint.** The SHA-256 of each licence file at the pin. If a re-pin brings a changed licence, the check fails and someone reads it before moving on.
+- **Checking through the API, not by cloning.** `pnpm corpus:check` makes about 35 small API calls; nothing is cloned. `GITHUB_TOKEN` raises the rate limit: locally `GITHUB_TOKEN=(gh auth token)`, in CI the workflow's token.
+- **Testable network code.** `checkRepo()` takes a small `GitHubApi` interface, so the unit tests replace GitHub with fixed answers and cover every failure without the network.
+
+**The corpus** (`corpus/manifest.json`, pinned to each default branch at 2026-10-15T00:00:00Z):
+
+| Repo | Fork | Commit | Licence | Why |
+| --- | --- | --- | --- | --- |
+| Rallly | ArmaanAhuja-7777/rallly | `8e67a21` | AGPL-3.0 | Small Next.js + tRPC + Prisma: the baseline |
+| Documenso | ArmaanAhuja-7777/documenso | `d4e6eea` | AGPL-3.0 (+ commercial `ee`) | React Router, Hono, PDFs, email, BullMQ and Inngest jobs |
+| LibreChat | ArmaanAhuja-7777/LibreChat | `9adabde` | MIT | Express + MongoDB, AI providers, OAuth; React on Vite |
+| Twenty | ArmaanAhuja-7777/twenty | `c3ba140` | AGPL-3.0 (+ Enterprise files, MIT packages) | NestJS, TypeORM, GraphQL, BullMQ; large monorepo |
+| Excalidraw | ArmaanAhuja-7777/excalidraw | `4c37956` | MIT | Client-only Vite + React, canvas, real-time collaboration |
+| Medusa | ArmaanAhuja-7777/medusa | `0b97a96` | MIT (+ Enterprise Edition) | Express-based framework, MikroORM, modules, workflows |
+
+**What changed:**
+- New workspace package `@flowcanvas/corpus`:
+  - `manifest.json`
+  - `src/manifest.ts`: types, and structural rules checked offline
+  - `src/check.ts`: the per-repo check and the GitHub client
+  - `scripts/check-corpus.ts`: the command-line tool
+  - `src/check.test.ts`: 10 offline tests, including every failure case and the real manifest's rules
+- `pnpm-workspace.yaml` includes `corpus`; root script `corpus:check`.
+- CI's checks job runs `pnpm corpus:check` with the workflow token.
+- Docs: the decisions log, the build-plan amendment (LibreChat), `CLAUDE.md` rule 8 (public forks, never copy code, never enable commercial parts), upgrade-later 11 and ADR 0011 (the reports deadline is relaxed), `ARCHITECTURE.md`.
+
+**`corpus/src/check.ts`:**
+
+```ts
+import { createHash } from 'node:crypto';
+import type { CorpusRepo } from './manifest.ts';
+
+/** Minimal GitHub API access, so tests can replace the network with fixed answers. */
+export interface GitHubApi {
+  /** Parsed JSON for an API path, or undefined for 404. */
+  readonly json: (path: string) => Promise<unknown>;
+  /** A file's raw content at a commit, or undefined if it doesn't exist. */
+  readonly raw: (repo: string, file: string, commit: string) => Promise<string | undefined>;
+}
+
+export interface CheckResult {
+  readonly repo: string;
+  readonly ok: boolean;
+  readonly lines: readonly string[];
+}
+
+function dependencies(packageJson: string): Set<string> {
+  const parsed = JSON.parse(packageJson) as Record<string, Record<string, string> | undefined>;
+  return new Set([
+    ...Object.keys(parsed.dependencies ?? {}),
+    ...Object.keys(parsed.devDependencies ?? {}),
+    ...Object.keys(parsed.peerDependencies ?? {}),
+  ]);
+}
+
+/** Checks one pinned repo: the fork, the commit, the licence and the stack evidence. */
+export async function checkRepo(repo: CorpusRepo, api: GitHubApi): Promise<CheckResult> {
+  const lines: string[] = [];
+  let ok = true;
+  const pass = (text: string) => lines.push(`  ✓ ${text}`);
+  const failWith = (text: string) => {
+    ok = false;
+    lines.push(`  ✗ ${text}`);
+  };
+
+  const info = (await api.json(`repos/${repo.fork}`)) as
+    { fork?: boolean; private?: boolean; parent?: { full_name?: string } } | undefined;
+  if (info === undefined) {
+    failWith(`fork ${repo.fork} not found`);
+    return { repo: repo.id, ok, lines };
+  }
+  if (info.fork === true && info.parent?.full_name?.toLowerCase() === repo.upstream.toLowerCase()) {
+    pass(`${repo.fork} is a fork of ${repo.upstream}`);
+  } else {
+    failWith(`${repo.fork} is not a fork of ${repo.upstream}`);
+  }
+  if (info.private === false) pass('public');
+  else failWith('fork must be public (decisions log, 29 Oct 2026)');
+
+  const compare = (await api.json(`repos/${repo.fork}/compare/${repo.commit}...${repo.branch}`)) as
+    { status?: string } | undefined;
+  if (compare?.status === 'ahead' || compare?.status === 'identical') {
+    pass(`commit ${repo.commit.slice(0, 7)} is on ${repo.branch}`);
+  } else {
+    failWith(
+      `commit ${repo.commit.slice(0, 7)} is not on ${repo.branch} (${compare?.status ?? 'not found'})`,
+    );
+  }
+
+  const licence = await api.raw(repo.fork, repo.licence.file, repo.commit);
+  const digest =
+    licence === undefined ? undefined : createHash('sha256').update(licence).digest('hex');
+  if (digest === repo.licence.sha256) pass(`${repo.licence.file} unchanged (${repo.licence.spdx})`);
+  else
+    failWith(
+      `${repo.licence.file} ${licence === undefined ? 'missing' : 'changed'}: review the licence before re-pinning`,
+    );
+
+  for (const evidence of repo.stack) {
+    const file = await api.raw(repo.fork, evidence.file, repo.commit);
+    if (file === undefined) {
+      failWith(`${evidence.file} missing`);
+      continue;
+    }
+    const present = dependencies(file);
+    const missing = evidence.packages.filter((name) => !present.has(name));
+    if (missing.length === 0) pass(`${evidence.file}: ${evidence.packages.join(', ')}`);
+    else failWith(`${evidence.file}: missing ${missing.join(', ')}`);
+  }
+  return { repo: repo.id, ok, lines };
+}
+
+/** The real GitHub REST API; uses GITHUB_TOKEN when set (higher rate limit), anonymous otherwise. */
+export function gitHubApi(token = process.env.GITHUB_TOKEN): GitHubApi {
+  const headers = (accept: string): Record<string, string> => ({
+    Accept: accept,
+    'X-GitHub-Api-Version': '2022-11-28',
+    'User-Agent': 'flowcanvas-corpus-check',
+    ...(token !== undefined && token !== '' ? { Authorization: `Bearer ${token}` } : {}),
+  });
+  const get = async (path: string, accept: string): Promise<Response | undefined> => {
+    const response = await fetch(`https://api.github.com/${path}`, { headers: headers(accept) });
+    if (response.status === 404) return undefined;
+    if (!response.ok) throw new Error(`GitHub API ${String(response.status)} for ${path}`);
+    return response;
+  };
+  return {
+    json: async (path) => (await get(path, 'application/vnd.github+json'))?.json(),
+    raw: async (repo, file, commit) =>
+      (
+        await get(`repos/${repo}/contents/${file}?ref=${commit}`, 'application/vnd.github.raw')
+      )?.text(),
+  };
+}
+```
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm --filter @flowcanvas/corpus test                 # 10 passed (offline)
+GITHUB_TOKEN=(gh auth token) pnpm corpus:check        # 6 of 6 repos pass
+```
+
+**Run and check it (verified 29 Oct 2026):**
+1. `pnpm corpus:check` prints, for each repo:
+   - ✓ fork of the original
+   - ✓ public
+   - ✓ commit on its branch
+   - ✓ licence unchanged
+   - ✓ each stack file and its packages
+
+   It ends with "6 of 6 repos pass."
+2. Open any fork on GitHub, for example https://github.com/ArmaanAhuja-7777/rallly, and look at the pinned commit with `/commit/8e67a21…`.
+3. To see a failure, change one character of a `sha256` in `manifest.json`, then run the check again: "LICENSE changed: review the licence before re-pinning". Revert afterwards.
+
+**Gotchas:**
+- **Never copy a corpus repo's code into this repository.** AGPL could then apply to our code.
+- **Re-pinning is a deliberate change.** Update `commit`, re-check the stack evidence, and read the licence if its hash changes.
+- **Never enable commercial or enterprise parts** of a corpus repo.
+- **Forks you push to are public.** Never put secrets or real data in them.
+
+**Commit:** `feat(corpus): six pinned public test repos with a fork, commit, licence and stack check`
 

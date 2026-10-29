@@ -35,7 +35,7 @@ Option 1.
 - **Retention:**
   - Cloudflare keeps the 1,000 most recently deployed aliases.
   - It doesn't document how long old *version* URLs keep working, so per-run links may eventually expire. The alias links are the ones to share.
-- **Public by link.** Fine while reports only show our public app. **Before phase 1d**, when walkthroughs will show the private test repos inside workspaces, the reports site goes behind Cloudflare Access (upgrade-later 11).
+- **Public by link.** Fine while reports show our public app and the public test forks. Before they show real user or project data, the reports site goes behind Cloudflare Access (upgrade-later 11). The earlier "before phase 1d" deadline was dropped when the corpus became public forks (decisions log, 29 Oct 2026).
 - **Credentials:**
   - CI uses a Workers-only API token stored as GitHub secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`).
   - Locally, `wrangler login`.

@@ -243,3 +243,32 @@ Signal is close to, but softer than, the original saturated palette replaced on 
 5. **Test reports and recordings are published to a third free Cloudflare Worker** (`flowcanvas-reports`), one page per run, linked from the PR.
 6. **What's new and Labs are built from the existing components** (no Figma design for them). They move into the app shell in phase 2.
 
+## 29 Oct 2026: the test corpus (phase 1b, step 7)
+
+1. **Public forks** (owner decision, replacing A8's "private forks").
+   - The corpus repos are public forks in the owner's GitHub account.
+   - Allowed: AGPL and MIT both permit public redistribution with the licence and notices intact, which a GitHub fork keeps.
+   - Simpler: GitHub copies a fork on its side in seconds, and CI reads them without tokens.
+   - Rules that still apply:
+     - their code never enters this repository; tests read or clone the forks
+     - their **commercial or enterprise parts are never enabled**: Documenso `packages/ee`, Twenty's `@license Enterprise` files, Medusa's Enterprise Edition
+     - anything pushed to the forks is public, which is fine for test data
+2. **LibreChat replaces Inbox Zero** (owner decision, recommended option).
+   - Inbox Zero's licence adds terms to AGPL-3.0: no commercial use "that involves monetizing the software", and a paid licence for organisations of 5+ users using it for business. Running it as a demo project inside a commercial product is too close to that.
+   - LibreChat (MIT) brings the same variety (AI providers, OAuth sign-in, external APIs) plus an Express backend and MongoDB.
+   - This amends the build plan's stage-1 fork list.
+3. **Pin rule:** each repo's default branch as it was at 2026-10-15T00:00:00Z, two weeks before pinning. Release tags didn't work as a rule: some sit on release branches that aren't in the default-branch-only forks, and LibreChat had no stable release in the window.
+4. **Stack verified at the pinned commit** from each repo's own `package.json` files, not assumed:
+
+   | Repo | Stack |
+   | --- | --- |
+   | Rallly | Next.js, tRPC, Prisma, Better Auth |
+   | Documenso | React Router (Remix), Hono, Prisma, BullMQ and Inngest |
+   | LibreChat | Express, Mongoose, OpenAI, Passport; React on Vite |
+   | Twenty | NestJS, TypeORM, GraphQL, BullMQ; React |
+   | Excalidraw | Vite, React |
+   | Medusa | Express, MikroORM; React admin |
+
+   The evidence files and each licence's SHA-256 are in `corpus/manifest.json`, and `pnpm corpus:check` re-verifies them, also in CI.
+5. **Reports protection deadline relaxed.** Upgrade-later 11 had required protecting the reports site before phase 1d because recordings would show private copies. With public forks it reverts to the general trigger: before reports show real user or project data, or are shared outside the team.
+

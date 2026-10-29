@@ -1,0 +1,129 @@
+{
+  "$description": "The test corpus (decisions log, 29 Oct 2026): public forks of public open-source repos, pinned to exact commits, deliberately varied. Their code never enters this repository; tests read or clone the forks. Never enable their commercial or enterprise features. Checked by `pnpm corpus:check`.",
+  "pinnedOn": "2026-10-15",
+  "pinRule": "Each repo's default branch as it was at 2026-10-15T00:00:00Z (its last commit before then).",
+  "repos": [
+    {
+      "id": "rallly",
+      "name": "Rallly",
+      "upstream": "lukevella/rallly",
+      "fork": "ArmaanAhuja-7777/rallly",
+      "branch": "main",
+      "commit": "8e67a2161a2d2211c04ef60d3a40ec365b50149c",
+      "why": "Scheduling polls. Small Next.js app with tRPC and Prisma: the simple baseline.",
+      "licence": {
+        "spdx": "AGPL-3.0",
+        "file": "LICENSE",
+        "sha256": "db52e3daad9260a1cc638efaf3f6b7a6bdead236365586a60078a9a287613037",
+        "notes": "AGPL-3.0."
+      },
+      "stack": [
+        {
+          "file": "apps/web/package.json",
+          "packages": ["next", "react", "@trpc/server", "better-auth"]
+        },
+        { "file": "packages/database/package.json", "packages": ["prisma", "@prisma/client"] }
+      ]
+    },
+    {
+      "id": "documenso",
+      "name": "Documenso",
+      "upstream": "documenso/documenso",
+      "fork": "ArmaanAhuja-7777/documenso",
+      "branch": "main",
+      "commit": "d4e6eeaf880dc2b3425dcb0242b9a4206ac10443",
+      "why": "Document signing. React Router (Remix) app with Hono, file uploads, PDF processing, email and background jobs.",
+      "licence": {
+        "spdx": "AGPL-3.0",
+        "file": "LICENSE",
+        "sha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef",
+        "notes": "AGPL-3.0, except packages/ee (Documenso Commercial License): never enable it."
+      },
+      "stack": [
+        { "file": "apps/remix/package.json", "packages": ["react-router", "react", "hono"] },
+        { "file": "packages/lib/package.json", "packages": ["bullmq", "inngest"] },
+        { "file": "package.json", "packages": ["prisma", "@prisma/client"] }
+      ]
+    },
+    {
+      "id": "librechat",
+      "name": "LibreChat",
+      "upstream": "LibreChat-AI/LibreChat",
+      "fork": "ArmaanAhuja-7777/LibreChat",
+      "branch": "main",
+      "commit": "9adabde72eddb7ca0a236cd9116dd3264a5edfb2",
+      "why": "AI chat. Express backend with MongoDB (Mongoose), many AI providers, OAuth sign-in; React front end on Vite. Replaces Inbox Zero, whose extra licence terms restrict commercial use.",
+      "licence": {
+        "spdx": "MIT",
+        "file": "LICENSE",
+        "sha256": "1ce5c9d51e5ab764b44142cd44d1e687f5bfe32f807c7221c14d061007309b97",
+        "notes": "MIT."
+      },
+      "stack": [
+        { "file": "api/package.json", "packages": ["express", "mongoose", "openai", "passport"] },
+        { "file": "client/package.json", "packages": ["react", "vite"] }
+      ]
+    },
+    {
+      "id": "twenty",
+      "name": "Twenty",
+      "upstream": "twentyhq/twenty",
+      "fork": "ArmaanAhuja-7777/twenty",
+      "branch": "main",
+      "commit": "c3ba1401f45dbc35bf5ed3d48c4ddc2e58f2bb15",
+      "why": "CRM. Large monorepo: NestJS server with TypeORM, GraphQL and BullMQ job queues; React front end.",
+      "licence": {
+        "spdx": "AGPL-3.0",
+        "file": "LICENSE",
+        "sha256": "caece25ff05e7058a8fd98c34313757ed48d5e9304e0aeb7875d4b11de77bc01",
+        "notes": "Mostly AGPL-3.0; files marked /* @license Enterprise */ are commercial (never enable them); some packages are MIT."
+      },
+      "stack": [
+        {
+          "file": "packages/twenty-server/package.json",
+          "packages": ["@nestjs/core", "typeorm", "graphql", "bullmq"]
+        },
+        { "file": "packages/twenty-front/package.json", "packages": ["react"] }
+      ]
+    },
+    {
+      "id": "excalidraw",
+      "name": "Excalidraw",
+      "upstream": "excalidraw/excalidraw",
+      "fork": "ArmaanAhuja-7777/excalidraw",
+      "branch": "master",
+      "commit": "4c37956ba5f04ec342a9d9d5891a38f22c5b7b4e",
+      "why": "Whiteboard. Client-only React app on Vite: canvas rendering and real-time collaboration, no server database.",
+      "licence": {
+        "spdx": "MIT",
+        "file": "LICENSE",
+        "sha256": "1352d204fdb90d5e482c13139d848bc2c9300a9a7de358a0a558a23e72d0d8be",
+        "notes": "MIT."
+      },
+      "stack": [
+        { "file": "package.json", "packages": ["vite"] },
+        { "file": "packages/excalidraw/package.json", "packages": ["react"] }
+      ]
+    },
+    {
+      "id": "medusa",
+      "name": "Medusa",
+      "upstream": "medusajs/medusa",
+      "fork": "ArmaanAhuja-7777/medusa",
+      "branch": "develop",
+      "commit": "0b97a96ea0d32ff3f4b18dbeeeeba9e763600a15",
+      "why": "Commerce platform. Large Node.js backend framework (modules, workflows, events) on Express and MikroORM, with a React admin.",
+      "licence": {
+        "spdx": "MIT",
+        "file": "LICENSE",
+        "sha256": "cf67cc556c17e0b00dc0c74a3d71db8dec9aae98af747a2503803a640fba9bb5",
+        "notes": "MIT, except the Enterprise Edition materials named in ENTERPRISE-LICENSE.md: never enable them."
+      },
+      "stack": [
+        { "file": "packages/medusa/package.json", "packages": ["express"] },
+        { "file": "packages/deps/package.json", "packages": ["@mikro-orm/core"] },
+        { "file": "packages/admin/dashboard/package.json", "packages": ["react"] }
+      ]
+    }
+  ]
+}

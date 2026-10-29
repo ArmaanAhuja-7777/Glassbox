@@ -6,6 +6,7 @@ packages:
   - 'packages/connectors/*'
   - 'tools/*'
   - 'e2e'
+  - 'corpus'
 
 engineStrict: true
 

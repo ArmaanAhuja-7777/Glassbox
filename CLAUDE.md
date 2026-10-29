@@ -44,7 +44,7 @@ Flowcanvas is a canvas-first, AI-native development environment that replaces th
 5a. **Never lose work.** Autosave, checkpoint backups and snapshots must work before any feature that changes code ships. Hitting a usage limit pauses gracefully and saves everything.
 6. **Wrap agents, don't build one.** All agent work goes through the Agent Client Protocol (plus Claude Code hooks where useful). The product does not make code edits with its own model.
 7. **Checkpoints never touch the user's branches.** Use shadow refs (e.g. `refs/flowcanvas/checkpoints/<session>/<step>`).
-8. **Test repos are public open-source projects only.** Use the repos in `corpus/manifest.json` (a deliberately varied set, see the decisions log), as private copies pinned to exact commits. Never use the user's own projects as test data.
+8. **Test repos are public open-source projects only.** Use the repos in `corpus/manifest.json` (a deliberately varied set, see the decisions log): public forks pinned to exact commits, their code never copied into this repository, their commercial or enterprise parts never enabled. Never use the user's own projects as test data.
 9. **Design tokens only.** No hard-coded colours, sizes, radii or fonts in components. Everything comes from the Graphite tokens in `@flowcanvas/tokens` (enforced by Stylelint for CSS).
 10. **No placeholder features.** Mock data is allowed only in tests, the component catalogue, or behind a Labs switch clearly labelled as preview.
 11. **Ask, don't guess, on product decisions.** On pure engineering choices, decide, record the decision (section 9) and move on.
