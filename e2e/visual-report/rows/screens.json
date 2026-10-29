@@ -1,0 +1,44 @@
+[
+  {
+    "group": "Screen crops",
+    "name": "Input (focused, mono)",
+    "figma": "screens/input--mono.figma.png",
+    "ours": "screens/input--mono.ours.png",
+    "note": "02-clone-repository.png · story components-input--mono"
+  },
+  {
+    "group": "Screen crops",
+    "name": "Toggle (settings rows)",
+    "figma": "screens/toggle--settings-rows.figma.png",
+    "ours": "screens/toggle--settings-rows.ours.png",
+    "note": "17-settings-privacy.png · story components-toggle--settings-rows"
+  },
+  {
+    "group": "Screen crops",
+    "name": "Tabs (pill: view switch)",
+    "figma": "screens/tabs--pill.figma.png",
+    "ours": "screens/tabs--pill.ours.png",
+    "note": "06-workspace-after-session.png · story components-tabs--pill"
+  },
+  {
+    "group": "Screen crops",
+    "name": "Tabs (underline: inspector)",
+    "figma": "screens/tabs--underline.figma.png",
+    "ours": "screens/tabs--underline.ours.png",
+    "note": "06-workspace-after-session.png · story components-tabs--underline"
+  },
+  {
+    "group": "Screen crops",
+    "name": "Panel (entry points)",
+    "figma": "screens/panel--entry-points.figma.png",
+    "ours": "screens/panel--entry-points.ours.png",
+    "note": "06-workspace-after-session.png · story components-panel--entry-points"
+  },
+  {
+    "group": "Screen crops",
+    "name": "Menu (event context menu)",
+    "figma": "screens/menu--event-actions.figma.png",
+    "ours": "screens/menu--event-actions.ours.png",
+    "note": "27-prompt-from-flow-or-event.png · story components-menu--event-actions"
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "noEmit": true,
+    // Node runs these .ts files directly (type stripping), so imports name the real .ts files.
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src", "scripts"]
+}

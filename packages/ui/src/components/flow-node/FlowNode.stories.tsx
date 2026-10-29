@@ -124,23 +124,3 @@ export const AllKinds: Story = {
     </div>
   ),
 };
-
-/** The nine Figma variants with the Figma component's default text; compared with the Figma PNGs by e2e/visual. */
-export const FigmaVariants: Story = {
-  render: () => {
-    const figma = { title: 'Node title', location: 'src/file.ts:42' };
-    return (
-      <div style={{ ...column, gap: vars.space['24'] }}>
-        <FlowNode {...figma} data-figma="State=Default" />
-        <FlowNode {...figma} data-figma="State=Selected" selected />
-        <FlowNode {...figma} data-figma="State=Added" change="added" />
-        <FlowNode {...figma} data-figma="State=Modified" change="modified" />
-        <FlowNode {...figma} data-figma="State=Removed" change="removed" />
-        <FlowNode {...figma} data-figma="State=Affected" change="affected" />
-        <FlowNode {...figma} data-figma="State=Scope" change="scope" />
-        <FlowNode {...figma} data-figma="State=Failing" status="failing" />
-        <FlowNode {...figma} data-figma="State=Analysing" status="analysing" />
-      </div>
-    );
-  },
-};

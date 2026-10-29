@@ -6883,3 +6883,1366 @@ After the merge:
 
 **Commits:** `chore: release 0.2.0, close phase 1a` (docs, version, Turbo input)
 
+
+## Phase 1b — See-and-test harness
+
+**From the build plan:**
+- **Build:** staging and per-PR preview URLs; "Open demo project" that starts the current stage's forks in workspaces; end-to-end tests that drive the browser app and record video; screenshot comparison against Figma exports; What's new; Labs switches.
+- **Done when:** every merged phase produces a link, a test report and a recording without manual steps.
+- **Try it:** open the preview link, click Open demo project, watch the recording in the CI report.
+
+**Amended by the owner (29 Oct 2026, decisions log):**
+- No automated Figma comparison. Figma is a reference reviewed by eye; visual tests compare against our own approved baselines.
+- A six-repo, deliberately varied test corpus.
+- The "Open demo project" button moves to phase 1d.
+- Reports are published to a Cloudflare Worker.
+- What's new and Labs are built from the existing components.
+- CI stays on GitHub Actions; the owner clears the billing lock later.
+
+**What we're doing and why:**
+- After every change and every merge, CI (the "robot") builds the app, puts it at a link, runs all the tests, records a video of each phase's "Try it" walkthrough, publishes a report and posts the links on the PR. Nobody runs anything by hand.
+- This is what lets the owner check every later phase without setup and without taking test results on trust. It also catches anything that breaks an earlier phase on the PR that broke it.
+- In the app: **What's new** shows what changed in each build. **Labs** holds switches for half-built features, so they can go live hidden.
+- The six test repos are frozen at exact commits, so later analysis is tested on varied, stable real code.
+
+**Expected outcome:**
+- Every PR and merge produces a preview link, a published report with videos of the walkthroughs, and a PR comment with both links.
+- The app has a What's new panel and Settings → Labs.
+- `corpus/manifest.json` pins six repos, and a check verifies each copy.
+
+The CI parts can only run on GitHub once the billing lock is cleared. Until then they are verified locally with `act`, so the phase stays *in review* until Actions run.
+
+### Steps (planned)
+
+| # | Step | Status |
+| --- | --- | --- |
+| 1 | Retire the Figma comparison test (keep our own baselines and axe); docs | done · see commit below · Claude |
+| 2 | Video and trace for every end-to-end test; one walkthrough file per phase (`e2e/try-it/`) | done · see commit below · Claude |
+| 3 | `flowcanvas-reports` Worker: publish a run's report with videos at its own URL (owner: Cloudflare API token) | done · see commit below · Claude (code) + owner (token, secrets, `wrangler login`) · ADR 0011 |
+| 4a | Visual tests in Playwright's Docker image, locally and in CI (one set of baselines) | done · see commit below · Claude · ADR 0012 |
+| 4b | CI workflow: checks, visual, walkthroughs against the deployed preview or staging, publish the report, comment on the PR; verified with `actionlint` and `act` | done · `7b8536e` · Claude (owner: `act`, repo variable) · first GitHub run waits for upgrade-later 8 |
+| 5 | What's new: `CHANGELOG.md` turned into data at build time; panel in the app | done · see commit below · Claude |
+| 6 | Labs: typed switch list (off by default, marked as preview), Settings → Labs page | done · see commit below · Claude · on the version page until the phase 2 Settings page |
+| 7 | Test corpus: six pinned public forks, `corpus/manifest.json`, a check of fork, commit, licence and stack | done · see commit below · Claude (forks created with the owner's approval) |
+| 8 | Close phase 1b: docs, report, PR | done · see commit below · Claude · phase in review until Actions runs |
+
+### Step 1b.1 — Retire the Figma comparison test
+
+**Goal:** remove the automated Figma comparison (owner decision, 29 Oct 2026) and everything that existed only for it. Keep the regression check against our own approved screenshots, and axe.
+
+**Why:**
+- Figma is now a reference reviewed by eye.
+- A test for a dropped requirement is noise. It needs limits re-tuned whenever colours change, and it gives false confidence.
+- Deleting the code it needed removes two dependencies to keep updated and patched.
+
+**Concept: removing a test safely.** Search for every reference before deleting, so no helper, dependency, script, ignore rule or doc is left dangling. Here: `git grep -n "pixelmatch\|pngjs\|images.js\|report.js\|figma-exports\|visual-report\|figma.spec"`. Then run the whole suite and confirm the rest still passes.
+
+**What changed:**
+
+| Change | Files |
+| --- | --- |
+| Deleted the Figma test and its helpers | `e2e/visual/figma.spec.ts`, `images.ts`, `report.ts` |
+| Removed dependencies only it used | `pixelmatch`, `pngjs`, `@types/pngjs` (e2e `package.json`, catalog, lockfile) |
+| Deleted the three "Figma Variants" stories and their 6 baselines | `Tag`, `Button`, `FlowNode` stories; `e2e/visual/__screenshots__/components-*--figma-variants-*` |
+| Dropped the unused ignore rule | `.gitignore` (`visual-report/`) |
+| Exports kept as reference images, with a note | `docs/reference/figma-exports/README.md` |
+| Docs | `ARCHITECTURE.md` (visual tests, token source) |
+
+**A flake found, and its cause removed:**
+- **What happened:** the first run after the change failed one screenshot by 2 pixels: the rounded corners of the Flow node that is both *added* and *analysing* (Combinations, dark).
+- **Cause:** the browser draws animated elements (the analysing shimmer) on their own compositor layer, and their anti-aliased edges can differ by a shade between runs. With pixel-exact baselines (`threshold: 0`, since step 1a.12), that shows up as a change.
+- **Fix:** rather than loosen the check, `e2e/visual/screenshot.css` (wired in through `stylePath` in `playwright.visual.config.ts`) turns all animations and transitions off while a screenshot is taken.
+- **Result:** nothing visible changed (all 58 baselines still matched), and four consecutive runs passed.
+
+```css
+/* e2e/visual/screenshot.css */
+*,
+*::before,
+*::after {
+  animation: none !important;
+  transition: none !important;
+}
+```
+
+Docs: https://playwright.dev/docs/api/class-pageassertions#page-assertions-to-have-screenshot-1-option-style-path
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm lint && pnpm typecheck && pnpm test     # 30 tasks
+pnpm test:visual                             # 58 passed (29 stories × 2 themes), each with axe
+```
+
+**Run and check it:**
+1. `pnpm test:visual` gives 58 passed, with no "Figma comparison report" line.
+2. `git grep -n "pixelmatch\|figma.spec"` finds only history in the docs.
+3. `docs/reference/figma-exports/` still has your exports, with the README.
+
+**Gotchas:**
+- **Playwright never deletes baselines for removed tests.** Remove orphaned PNGs by hand.
+- **Don't change `deviceScaleFactor`.** Every baseline would change.
+- **A pixel-exact check needs a deterministic render.** Freeze anything animated before blaming the check.
+
+**Commit:** `test(e2e): retire the Figma comparison; keep our own baselines and axe`
+
+### Step 1b.2 — Record every walkthrough, one file per phase
+
+**Goal:** every end-to-end walkthrough produces a **video** and a **trace**, pass or fail. Each phase's "Try it" steps live in one file named after the phase.
+
+**Why:**
+- The Done-when needs a recording without manual steps; Playwright used to keep videos only for failures.
+- A recording is evidence the owner can check.
+- One file per phase is the regression suite the build plan asks for: every walkthrough ever written runs on every change.
+
+**Concepts:**
+- **Video** (`video: { mode: 'on' }`): a `.webm` of the browser per test. https://playwright.dev/docs/videos
+- **Trace** (`trace: 'on'`): a zip holding the page before and after every action, plus console, network and timings, scrubbed in the Trace Viewer. https://playwright.dev/docs/trace-viewer
+- **`test.step()`:** named parts of a test, worded like the "Try it" column. They show in the report and the trace. https://playwright.dev/docs/api/class-test#test-step
+- **Projects:** a named group of settings; here `try-it` records everything. https://playwright.dev/docs/test-projects
+- **`slowMo`:** a pause after each browser action, 500 ms here, so a 2-second walkthrough becomes a watchable ~5 seconds. It doesn't change what is tested, and it isn't used by the visual suite.
+- **HTML report:** each test with its steps, embedded video and trace link. `playwright show-report` serves it locally.
+
+**What changed:**
+- `e2e/tests/smoke.spec.ts` is split into `e2e/try-it/phase-1.spec.ts` (app loads, shows version and commit) and `e2e/try-it/phase-1a.spec.ts` (Theme → Light, reload keeps it, Theme → Dark, catalogue link). Both fail on any page error or CSP violation.
+- `e2e/try-it/support.ts`: the product version from the root `package.json`, the expected commit from `E2E_EXPECTED_COMMIT`, and `watchForPageProblems()`.
+- `e2e/playwright.config.ts`: `testDir: './try-it'`; one project `try-it` with video and trace on, 1280×720, `slowMo` 500.
+- `e2e/package.json`: script `report` (`playwright show-report`). `e2e/tsconfig.json` includes `try-it`.
+
+**`e2e/playwright.config.ts`:**
+
+```ts
+import { defineConfig, devices } from '@playwright/test';
+
+// Point the tests at any deployed copy (PR preview, staging) with E2E_BASE_URL.
+// Without it, Playwright serves the local production build of apps/web itself.
+const externalBaseUrl = process.env.E2E_BASE_URL;
+const localPreviewUrl = 'http://127.0.0.1:4173';
+const isCi = Boolean(process.env.CI);
+
+export default defineConfig({
+  // One walkthrough file per phase: the build plan's "Try it" steps, run on every change.
+  testDir: './try-it',
+  forbidOnly: isCi,
+  retries: isCi ? 2 : 0,
+  reporter: isCi
+    ? [['github'], ['html', { open: 'never' }]]
+    : [['list'], ['html', { open: 'never' }]],
+  use: {
+    baseURL: externalBaseUrl ?? localPreviewUrl,
+  },
+  projects: [
+    {
+      // Every walkthrough is recorded, pass or fail, so anyone can watch exactly what was checked.
+      name: 'try-it',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+        video: { mode: 'on', size: { width: 1280, height: 720 } },
+        trace: 'on',
+        // A short pause after each browser action, so the video is watchable; it doesn't change what is tested.
+        launchOptions: { slowMo: 500 },
+      },
+    },
+  ],
+  ...(externalBaseUrl
+    ? {}
+    : {
+        webServer: {
+          command:
+            'pnpm --filter @flowcanvas/web exec vite preview --host 127.0.0.1 --port 4173 --strictPort',
+          url: localPreviewUrl,
+          reuseExistingServer: !isCi,
+          timeout: 30_000,
+        },
+      }),
+});
+```
+
+**`e2e/try-it/support.ts`:**
+
+```ts
+import { readFileSync } from 'node:fs';
+import type { Page } from '@playwright/test';
+
+// The product version lives in the root package.json; the page must show exactly that.
+export const { version } = JSON.parse(
+  readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
+) as { version: string };
+
+/** Short commit the build under test must show, when the run knows it (CI, or a preview check). */
+export const expectedCommit = process.env.E2E_EXPECTED_COMMIT?.slice(0, 7);
+
+/**
+ * Collects uncaught page errors and Content-Security-Policy violations for the whole walkthrough.
+ * Call it before the first navigation; assert that `problems()` is empty at the end.
+ */
+export function watchForPageProblems(page: Page): { problems: () => string[] } {
+  const found: string[] = [];
+  page.on('pageerror', (error) => found.push(`page error: ${error.message}`));
+  page.on('console', (message) => {
+    if (message.type() === 'error' && message.text().includes('Content Security Policy')) {
+      found.push(`CSP: ${message.text()}`);
+    }
+  });
+  return { problems: () => [...found] };
+}
+```
+
+**`e2e/try-it/phase-1.spec.ts`:**
+
+```ts
+import { expect, test } from '@playwright/test';
+import { expectedCommit, version, watchForPageProblems } from './support.js';
+
+// Phase 1 · Try it: open the staging link; the app loads and shows its version.
+test('phase 1: the app loads and shows its version', async ({ page }) => {
+  const watch = watchForPageProblems(page);
+
+  await test.step('Open the preview link', async () => {
+    await page.goto('/');
+    await expect(page).toHaveTitle('Flowcanvas');
+    await expect(page.getByRole('heading', { name: 'Flowcanvas' })).toBeVisible();
+  });
+
+  await test.step('The page shows the version and the commit it was built from', async () => {
+    const buildLine = expectedCommit
+      ? `${version} · ${expectedCommit}`
+      : new RegExp(`^${version.replaceAll('.', '\\.')} · [0-9a-f]{7}$`);
+    await expect(page.getByText(buildLine)).toBeVisible();
+  });
+
+  expect(watch.problems()).toEqual([]);
+});
+```
+
+**`e2e/try-it/phase-1a.spec.ts`:**
+
+```ts
+import { expect, test } from '@playwright/test';
+import { watchForPageProblems } from './support.js';
+
+// Phase 1a · Try it: open the component catalogue, flip dark and light, compare with Figma.
+// The app side of it: the theme menu and the link to the catalogue (which lives on its own origin).
+test('phase 1a: switch theme and open the component catalogue', async ({ page }) => {
+  const watch = watchForPageProblems(page);
+
+  await test.step('Open the preview link', async () => {
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: /^Theme: / })).toBeVisible();
+  });
+
+  await test.step('Choose Theme → Light', async () => {
+    await page.getByRole('button', { name: /^Theme: / }).click();
+    await page.getByRole('menuitemradio', { name: 'Light' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await expect(page.getByRole('button', { name: 'Theme: Light' })).toBeVisible();
+  });
+
+  await test.step('Reload: the choice is remembered', async () => {
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Theme: Light' })).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  });
+
+  await test.step('Choose Theme → Dark', async () => {
+    await page.getByRole('button', { name: 'Theme: Light' }).click();
+    await page.getByRole('menuitemradio', { name: 'Dark' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  });
+
+  await test.step('The catalogue link points to the component catalogue', async () => {
+    await expect(page.getByRole('link', { name: 'Open the component catalogue' })).toHaveAttribute(
+      'href',
+      /^https:\/\/flowcanvas-catalogue\./,
+    );
+  });
+
+  expect(watch.problems()).toEqual([]);
+});
+```
+
+**Commands:**
+
+```fish
+pnpm test:e2e                                  # 2 passed; builds the web app first
+pnpm --filter @flowcanvas/e2e report           # opens the report: steps, video and trace per walkthrough
+E2E_BASE_URL=https://phase-1b-see-and-test-flowcanvas.ahujaarmaan7777.workers.dev \
+  E2E_EXPECTED_COMMIT=(git rev-parse HEAD) pnpm --filter @flowcanvas/e2e test:e2e   # against the branch preview
+```
+
+**Run and check it:**
+1. `pnpm test:e2e` gives `2 passed`.
+2. `pnpm --filter @flowcanvas/e2e report`: open each test. You see its named steps, a video of the browser doing them, and a trace (click it, then scrub the timeline).
+3. `e2e/test-results/` has a `video.webm` and a `trace.zip` for **both** tests (about 1 MB in total).
+4. Verified 29 Oct 2026 against the branch preview at `1d23c3b`: 2 passed.
+
+**Gotchas:**
+- **No video after a passing run:** the mode is `retain-on-failure`, or `video` is set outside the project.
+- **Never commit `test-results/` or `playwright-report/`.** They're in `.gitignore`.
+- **Keep `slowMo` out of the visual suite.**
+- **ESLint must ignore Playwright's output.** With traces always on, `playwright-report/` bundles the trace viewer's JavaScript, and `pnpm lint` failed on it. `eslint.config.js` now ignores `**/playwright-report/`, `**/playwright-report-visual/` and `**/test-results/`. Fixed in a follow-up commit; the step's first commit was pushed with that lint failure, because the commit command didn't stop on the failed check. Chain checks with `&&` before `git commit`.
+- **Word steps as the user would say them.** That's what the owner watches.
+
+**Commit:** `test(e2e): record every walkthrough (video and trace), one try-it file per phase`
+
+### Step 1b.3 — The reports site (`flowcanvas-reports`)
+
+**Goal:** publish a test run (walkthrough videos and traces, plus the visual results) as a small site at its own link, which CI can post on PRs (step 4).
+
+**Why:** the Done-when needs a report and recording reachable from a link without manual steps. CI artifacts need a login and expire after 90 days. The owner chose a free Cloudflare Worker.
+
+**Concepts:**
+- **Worker versions and preview aliases.** Each `wrangler versions upload` makes a version with its own unchanging URL. `--preview-alias pr-12` gives a readable URL that always shows the latest upload under that name, and `wrangler versions deploy` moves the Worker's main address to a version.
+  - Docs: https://developers.cloudflare.com/workers/configuration/previews/
+  - Aliases: lowercase letters, digits and dashes, starting with a letter, at most 63 characters together with the Worker name. The 1,000 most recent are kept.
+  - Old version URLs' lifetime isn't documented.
+- **A separate origin for reports.** Playwright's report and trace viewer need inline scripts, `blob:` media and a service worker. So, like the catalogue, the reports get their own Worker and looser headers, never the app's origin (ADR 0011).
+- **API tokens and Actions secrets.** CI deploys with a token that can only edit Workers, stored encrypted as a GitHub secret. Workflows can read it; logs never show it. Docs: https://docs.github.com/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions
+- **The JSON reporter.** Both Playwright configs also write `e2e/reports-data/*.json`. The index page reads the pass and fail counts from it.
+
+**Owner steps (done 29 Oct 2026):**
+1. A Cloudflare API token from the "Edit Cloudflare Workers" template, limited to the one account, no zones.
+2. `gh secret set CLOUDFLARE_API_TOKEN` and `gh secret set CLOUDFLARE_ACCOUNT_ID`. The prompt keeps the value out of shell history and files.
+3. `pnpm exec wrangler login`, for publishing from this machine.
+
+**What changed:**
+- `e2e/reports.wrangler.jsonc`: Worker `flowcanvas-reports` serving `e2e/report-site/`, previews on.
+- `e2e/reports/_headers`: the reports origin's CSP and headers, including `X-Robots-Tag: noindex, nofollow`.
+- `e2e/scripts/publish-report.ts`:
+  - assembles `report-site/`: an index page, `walkthroughs/` and `visual/`
+  - uploads a version with `--alias`
+  - optionally deploys it to the main address (`--production`)
+  - creates the Worker on the very first publish
+  - prints the links, and writes them to `reports-data/links.json` and, in CI, to the job summary
+  - `--assemble-only` builds the folder without uploading, for `wrangler dev`
+- Both Playwright configs add a JSON reporter. `e2e/package.json` gains `publish-report`; `tsconfig` includes `scripts`; `.gitignore` and `eslint.config.js` ignore `report-site/` and `reports-data/`.
+- `docs/adr/0011-test-reports-on-workers.md`, `ARCHITECTURE.md`, and upgrade-later item 11: **reports must be protected before phase 1d**.
+
+**`e2e/reports.wrangler.jsonc`:**
+
+```jsonc
+// Test reports and recordings, one version per run (ADR 0011). Published by scripts/publish-report.ts.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "flowcanvas-reports",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./report-site",
+  },
+  "preview_urls": true,
+  "workers_dev": true,
+  "send_metrics": false,
+}
+```
+
+**`e2e/reports/_headers`:**
+
+```text
+# Security headers for the test-reports site (its own Worker and origin, ADR 0011).
+# Playwright's HTML report and trace viewer need inline scripts and styles, blob: media and a service worker,
+# so this policy is looser than the app's; that's why reports never share an origin with the app.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  X-Robots-Tag: noindex, nofollow
+```
+
+**`e2e/scripts/publish-report.ts`:**
+
+```ts
+/**
+ * Publishes the latest test reports as one small site on the `flowcanvas-reports` Worker (ADR 0011):
+ * an index page, the walkthroughs report (videos and traces) and, when present, the visual report.
+ *
+ *   node scripts/publish-report.ts --alias pr-12          a new version, also reachable as pr-12-flowcanvas-reports…
+ *   node scripts/publish-report.ts --alias main --production   also make it the Worker's main address
+ *   node scripts/publish-report.ts --alias x --assemble-only   build report-site/ only, for `wrangler dev`
+ *
+ * Needs Wrangler credentials: `wrangler login` locally, CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in CI.
+ */
+import { spawnSync } from 'node:child_process';
+import {
+  appendFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { parseArgs } from 'node:util';
+
+const WORKER = 'flowcanvas-reports';
+const here = new URL('../', import.meta.url);
+const path = (relative: string): string => new URL(relative, here).pathname;
+
+interface Summary {
+  readonly passed: number;
+  readonly failed: number;
+  readonly flaky: number;
+  readonly skipped: number;
+}
+
+interface Section {
+  readonly name: string;
+  readonly folder: string;
+  readonly summary: Summary;
+}
+
+function fail(message: string): never {
+  console.error(`publish-report: ${message}`);
+  process.exit(1);
+}
+
+/** Aliases become a DNS label: lowercase letters, digits and dashes, starting with a letter, ≤ 63 with the name. */
+function checkAlias(alias: string): string {
+  if (!/^[a-z][a-z0-9-]*$/.test(alias)) {
+    fail(`alias "${alias}" must be lowercase letters, digits and dashes, starting with a letter`);
+  }
+  if (alias.length + 1 + WORKER.length > 63) {
+    fail(`alias "${alias}" is too long (at most ${String(62 - WORKER.length)} characters)`);
+  }
+  return alias;
+}
+
+function readSummary(file: string): Summary {
+  const report = JSON.parse(readFileSync(file, 'utf8')) as {
+    stats: { expected: number; unexpected: number; flaky: number; skipped: number };
+  };
+  const { expected, unexpected, flaky, skipped } = report.stats;
+  return { passed: expected, failed: unexpected, flaky, skipped };
+}
+
+function git(...args: string[]): string {
+  const result = spawnSync('git', args, { encoding: 'utf8' });
+  return result.status === 0 ? result.stdout.trim() : 'unknown';
+}
+
+const escape = (text: string): string =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function indexPage(
+  sections: readonly Section[],
+  commit: string,
+  branch: string,
+  when: string,
+): string {
+  const rows = sections
+    .map(({ name, folder, summary }) => {
+      const state = summary.failed > 0 ? 'failed' : 'passed';
+      const counts = [
+        `${String(summary.passed)} passed`,
+        summary.failed > 0 ? `${String(summary.failed)} failed` : '',
+        summary.flaky > 0 ? `${String(summary.flaky)} flaky` : '',
+        summary.skipped > 0 ? `${String(summary.skipped)} skipped` : '',
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      return `<li><a href="${folder}/">${escape(name)}</a><span class="${state}">${escape(counts)}</span></li>`;
+    })
+    .join('\n');
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flowcanvas test report · ${escape(commit.slice(0, 7))}</title>
+<style>
+:root{color-scheme:dark}body{margin:0;background:#0b0c0e;color:#edeff2;font:13px/20px system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:48px 16px;display:grid;gap:16px}h1{margin:0;font-size:20px;line-height:28px}
+p{margin:0;color:#a3aab5}code{font:12px/18px ui-monospace,monospace;color:#edeff2}
+ul{list-style:none;margin:0;padding:0;border:1px solid #2c323a;border-radius:8px;background:#111317}
+li{display:flex;justify-content:space-between;gap:16px;padding:12px 16px;border-bottom:1px solid #2c323a}li:last-child{border-bottom:0}
+a{color:#edeff2;font-weight:500}.passed{color:#65b186}.failed{color:#e39289}
+</style></head><body><main>
+<h1>Test report</h1>
+<p>Commit <code>${escape(commit)}</code> on <code>${escape(branch)}</code> · ${escape(when)}</p>
+<ul>
+${rows}
+</ul>
+<p>Open a report to see each test's steps. Walkthroughs include a video and a trace (click it to step through every action).</p>
+</main></body></html>
+`;
+}
+
+function main(): void {
+  const { values } = parseArgs({
+    options: {
+      alias: { type: 'string' },
+      production: { type: 'boolean', default: false },
+      // Build report-site/ and stop: for checking the site locally with `wrangler dev`.
+      'assemble-only': { type: 'boolean', default: false },
+    },
+  });
+  if (values.alias === undefined) fail('pass --alias <name>, e.g. --alias pr-12');
+  const alias = checkAlias(values.alias);
+
+  const sources = [
+    {
+      name: 'Walkthroughs (try-it)',
+      folder: 'walkthroughs',
+      report: 'playwright-report',
+      data: 'reports-data/walkthroughs.json',
+    },
+    {
+      name: 'Visual and accessibility',
+      folder: 'visual',
+      report: 'playwright-report-visual',
+      data: 'reports-data/visual.json',
+    },
+  ];
+  const site = path('report-site/');
+  rmSync(site, { recursive: true, force: true });
+  mkdirSync(site, { recursive: true });
+
+  const sections: Section[] = [];
+  for (const source of sources) {
+    if (!existsSync(path(source.report)) || !existsSync(path(source.data))) continue;
+    cpSync(path(source.report), `${site}${source.folder}`, { recursive: true });
+    sections.push({
+      name: source.name,
+      folder: source.folder,
+      summary: readSummary(path(source.data)),
+    });
+  }
+  if (!sections.some((section) => section.folder === 'walkthroughs')) {
+    fail('no walkthroughs report found; run `pnpm test:e2e` first');
+  }
+
+  const commit = process.env.GITHUB_SHA ?? git('rev-parse', 'HEAD');
+  // GITHUB_HEAD_REF is set but empty outside pull requests, so an empty value falls through on purpose.
+  const headRef = process.env.GITHUB_HEAD_REF;
+  const branch =
+    headRef !== undefined && headRef !== ''
+      ? headRef
+      : (process.env.GITHUB_REF_NAME ?? git('rev-parse', '--abbrev-ref', 'HEAD'));
+  writeFileSync(`${site}index.html`, indexPage(sections, commit, branch, new Date().toUTCString()));
+  cpSync(path('reports/_headers'), `${site}_headers`);
+
+  if (values['assemble-only']) {
+    console.log(`Assembled ${site} (not uploaded).`);
+    return;
+  }
+
+  const config = path('reports.wrangler.jsonc');
+  const message = `${branch} @ ${commit.slice(0, 7)}`;
+  const uploadVersion = () =>
+    spawnSync(
+      'wrangler',
+      ['versions', 'upload', '--config', config, '--preview-alias', alias, '--message', message],
+      { encoding: 'utf8' },
+    );
+  let upload = uploadVersion();
+  // A Worker must exist before it can have versions: the very first publish deploys it once, then uploads.
+  if (
+    upload.status !== 0 &&
+    /does not (yet )?exist|not found|10007/i.test(`${upload.stdout}${upload.stderr}`)
+  ) {
+    const create = spawnSync('wrangler', ['deploy', '--config', config, '--message', message], {
+      encoding: 'utf8',
+    });
+    if (create.status !== 0)
+      fail(`creating the Worker failed:\n${create.stdout}\n${create.stderr}`);
+    upload = uploadVersion();
+  }
+  const output = `${upload.stdout}\n${upload.stderr}`;
+  if (upload.status !== 0) fail(`wrangler versions upload failed:\n${output}`);
+
+  const urls = [...new Set(output.match(/https:\/\/[^\s"']+\.workers\.dev/g) ?? [])];
+  const aliasUrl = urls.find((url) => url.startsWith(`https://${alias}-${WORKER}.`));
+  const versionUrl = urls.find((url) => url !== aliasUrl);
+  const versionId = /Worker Version ID:\s*([0-9a-f-]{36})/.exec(output)?.[1];
+
+  let productionUrl: string | undefined;
+  if (values.production) {
+    if (versionId === undefined)
+      fail(`could not read the version ID from Wrangler's output:\n${output}`);
+    const deploy = spawnSync(
+      'wrangler',
+      [
+        'versions',
+        'deploy',
+        `${versionId}@100%`,
+        '--config',
+        config,
+        '--yes',
+        '--message',
+        message,
+      ],
+      { encoding: 'utf8' },
+    );
+    const deployOutput = `${deploy.stdout}\n${deploy.stderr}`;
+    if (deploy.status !== 0) fail(`wrangler versions deploy failed:\n${deployOutput}`);
+    productionUrl = aliasUrl?.replace(`https://${alias}-`, 'https://');
+  }
+
+  const links = { commit, branch, alias, aliasUrl, versionUrl, productionUrl, sections };
+  writeFileSync(path('reports-data/links.json'), `${JSON.stringify(links, null, 2)}\n`);
+  const lines = [
+    `Report for ${message}`,
+    aliasUrl ? `  latest for ${alias}: ${aliasUrl}` : '',
+    versionUrl ? `  this run:          ${versionUrl}` : '',
+    productionUrl ? `  main address:      ${productionUrl}` : '',
+  ].filter(Boolean);
+  console.log(lines.join('\n'));
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    appendFileSync(
+      process.env.GITHUB_STEP_SUMMARY,
+      `### Test report\n\n${[aliasUrl, versionUrl, productionUrl]
+        .filter(Boolean)
+        .map((url) => `- ${String(url)}`)
+        .join('\n')}\n`,
+    );
+  }
+}
+
+main();
+```
+
+**Commands:**
+
+```fish
+pnpm test:e2e && pnpm test:visual                              # produce both reports (+ JSON summaries)
+pnpm --filter @flowcanvas/e2e publish-report --alias local-check --assemble-only
+pnpm exec wrangler dev --config e2e/reports.wrangler.jsonc --port 8789   # check the site locally, headers applied
+pnpm --filter @flowcanvas/e2e publish-report --alias local-check         # publish (uses your wrangler login)
+```
+
+**Run and check it (verified 29 Oct 2026, commit `600cfa1`):**
+1. The publish prints:
+   - `latest for local-check: https://local-check-flowcanvas-reports.ahujaarmaan7777.workers.dev`
+   - `this run: https://23dca4f5-flowcanvas-reports.ahujaarmaan7777.workers.dev`
+2. The index shows "Walkthroughs (try-it): 2 passed" and "Visual and accessibility: 58 passed", with the commit and branch.
+3. Walkthroughs → phase 1a: the video plays; the trace opens online with the named steps (Open the preview link, Choose Theme → Light, …).
+4. `curl -sI <link>` shows the reports CSP and `x-robots-tag`.
+5. The Worker's main address `https://flowcanvas-reports.ahujaarmaan7777.workers.dev` exists, created by the first publish; from step 4 it shows the latest report from `main`.
+
+**Gotchas:**
+- **"You cannot upload a new version of a Worker that does not yet exist."** The first publish must deploy. The script matched "does not exist" but Wrangler says "does not **yet** exist", so the first try failed; the pattern now allows both.
+- **One known console message:** "Framing '' violates … frame-src 'self'" comes from an empty placeholder frame in the trace viewer. Nothing visible is affected, so the policy stays strict.
+- **Never paste the token into a command, a file or chat.** Use `gh secret set`'s prompt.
+- **Reports are public by link.** Put them behind Access before phase 1d (upgrade-later 11).
+
+**Commit:** `feat(e2e): publish test reports and recordings to their own Worker`
+
+### Step 1b.4a — Visual tests in Playwright's Docker image
+
+**Goal:** screenshots identical on every machine and in CI, so one set of approved baselines works everywhere (upgrade-later 16).
+
+**Why:** baselines taken on CachyOS differ from Ubuntu's by 1–2% of pixels (font smoothing). With the pixel-exact check, CI would fail every screenshot.
+
+**Concepts:**
+- **Docker images as a fixed environment.** Playwright publishes an image with Ubuntu, the matching browsers and fonts (`mcr.microsoft.com/playwright:v1.64.1-noble`). The same image gives the same pixels anywhere. https://playwright.dev/docs/docker
+- **Running a container as yourself.** `--user "$(id -u):$(id -g)"` makes files written into the mounted repo (screenshots, reports) yours, not root's. `-e HOME=/tmp` gives that user a writable home.
+- **Mounting the repo at the same path,** so pnpm's links in `node_modules` resolve, and the installed packages are reused. Host and image are both x86-64 Linux; never run `pnpm install` inside, which would overwrite yours.
+- **One script, two modes.** In CI the job already runs inside the image (`FLOWCANVAS_IN_PLAYWRIGHT_IMAGE=1`), so the script runs the tests directly instead of starting Docker inside Docker.
+
+**What changed:**
+- `e2e/scripts/visual.sh` (new):
+  - starts the image (the tag follows `@playwright/test` in the catalog)
+  - runs as you, mounts the repo, passes arguments such as `--update-snapshots` to Playwright
+- `e2e/playwright.visual.config.ts`: the Storybook server starts with `node node_modules/vite/bin/vite.js preview` in `packages/ui`, because the image has Node but no pnpm.
+- `e2e/package.json`: `test:visual` is `sh scripts/visual.sh`. Root `test:visual`/`test:visual:update` still build Storybook with Turbo first.
+- **52 of 58 baselines retaken in the image.** They differ only in text smoothing; checked side by side.
+- `docs/adr/0012-visual-tests-in-playwright-docker.md`, `ARCHITECTURE.md`; upgrade-later 16 closed.
+
+**`e2e/scripts/visual.sh`:**
+
+```sh
+#!/bin/sh
+# Runs the visual tests inside Playwright's official Docker image, on every machine and in CI, so screenshots
+# are rendered by the same Linux, browser and fonts everywhere and the approved baselines match pixel for pixel.
+# Arguments are passed to `playwright test` (e.g. --update-snapshots).
+set -eu
+cd "$(dirname "$0")/.."
+
+# Already inside the image (CI's container job, or the docker run below): run the tests directly.
+if [ "${FLOWCANVAS_IN_PLAYWRIGHT_IMAGE:-}" = 1 ]; then
+  exec ./node_modules/.bin/playwright test --config playwright.visual.config.ts "$@"
+fi
+
+# The image version always follows the @playwright/test version in the catalog.
+version=$(sed -n "s/^  '@playwright\/test': //p" ../pnpm-workspace.yaml)
+image="mcr.microsoft.com/playwright:v${version}-noble"
+root=$(cd .. && pwd)
+
+# Reuses the installed node_modules (same Linux platform), runs as you so files aren't owned by root,
+# and mounts the repo at the same path so pnpm's links resolve.
+exec docker run --rm --init --ipc=host \
+  --user "$(id -u):$(id -g)" -e HOME=/tmp -e CI -e FLOWCANVAS_IN_PLAYWRIGHT_IMAGE=1 \
+  -v "$root:$root" -w "$root/e2e" \
+  "$image" sh scripts/visual.sh "$@"
+```
+
+**Commands:**
+
+```fish
+docker pull mcr.microsoft.com/playwright:v1.64.1-noble   # once, about 3.6 GB on disk (pnpm test:visual pulls it if missing)
+pnpm test:visual            # 58 passed, inside the image
+pnpm test:visual:update     # only after reviewing a deliberate visual change
+```
+
+**Run and check it (29 Oct 2026):**
+1. `pnpm test:visual` gives 58 passed. The run shows no Docker output, but `docker ps` during the run shows the Playwright container.
+2. Two repeat runs: 58 passed each.
+3. `stat -c %U e2e/visual/__screenshots__/*.png | sort -u` gives your user, not `root`.
+
+**Gotchas:**
+- **"Cannot connect to the Docker daemon":** start Docker (`systemctl start docker`), and make sure your user is in the `docker` group.
+- **Screenshots or reports owned by root:** the container ran without `--user`. Fix with `sudo chown -R $USER e2e`.
+- **Upgrading Playwright** changes the image tag; review and re-approve the baselines.
+- **Don't run `pnpm install` inside the container.** It shares your `node_modules`.
+
+**Commit:** `test(e2e): run visual tests in the Playwright Docker image`
+
+### Step 1b.4b — The CI workflow
+
+**Goal:** on every PR and every push to `main`, GitHub Actions does everything with no manual steps:
+1. checks
+2. visual tests (in the Playwright image)
+3. walkthroughs against the **deployed** preview, or staging on `main`
+4. publishing the report
+5. one PR comment with the links
+
+Until the billing lock is lifted, the workflow is verified locally.
+
+**Concepts:**
+- **Jobs, `needs:` and artifacts.** Jobs run on fresh machines; `needs:` orders them; artifacts carry files between them (both reports go to `publish`). https://docs.github.com/actions/writing-workflows
+- **Container jobs.** `container:` runs a job inside the Playwright image, the same one as `pnpm test:visual` locally (ADR 0012). A first step checks the tag matches `@playwright/test` in the catalog.
+- **Testing what's deployed.** Cloudflare builds the preview while CI runs. `e2e/scripts/wait-for-deploy.ts` reads the page's JavaScript bundle until it contains this commit, with a 10-minute limit, then the walkthroughs run against that URL.
+  - The branch preview address is the branch name lowercased, with every run of other characters turned into `-`, then `-flowcanvas.<subdomain>.workers.dev`.
+  - The subdomain comes from the repo variable `CLOUDFLARE_WORKERS_SUBDOMAIN`.
+- **`if: ${{ !cancelled() }}`** runs `publish` even when tests failed, so failures get a report too. `cancel-in-progress` only for PRs, so every merge to `main` gets its report.
+- **Least privilege.** The workflow is read-only. Only `publish` gets `pull-requests: write`, and only it sees the Cloudflare secrets. Fork PRs have no secrets, so publishing and commenting are skipped instead of failing.
+- **One updating comment.** `gh pr comment --edit-last --create-if-none` edits CI's previous comment instead of adding one per push.
+- **`actionlint`** checks workflow syntax, expressions and shell scripts without running anything. https://github.com/rhysd/actionlint
+- **`act`** runs workflow jobs locally in Docker, from the **committed** state of the commit under test. Uncommitted edits aren't used, exactly as on GitHub. https://nektosact.com
+
+**What changed:**
+- `.github/workflows/ci.yml` rewritten with four jobs: `checks`, `visual`, `walkthroughs`, `publish`. Every action is pinned to a commit SHA; `actions/download-artifact` v8.0.2 is new.
+- `e2e/scripts/wait-for-deploy.ts` (new).
+- `e2e/scripts/publish-report.ts` also writes `reports-data/comment.md`. `PREVIEW_URL` adds the preview link.
+- Owner: `act` installed (`sudo pacman -S act`, 0.2.89); repo variable `CLOUDFLARE_WORKERS_SUBDOMAIN` set.
+
+**`.github/workflows/ci.yml`:**
+
+```yaml
+name: CI
+
+# On every pull request and every push to main: checks, visual tests, walkthroughs against the deployed
+# preview (or staging), then one published report with videos, linked from the PR (phase 1b).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Cancel superseded PR runs; let every main run finish so each merge gets its report.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  # Test the commit that was pushed, not GitHub's temporary merge commit.
+  COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  checks:
+    name: Lint, typecheck, unit tests, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.COMMIT }}
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  visual:
+    name: Visual and accessibility (catalogue)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Same image as `pnpm test:visual` on every machine, so the approved screenshots match (ADR 0012).
+    # Keep the tag equal to @playwright/test in pnpm-workspace.yaml (checked below).
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --ipc=host --init
+    env:
+      FLOWCANVAS_IN_PLAYWRIGHT_IMAGE: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.COMMIT }}
+      - name: Image matches the Playwright version
+        run: |
+          expected="v$(sed -n "s/^  '@playwright\/test': //p" pnpm-workspace.yaml)-noble"
+          grep -q "mcr.microsoft.com/playwright:${expected}" .github/workflows/ci.yml \
+            || { echo "Update the container image in ci.yml to playwright:${expected}"; exit 1; }
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:visual
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: report-visual
+          path: |
+            e2e/playwright-report-visual/
+            e2e/reports-data/visual.json
+          retention-days: 14
+
+  walkthroughs:
+    name: Walkthroughs (try-it) on the deployed app
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --ipc=host --init
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.COMMIT }}
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Cloudflare builds the preview (PRs) or staging (main) at the same time; wait for this exact commit.
+      - name: Wait for the deployment of this commit
+        id: deploy
+        working-directory: e2e
+        env:
+          CLOUDFLARE_WORKERS_SUBDOMAIN: ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            node scripts/wait-for-deploy.ts --branch "$HEAD_REF" --commit "$COMMIT"
+          else
+            node scripts/wait-for-deploy.ts --url "https://flowcanvas.${CLOUDFLARE_WORKERS_SUBDOMAIN}.workers.dev/" --commit "$COMMIT"
+          fi
+      - name: Walkthroughs
+        run: pnpm --filter @flowcanvas/e2e test:e2e
+        env:
+          E2E_BASE_URL: ${{ steps.deploy.outputs.url }}
+          E2E_EXPECTED_COMMIT: ${{ env.COMMIT }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: report-walkthroughs
+          path: |
+            e2e/playwright-report/
+            e2e/reports-data/walkthroughs.json
+          retention-days: 14
+
+  publish:
+    name: Publish report and comment
+    needs: [visual, walkthroughs]
+    # Also after failures, so a failing run still gets a report; never for cancelled runs.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.COMMIT }}
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: report-*
+          path: e2e
+          merge-multiple: true
+      # Secrets aren't available to pull requests from forks; skip publishing there instead of failing.
+      - name: Publish the report
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
+        working-directory: e2e
+        env:
+          PREVIEW_URL: ${{ needs.walkthroughs.outputs.url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            pnpm publish-report --alias "pr-$PR_NUMBER"
+          else
+            pnpm publish-report --alias main --production
+          fi
+      - name: Comment on the pull request
+        if: ${{ github.event_name == 'pull_request' && env.CLOUDFLARE_API_TOKEN != '' && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body-file e2e/reports-data/comment.md
+```
+
+**`e2e/scripts/wait-for-deploy.ts`:**
+
+```ts
+/**
+ * Waits until a deployed copy of the web app serves a given commit, so tests never run against the
+ * previous deployment while Cloudflare is still building (it starts at the same time as CI).
+ *
+ *   node scripts/wait-for-deploy.ts --branch phase/1b-see-and-test --commit <sha>   the branch's preview
+ *   node scripts/wait-for-deploy.ts --url https://flowcanvas.<sub>.workers.dev --commit <sha>   e.g. staging
+ *
+ * The subdomain comes from CLOUDFLARE_WORKERS_SUBDOMAIN. Prints the URL, and writes `url=` to GITHUB_OUTPUT in CI.
+ */
+import { appendFileSync } from 'node:fs';
+import { setTimeout as sleep } from 'node:timers/promises';
+import { parseArgs } from 'node:util';
+
+const WORKER = 'flowcanvas';
+
+function fail(message: string): never {
+  console.error(`wait-for-deploy: ${message}`);
+  process.exit(1);
+}
+
+/**
+ * Cloudflare's branch alias for a Workers Builds preview: lowercase, every run of other characters becomes a
+ * dash, trimmed, and short enough that `<alias>-flowcanvas` fits a 63-character DNS label.
+ */
+function branchAlias(branch: string): string {
+  return branch
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 62 - WORKER.length)
+    .replace(/-+$/, '');
+}
+
+/** The commit the deployment was built from, read from its JavaScript bundle (the version line embeds it). */
+async function servesCommit(base: string, shortCommit: string): Promise<boolean> {
+  const page = await fetch(base, { cache: 'no-store' });
+  if (!page.ok) return false;
+  const html = await page.text();
+  const scripts = [...html.matchAll(/src="(\/assets\/[^"]+\.js)"/g)].map((match) => match[1]);
+  for (const script of scripts) {
+    if (script === undefined) continue;
+    const bundle = await fetch(new URL(script, base), { cache: 'no-store' });
+    if (bundle.ok && (await bundle.text()).includes(shortCommit)) return true;
+  }
+  return false;
+}
+
+async function main(): Promise<void> {
+  const { values } = parseArgs({
+    options: {
+      url: { type: 'string' },
+      branch: { type: 'string' },
+      commit: { type: 'string' },
+      timeout: { type: 'string', default: '600' },
+    },
+  });
+  if (values.commit === undefined || !/^[0-9a-f]{7,40}$/.test(values.commit)) {
+    fail('pass --commit <sha>');
+  }
+  const shortCommit = values.commit.slice(0, 7);
+  let base = values.url;
+  if (base === undefined) {
+    const subdomain = process.env.CLOUDFLARE_WORKERS_SUBDOMAIN;
+    if (values.branch === undefined || subdomain === undefined || subdomain === '') {
+      fail('pass --url, or --branch with CLOUDFLARE_WORKERS_SUBDOMAIN set');
+    }
+    base = `https://${branchAlias(values.branch)}-${WORKER}.${subdomain}.workers.dev/`;
+  }
+
+  const deadline = Date.now() + Number(values.timeout) * 1000;
+  console.log(`Waiting for ${base} to serve ${shortCommit}…`);
+  for (;;) {
+    try {
+      if (await servesCommit(base, shortCommit)) break;
+    } catch (error) {
+      console.log(`  not reachable yet (${(error as Error).message})`);
+    }
+    if (Date.now() > deadline) {
+      fail(
+        `${base} still doesn't serve ${shortCommit} after ${values.timeout} s. Check the Cloudflare build.`,
+      );
+    }
+    await sleep(10_000);
+  }
+  console.log(`${base} serves ${shortCommit}.`);
+  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `url=${base}\n`);
+}
+
+await main();
+```
+
+**Commands (local verification):**
+
+```fish
+docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12          # no output = no problems
+# A sample PR event for this branch (head.sha = the pushed commit under test)
+act pull_request -j checks -e pr-event.json -P ubuntu-24.04=catthehacker/ubuntu:act-24.04 \
+  --var CLOUDFLARE_WORKERS_SUBDOMAIN=ahujaarmaan7777 --artifact-server-path /tmp/act-artifacts
+act pull_request -j visual …          # same flags
+act pull_request -j walkthroughs …    # waits for the branch preview at that commit
+# The publish job's script, with the same inputs:
+PREVIEW_URL=<preview> pnpm --filter @flowcanvas/e2e publish-report --alias pr-test
+```
+
+**Results (29 Oct 2026, commit `7b8536e`):**
+
+| Check | Result |
+| --- | --- |
+| `actionlint` | no problems |
+| `act` checks | all steps pass: install, format, lint, types, unit tests, build |
+| `act` visual | version check, install inside the image, `pnpm test:visual`: 58 passed |
+| `act` walkthroughs | waited until the preview served `7b8536e` (2 s, already built), then 2 passed against it |
+| publish path | `https://pr-test-flowcanvas-reports.ahujaarmaan7777.workers.dev` live; `comment.md` lists the preview, report and run links and both suites' results |
+| Fails when it should | `wait-for-deploy` with a commit that isn't deployed exits 1 after the limit; the version check failed on a commit whose workflow lacked the image |
+
+**Not verifiable locally** (done in upgrade-later 8, before phase 1b is accepted):
+- **`upload-artifact`** fails under `act` with "Unexpected end of JSON input". `act`'s local artifact server doesn't speak the protocol `upload-artifact` v7 uses, so the artifact hand-off to `publish` can't run locally.
+- **The real PR comment** needs a PR and the Actions token.
+
+**Gotchas:**
+- **`act` tests the committed state** of the commit under test. Commit (and push, for the walkthroughs' preview) before running it.
+- **A Playwright upgrade must also change the container tag** in `ci.yml`; the version check fails the run until it does.
+- **Branch names map to preview addresses** by the alias rule above. If Cloudflare ever changes it, pass `--url` to `wait-for-deploy`.
+
+**Commit:** `ci: test the deployed preview, publish reports and comment on PRs`
+
+### Step 1b.5 — What's new
+
+**Goal:** an in-app panel listing what changed in this build and how to try it, generated from `CHANGELOG.md` so it can never disagree with the changelog.
+
+**Concepts:**
+- **Build-time data with a Vite virtual module.**
+  - A plugin answers `import releases from 'virtual:changelog'` by reading and parsing the root `CHANGELOG.md` during the build. The app ships plain data with no runtime fetch, and the dev server reloads when the changelog changes.
+  - TypeScript learns the module's type from `src/changelog/virtual-changelog.d.ts`.
+  - Docs: https://vite.dev/guide/api-plugin#virtual-modules-convention
+- **Ambient module declarations and types.** Inside `declare module '…' { }`, a relative `import` statement isn't allowed. `tsc` let it pass, but ESLint's type-aware rules then saw the module as untyped. An inline `import('./parse').ChangelogRelease` type works for both.
+- **Parsing a known format** ([Keep a Changelog](https://keepachangelog.com)):
+  - releases (`## [x.y.z] — date — title`), sections (`### Added`), bullet or numbered items, wrapped lines
+  - `Unreleased` is skipped, because it isn't in any build
+  - inline `**bold**` and `` `code` `` become React elements, **never HTML**, so changelog text can't inject markup (a test checks this)
+- **Guard tests that keep docs honest:** the newest changelog release must equal the root `package.json` version, and every release needs a date and content. Bumping the version without a changelog entry fails `pnpm test`.
+- **Cache inputs again.** `CHANGELOG.md` lives outside `apps/web`, so it's an explicit Turbo input of `@flowcanvas/web#build` and `#test` (the version-bump lesson from 1a).
+- **A reusable Popover** (`@flowcanvas/ui`): a non-modal React Aria `Dialog` in a `Popover`, named by its title. Opens from its trigger (`PopoverButton`) by click, Enter or Space; Escape or an outside click closes it, and focus returns to the trigger. Long content scrolls inside it.
+- **The accessibility check caught a real bug.** axe flagged `scrollable-region-focusable`: keyboard users couldn't scroll a long popover, because nothing inside could take focus. The scroll area is now focusable (`tabIndex={0}`) and shows the focus ring (WCAG 2.1.1).
+- **"Changed since you last looked."** The latest release's version is stored in `localStorage` (`flowcanvas-whats-new-seen`) when the panel opens; reading and writing tolerate blocked storage. Until then, the button shows a small dot in the *modified* hue (Graphite keeps the accent for selection), and its accessible name says "(new changes)".
+
+**What changed:**
+
+| Area | Files |
+| --- | --- |
+| Parser and tests (8, incl. the guard on the real changelog) | `apps/web/src/changelog/parse.ts`, `parse.test.ts` |
+| Vite plugin and type | `apps/web/vite.config.ts` (`changelog()`), `src/changelog/virtual-changelog.d.ts` |
+| Panel content and seen memory | `apps/web/src/whats-new/WhatsNew.tsx`, `.module.css`, `seen.ts`, `WhatsNew.test.tsx` |
+| Version page: "What's new" button with dot and popover | `apps/web/src/App.tsx`, `App.module.css`, `App.test.tsx` |
+| Popover component, tests, stories (6 baselines) | `packages/ui/src/components/popover/` |
+| Changelog: a **Try it** section for 0.2.0; tokens wording updated | `CHANGELOG.md` |
+| Walkthrough | `e2e/try-it/phase-1b.spec.ts` |
+| Turbo inputs | `turbo.json` |
+
+**Commands:**
+
+```fish
+pnpm test                    # web 18 · ui 66 · all packages
+pnpm test:e2e                # 3 walkthroughs (phase 1, 1a, 1b), recorded
+pnpm test:visual             # 64 passed (incl. Popover stories), axe on each
+pnpm dev                     # open http://localhost:5173 and click "What's new"
+```
+
+**Run and check it:**
+1. `pnpm dev` and open the app. **What's new** shows a small amber dot.
+2. Click it: "What's new in 0.2.0" with "Phase 1a: design system in code · 2026-10-28", then **Try it** (numbered), **Added**, **Changed**, **Security**, and **Earlier releases** (0.1.0, folded).
+3. Press Escape: focus returns to the button and the dot is gone. Reload: it stays gone.
+4. Edit `CHANGELOG.md` while `pnpm dev` runs: the panel updates.
+5. Verified 29 Oct 2026: walkthroughs pass under `wrangler dev` with the production CSP; screenshots checked in both themes.
+
+**Gotchas:**
+- **Every release needs a changelog entry** with the same version as `package.json`, or `pnpm test` fails.
+- **Write "Try it" steps in the user's words.** They're what the panel shows first.
+- **The changelog is rendered as text,** with only bold and code. Links and HTML are shown literally, by design.
+
+**Commit:** `feat(web): What's new panel built from the changelog`
+
+### Step 1b.6 — Labs
+
+**Goal:** unfinished features can go live behind a switch: off by default, marked **Preview**, and switchable by the owner to try them early, while normal use is unaffected and `main` stays shippable.
+
+**Concepts:**
+- **Feature flags.** `<LabsFeature id="…">` renders its contents only while that switch is on. Half-built work merges and deploys but stays invisible.
+- **One typed registry** (`apps/web/src/labs/flags.ts`).
+  - Each switch has an id, label, description of what is unfinished, and the phase that finishes it.
+  - A test enforces the rules: unique kebab-case ids, sentence-case labels, a real description, a phase number.
+  - When a feature is finished, delete its entry and wrappers.
+- **React context** (`LabsProvider`, `useLabs`) holds switch states once for the app. https://react.dev/learn/passing-data-deeply-with-context
+- **Testing without a fake product feature.** The provider takes a `flags` list, so tests inject a test-only switch and the real registry stays empty. The panel then says honestly "No previews right now".
+- **Stored per browser for now** (`localStorage`, key `flowcanvas-labs`). Only known switches that are on are read back; junk and blocked storage mean "everything off". Per account after sign-in: upgrade-later 20.
+- **Accessible switches.** Each `Toggle` is named by its row's label (`aria-labelledby`) and described by its description (`aria-describedby`), so a screen reader hears "Canvas minimap, switch, off, Shows … Finished in phase 2."
+
+**Where it lives:** the build plan says "Settings → Labs". There's no Settings page until the app shell (phase 2), so for now a **Labs** button on the version page opens a Popover with the switches, styled as Figma 17 settings rows.
+
+**What changed:**
+
+| Area | Files |
+| --- | --- |
+| Registry (empty), storage, provider, `LabsFeature`, panel | `apps/web/src/labs/flags.ts`, `storage.ts`, `LabsProvider.tsx`, `LabsPanel.tsx`, `LabsPanel.module.css` |
+| Tests (6): off by default and marked Preview; on shows the feature and is remembered; off hides it; honest empty state; storage tolerance; registry rules | `apps/web/src/labs/labs.test.tsx` |
+| Version page: `LabsProvider` around the app; **Labs** popover | `apps/web/src/App.tsx`; `App.test.tsx` (+1) |
+| Walkthrough: open Labs, it says no previews, Escape closes | `e2e/try-it/phase-1b.spec.ts` |
+| Docs | `ARCHITECTURE.md`; upgrade-later 20 |
+
+**Commands:**
+
+```fish
+pnpm --filter @flowcanvas/web test     # 25 passed
+pnpm test:e2e                          # 4 walkthroughs, recorded
+pnpm dev                               # click Labs
+```
+
+**Run and check it:**
+1. `pnpm dev`, then click **Labs**: "No previews right now. Unfinished features appear here as switches, off by default, so you can try them early."
+2. **Adding a switch later** (for example in phase 2): add an entry to `LABS_FLAGS`, and wrap the feature in `<LabsFeature id="…">`. The switch then appears in Labs, off, with a **Preview** tag; turning it on shows the feature and is remembered in this browser.
+3. Verified 29 Oct 2026: 4 walkthroughs pass locally and under `wrangler dev` with the production CSP; the panel was checked by eye in dark.
+
+**Gotchas:**
+- **Never ship a switch on by default.** If it's ready for everyone, delete the switch.
+- **Don't rename a switch id.** Stored choices would be lost; add a new one instead.
+- **Labs isn't access control.** Anyone can turn a switch on, so never hide something unsafe behind it.
+
+**Commit:** `feat(web): Labs switches for unfinished features`
+
+### Step 1b.7 — The test corpus
+
+**Goal:** six real, deliberately varied open-source apps, frozen at exact commits, which every phase from 1d on is tested against. Plus an automatic check that they stay as pinned.
+
+**Owner decisions (29 Oct 2026):**
+- **public forks**, not private copies
+- **LibreChat instead of Inbox Zero** (licence)
+- Claude created the forks
+
+**Concepts:**
+- **Why pin a test repo to a commit.** The originals change every day. If tests followed them, a failure could mean "our code broke" or "their code changed", and you couldn't tell which. A pinned commit is a fixed target, re-pinned on purpose.
+- **Forks.** `POST /repos/{owner}/{repo}/forks` (with `default_branch_only`) copies a repo on GitHub's side in seconds, with no download. `gh repo fork` run from inside our repo got confused by our own git remote and silently did nothing; the API call doesn't depend on the current folder.
+- **Reading licences, not just badges.** GitHub's `license` field said `NOASSERTION` for three repos. Reading the files showed:
+  - **Inbox Zero:** AGPL plus extra commercial restrictions (replaced).
+  - **Twenty:** mostly AGPL, with some Enterprise-licensed files and some MIT packages.
+  - **Medusa:** MIT, plus Enterprise Edition materials.
+
+  Documenso, licensed AGPL, also has a commercial `packages/ee`. Rule: never enable those parts.
+- **Evidence over memory.** Each repo's stack was confirmed from its own `package.json` files at the pinned commit. Four guesses were wrong about *where* a dependency lives (for example, Documenso's Prisma is in the root `package.json`), so the manifest records the file that proves each part.
+- **A licence fingerprint.** The SHA-256 of each licence file at the pin. If a re-pin brings a changed licence, the check fails and someone reads it before moving on.
+- **Checking through the API, not by cloning.** `pnpm corpus:check` makes about 35 small API calls; nothing is cloned. `GITHUB_TOKEN` raises the rate limit: locally `GITHUB_TOKEN=(gh auth token)`, in CI the workflow's token.
+- **Testable network code.** `checkRepo()` takes a small `GitHubApi` interface, so the unit tests replace GitHub with fixed answers and cover every failure without the network.
+
+**The corpus** (`corpus/manifest.json`, pinned to each default branch at 2026-10-15T00:00:00Z):
+
+| Repo | Fork | Commit | Licence | Why |
+| --- | --- | --- | --- | --- |
+| Rallly | ArmaanAhuja-7777/rallly | `8e67a21` | AGPL-3.0 | Small Next.js + tRPC + Prisma: the baseline |
+| Documenso | ArmaanAhuja-7777/documenso | `d4e6eea` | AGPL-3.0 (+ commercial `ee`) | React Router, Hono, PDFs, email, BullMQ and Inngest jobs |
+| LibreChat | ArmaanAhuja-7777/LibreChat | `9adabde` | MIT | Express + MongoDB, AI providers, OAuth; React on Vite |
+| Twenty | ArmaanAhuja-7777/twenty | `c3ba140` | AGPL-3.0 (+ Enterprise files, MIT packages) | NestJS, TypeORM, GraphQL, BullMQ; large monorepo |
+| Excalidraw | ArmaanAhuja-7777/excalidraw | `4c37956` | MIT | Client-only Vite + React, canvas, real-time collaboration |
+| Medusa | ArmaanAhuja-7777/medusa | `0b97a96` | MIT (+ Enterprise Edition) | Express-based framework, MikroORM, modules, workflows |
+
+**What changed:**
+- New workspace package `@flowcanvas/corpus`:
+  - `manifest.json`
+  - `src/manifest.ts`: types, and structural rules checked offline
+  - `src/check.ts`: the per-repo check and the GitHub client
+  - `scripts/check-corpus.ts`: the command-line tool
+  - `src/check.test.ts`: 10 offline tests, including every failure case and the real manifest's rules
+- `pnpm-workspace.yaml` includes `corpus`; root script `corpus:check`.
+- CI's checks job runs `pnpm corpus:check` with the workflow token.
+- Docs: the decisions log, the build-plan amendment (LibreChat), `CLAUDE.md` rule 8 (public forks, never copy code, never enable commercial parts), upgrade-later 11 and ADR 0011 (the reports deadline is relaxed), `ARCHITECTURE.md`.
+
+**`corpus/src/check.ts`:**
+
+```ts
+import { createHash } from 'node:crypto';
+import type { CorpusRepo } from './manifest.ts';
+
+/** Minimal GitHub API access, so tests can replace the network with fixed answers. */
+export interface GitHubApi {
+  /** Parsed JSON for an API path, or undefined for 404. */
+  readonly json: (path: string) => Promise<unknown>;
+  /** A file's raw content at a commit, or undefined if it doesn't exist. */
+  readonly raw: (repo: string, file: string, commit: string) => Promise<string | undefined>;
+}
+
+export interface CheckResult {
+  readonly repo: string;
+  readonly ok: boolean;
+  readonly lines: readonly string[];
+}
+
+function dependencies(packageJson: string): Set<string> {
+  const parsed = JSON.parse(packageJson) as Record<string, Record<string, string> | undefined>;
+  return new Set([
+    ...Object.keys(parsed.dependencies ?? {}),
+    ...Object.keys(parsed.devDependencies ?? {}),
+    ...Object.keys(parsed.peerDependencies ?? {}),
+  ]);
+}
+
+/** Checks one pinned repo: the fork, the commit, the licence and the stack evidence. */
+export async function checkRepo(repo: CorpusRepo, api: GitHubApi): Promise<CheckResult> {
+  const lines: string[] = [];
+  let ok = true;
+  const pass = (text: string) => lines.push(`  ✓ ${text}`);
+  const failWith = (text: string) => {
+    ok = false;
+    lines.push(`  ✗ ${text}`);
+  };
+
+  const info = (await api.json(`repos/${repo.fork}`)) as
+    { fork?: boolean; private?: boolean; parent?: { full_name?: string } } | undefined;
+  if (info === undefined) {
+    failWith(`fork ${repo.fork} not found`);
+    return { repo: repo.id, ok, lines };
+  }
+  if (info.fork === true && info.parent?.full_name?.toLowerCase() === repo.upstream.toLowerCase()) {
+    pass(`${repo.fork} is a fork of ${repo.upstream}`);
+  } else {
+    failWith(`${repo.fork} is not a fork of ${repo.upstream}`);
+  }
+  if (info.private === false) pass('public');
+  else failWith('fork must be public (decisions log, 29 Oct 2026)');
+
+  const compare = (await api.json(`repos/${repo.fork}/compare/${repo.commit}...${repo.branch}`)) as
+    { status?: string } | undefined;
+  if (compare?.status === 'ahead' || compare?.status === 'identical') {
+    pass(`commit ${repo.commit.slice(0, 7)} is on ${repo.branch}`);
+  } else {
+    failWith(
+      `commit ${repo.commit.slice(0, 7)} is not on ${repo.branch} (${compare?.status ?? 'not found'})`,
+    );
+  }
+
+  const licence = await api.raw(repo.fork, repo.licence.file, repo.commit);
+  const digest =
+    licence === undefined ? undefined : createHash('sha256').update(licence).digest('hex');
+  if (digest === repo.licence.sha256) pass(`${repo.licence.file} unchanged (${repo.licence.spdx})`);
+  else
+    failWith(
+      `${repo.licence.file} ${licence === undefined ? 'missing' : 'changed'}: review the licence before re-pinning`,
+    );
+
+  for (const evidence of repo.stack) {
+    const file = await api.raw(repo.fork, evidence.file, repo.commit);
+    if (file === undefined) {
+      failWith(`${evidence.file} missing`);
+      continue;
+    }
+    const present = dependencies(file);
+    const missing = evidence.packages.filter((name) => !present.has(name));
+    if (missing.length === 0) pass(`${evidence.file}: ${evidence.packages.join(', ')}`);
+    else failWith(`${evidence.file}: missing ${missing.join(', ')}`);
+  }
+  return { repo: repo.id, ok, lines };
+}
+
+/** The real GitHub REST API; uses GITHUB_TOKEN when set (higher rate limit), anonymous otherwise. */
+export function gitHubApi(token = process.env.GITHUB_TOKEN): GitHubApi {
+  const headers = (accept: string): Record<string, string> => ({
+    Accept: accept,
+    'X-GitHub-Api-Version': '2022-11-28',
+    'User-Agent': 'flowcanvas-corpus-check',
+    ...(token !== undefined && token !== '' ? { Authorization: `Bearer ${token}` } : {}),
+  });
+  const get = async (path: string, accept: string): Promise<Response | undefined> => {
+    const response = await fetch(`https://api.github.com/${path}`, { headers: headers(accept) });
+    if (response.status === 404) return undefined;
+    if (!response.ok) throw new Error(`GitHub API ${String(response.status)} for ${path}`);
+    return response;
+  };
+  return {
+    json: async (path) => (await get(path, 'application/vnd.github+json'))?.json(),
+    raw: async (repo, file, commit) =>
+      (
+        await get(`repos/${repo}/contents/${file}?ref=${commit}`, 'application/vnd.github.raw')
+      )?.text(),
+  };
+}
+```
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm --filter @flowcanvas/corpus test                 # 10 passed (offline)
+GITHUB_TOKEN=(gh auth token) pnpm corpus:check        # 6 of 6 repos pass
+```
+
+**Run and check it (verified 29 Oct 2026):**
+1. `pnpm corpus:check` prints, for each repo:
+   - ✓ fork of the original
+   - ✓ public
+   - ✓ commit on its branch
+   - ✓ licence unchanged
+   - ✓ each stack file and its packages
+
+   It ends with "6 of 6 repos pass."
+2. Open any fork on GitHub, for example https://github.com/ArmaanAhuja-7777/rallly, and look at the pinned commit with `/commit/8e67a21…`.
+3. To see a failure, change one character of a `sha256` in `manifest.json`, then run the check again: "LICENSE changed: review the licence before re-pinning". Revert afterwards.
+
+**Gotchas:**
+- **Never copy a corpus repo's code into this repository.** AGPL could then apply to our code.
+- **Re-pinning is a deliberate change.** Update `commit`, re-check the stack evidence, and read the licence if its hash changes.
+- **Never enable commercial or enterprise parts** of a corpus repo.
+- **Forks you push to are public.** Never put secrets or real data in them.
+
+**Commit:** `feat(corpus): six pinned public test repos with a fork, commit, licence and stack check`
+
+### Step 1b.8 — Close phase 1b
+
+**Goal:** leave the phase versioned, documented and reviewable: version 0.3.0, the changelog (which feeds What's new), the report, status and architecture, everything re-run on a fresh clone, and a PR. The phase stays **in review** until GitHub Actions can prove the Done-when.
+
+**What changed:**
+- Root `package.json`: version **0.3.0**.
+- `CHANGELOG.md`: `[0.3.0] — 2026-10-29 — Phase 1b`, with **Try it** first, then Added, Changed and Security. The guard test checks that the newest entry equals the version, and What's new shows it.
+- `docs/reports/phase-1b.md`: results per Done-when item (two marked ⚠ until Actions runs), evidence, deviations, ADRs 0011–0012, known issues, the upgrade-later review and the next phase.
+- `docs/STATUS.md` (1b **in review**) and `ARCHITECTURE.md` (end of phase 1b, version 0.3.0).
+
+**Run and check it (the whole phase):**
+
+```fish
+pnpm install
+pnpm format:check && pnpm lint && pnpm typecheck && pnpm test     # 178 unit/component tests
+pnpm build && pnpm test:e2e                                        # 4 recorded walkthroughs
+pnpm test:visual                                                   # 64, in Playwright's Docker image
+GITHUB_TOKEN=(gh auth token) pnpm corpus:check                     # 6 of 6
+docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12   # workflow lint
+```
+
+**A last flake, fixed at its cause:**
+- **What happened:** after the fresh-clone run passed, a repeat run failed one screenshot by 4 pixels, at the end of the "Release notes" button text on the Popover story, with reddish values.
+- **Cause:** subpixel (LCD) text smoothing, which Chrome turns on or off per compositor layer, so it can differ between runs.
+- **Fix:** `launchOptions: { args: ['--disable-lcd-text'] }` in `e2e/playwright.visual.config.ts` gives grey smoothing always.
+- **Result:** 58 baselines retaken, identical to the eye; three consecutive runs passed 64 of 64 (ADR 0012).
+
+**Commits:** `chore: release 0.3.0, close phase 1b` · `test(e2e): grey text smoothing for deterministic screenshots`
+

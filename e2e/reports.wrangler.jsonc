@@ -1,0 +1,12 @@
+// Test reports and recordings, one version per run (ADR 0011). Published by scripts/publish-report.ts.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "flowcanvas-reports",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./report-site",
+  },
+  "preview_urls": true,
+  "workers_dev": true,
+  "send_metrics": false,
+}

@@ -22,7 +22,7 @@ All reference material lives in `docs/reference/`. Screenshots of a clickable pr
 | **Research report** (`docs/reference/research-report.md`) | Product vision, users, competitors, architecture, trust model, prompting, model choice, coverage plan, risks | The *why*. Read it fully before phase 1 and re-read the relevant section before each phase |
 | **Design language: Graphite** (`docs/reference/design-language-graphite.md`) | Principles, muted colour palette, typography, spacing, components, accessibility | **The source of truth for how things look and behave visually** |
 | **Design brief** (`docs/reference/design-brief.md`) | Every screen, panel, component and state, with interaction notes | Detailed behaviour of each screen |
-| **Figma file** (`Flowcanvas — Product Design`, https://www.figma.com/design/aV9vPto305pKFPlvWQOBX8) | Variables (tokens), text styles, components (Tag, Button, Flow node), screens 01–31 plus the cloud workspace screens | Pixel reference. Each phase names the screens it implements |
+| **Figma file** (`Flowcanvas — Product Design`, https://www.figma.com/design/aV9vPto305pKFPlvWQOBX8) | Variables (tokens), text styles, components (Tag, Button, Flow node), screens 01–31 plus the cloud workspace screens | Visual reference (not compared automatically; owner decision 29 Oct 2026). Each phase names the screens it builds from; the owner reviews the result by eye |
 | **Figma generator scripts** (`docs/reference/figma-scripts/`: `flowcanvas-screens.js`, `flowcanvas-prompting-screens.js`, `flowcanvas-cloud-screens.js`) | The code that generated the Figma file | Exact token values (`HEX` map), text styles, sizes, copy and layout rules; an exact fallback when Figma is ambiguous or unreachable |
 | **Decisions log** (`docs/decisions-log.md`) | Answers to open questions, with dates | Check it before raising a question that may already be settled |
 | **Upgrade later** (`docs/upgrade-later.md`) | Things deliberately deferred (now / later / trigger) | Add an entry whenever we choose a cheaper or simpler option for now; review it at the end of every phase |
@@ -44,7 +44,7 @@ Flowcanvas is a canvas-first, AI-native development environment that replaces th
 5a. **Never lose work.** Autosave, checkpoint backups and snapshots must work before any feature that changes code ships. Hitting a usage limit pauses gracefully and saves everything.
 6. **Wrap agents, don't build one.** All agent work goes through the Agent Client Protocol (plus Claude Code hooks where useful). The product does not make code edits with its own model.
 7. **Checkpoints never touch the user's branches.** Use shadow refs (e.g. `refs/flowcanvas/checkpoints/<session>/<step>`).
-8. **Test repos are public forks only.** Use the forks named in the build plan, pinned to exact commits. Never use the user's own projects as test data.
+8. **Test repos are public open-source projects only.** Use the repos in `corpus/manifest.json` (a deliberately varied set, see the decisions log): public forks pinned to exact commits, their code never copied into this repository, their commercial or enterprise parts never enabled. Never use the user's own projects as test data.
 9. **Design tokens only.** No hard-coded colours, sizes, radii or fonts in components. Everything comes from the Graphite tokens in `@flowcanvas/tokens` (enforced by Stylelint for CSS).
 10. **No placeholder features.** Mock data is allowed only in tests, the component catalogue, or behind a Labs switch clearly labelled as preview.
 11. **Ask, don't guess, on product decisions.** On pure engineering choices, decide, record the decision (section 9) and move on.
@@ -119,7 +119,7 @@ Give the overview lesson in chat (section 4a), covering the plan template in sec
 - Unit and integration tests for the new logic.
 - Corpus tests against the pinned forks for anything that analyses code.
 - End-to-end tests (Playwright driving the web app at the preview URL) that perform the phase's *Try it* steps and record a video.
-- Screenshot comparison against the named Figma screens for any UI change.
+- Visual regression for any UI change: screenshots compared with our own approved baselines, plus accessibility checks. Figma screens are the reference the owner reviews against by eye, not an automated test.
 - Performance and security checks where the phase touches them (section 8).
 
 ### Step 4 — Make it visible
@@ -186,7 +186,7 @@ docs/                 adr/, phases/, STATUS.md, ARCHITECTURE.md, SECURITY.md
 | Unit | Pure logic: parsers, resolvers, graph diffing, masking, routing | Every commit |
 | Corpus | Flows extracted from the pinned forks compared with hand-labelled flows; precision, recall and update speed reported per repo | Every commit (fast subset), nightly (full) |
 | End-to-end | Playwright drives the web app at the preview URL, against real workspaces, through every *Try it* step ever written; records video | Every merge; the whole history runs nightly as the regression suite |
-| Visual | Screenshots of implemented screens and components compared with Figma exports | Every UI change |
+| Visual | Screenshots of every catalogue story and implemented screen, in both themes, compared with approved baselines (pixel-exact), plus axe | Every UI change |
 | Performance | Index time, p90 canvas update after an agent step (target under 3 s), frame rate with 500 and 2,000 nodes, memory | Nightly; fail the build on regression beyond agreed tolerance |
 | Security | Canary secrets planted in `.env`, the vault and fixtures must never appear in the index, logs, traces, context packs or model requests; one workspace must never reach another | Every merge |
 | Resilience | Kill a workspace mid-edit, restore from backup, sleep and resume; no work lost | Nightly |
@@ -199,7 +199,7 @@ When you make a significant technical choice (a library, a data format, a protoc
 
 ## 10. Design implementation rules
 
-- **Tokens come from Figma.** Build `tools/figma-tokens` in phase 1a to read a Figma variables JSON export and turn it into CSS variables and typed TS tokens. Until the real export is available, it reads a hand-written seed JSON with the values below, recorded in a temporary ADR. Re-run it whenever Figma changes; never hand-edit generated files.
+- **Tokens live in code.** `packages/tokens/source/*.tokens.json` is the source of truth (Figma is a reference only, decision 29 Oct 2026). `tools/figma-tokens` generates CSS variables and typed TS from it (and can still read a Figma variables export if one is ever wanted). Never hand-edit generated files.
 - **Graphite principles:** near-achromatic slate chrome; colour only carries meaning; change state by hue (Signal palette); provenance by line form only (solid, check mark, dotted, open stub); one signal-blue accent for selection and focus only.
 - **Colour tokens (dark theme; Signal palette for states and accent, 28 Oct 2026):**
   - Surfaces: `surface/canvas` #0B0C0E, `surface/panel` #111317, `surface/raised` #181B20, `surface/hover` #1E2228, `surface/selected` #252A31, `surface/inverse` #E6E8EB
@@ -213,10 +213,10 @@ When you make a significant technical choice (a library, a data format, a protoc
   - Light theme: approved 27 Oct 2026, state and accent hues moved to Signal 28 Oct 2026; values in `packages/tokens/source/color.light.tokens.json` and the Graphite doc.
 - **Type and spacing:** Inter for UI, JetBrains Mono for code, paths and prompts. Text styles: Display 24/32 600, Title 20/28 600, Heading 15/22 600, Body 13/20 400, Body strong 13/20 500, Small 12/16 400, Small strong 12/16 500, Caption 11/14 500, Mono 12/18 400, Mono small 11/16 400. Letter-spacing −1.5% on Display, −1% on Title and Heading. 4 px grid; radii 4 / 6 / 8 / 10. Sentence-case labels, no ALL CAPS.
 - **Layout:** the Figma screens use a 40 px top bar (project, branch, Graph / Sequence / Code switch, search, workspace status, share, avatar), a 44 px rail and a 40 px review bar. The Figma file is the layout reference.
-- **Components first.** Build each component in `packages/ui` with all its variants and states, show it in the catalogue, and compare it with the Figma component before using it in screens.
+- **Components first.** Build each component in `packages/ui` with all its variants and states, show it in the catalogue, and review it against the Figma component and screens before using it in screens.
 - **Avoid the "AI-generated" look:** no gradients, glows, emoji, decorative colour or ALL-CAPS labels; sentence case everywhere; real-looking content in demos; state dots only where something actually changed; quiet chrome, loud canvas.
 - **Both themes.** Dark first, light using the same tokens. Respect "reduce motion".
-- **Screens map to phases.** Each phase lists its Figma screens; implement them faithfully, then report any intentional deviation with a screenshot.
+- **Screens map to phases.** Each phase lists the Figma screens it builds from. Use them as the reference for layout and behaviour (built from our own components, not copied pixel for pixel), and note notable differences in the phase report for the owner's review.
 
 ## 11. Domain rules you must preserve
 
@@ -282,7 +282,7 @@ Preview URL: <link>   Demo project: <name>
 
 ## Evidence
 Test summary (unit / corpus / e2e / visual / perf / security), recording link,
-screenshots next to the Figma frames.
+screenshots of the new screens (for review against the Figma reference).
 
 ## Deviations from plan and why
 ## Decision records added

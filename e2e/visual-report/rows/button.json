@@ -1,0 +1,42 @@
+[
+  {
+    "group": "button",
+    "name": "Kind=Danger",
+    "figma": "button/Kind=Danger.figma.png",
+    "ours": "button/Kind=Danger.ours.png",
+    "diff": "button/Kind=Danger.diff.png",
+    "ratio": 0.026180387409200968,
+    "budget": 0.04,
+    "note": "ours 59×28, Figma 59×28 (incl. effects)"
+  },
+  {
+    "group": "button",
+    "name": "Kind=Ghost",
+    "figma": "button/Kind=Ghost.figma.png",
+    "ours": "button/Kind=Ghost.ours.png",
+    "diff": "button/Kind=Ghost.diff.png",
+    "ratio": 0.02406174334140436,
+    "budget": 0.04,
+    "note": "ours 59×28, Figma 59×28 (incl. effects)"
+  },
+  {
+    "group": "button",
+    "name": "Kind=Primary",
+    "figma": "button/Kind=Primary.figma.png",
+    "ours": "button/Kind=Primary.ours.png",
+    "diff": "button/Kind=Primary.diff.png",
+    "ratio": 0.02587772397094431,
+    "budget": 0.04,
+    "note": "ours 59×28, Figma 59×28 (incl. effects)"
+  },
+  {
+    "group": "button",
+    "name": "Kind=Secondary",
+    "figma": "button/Kind=Secondary.figma.png",
+    "ours": "button/Kind=Secondary.ours.png",
+    "diff": "button/Kind=Secondary.diff.png",
+    "ratio": 0.05867014341590613,
+    "budget": 0.07,
+    "note": "ours 59×28, Figma 61×28 (incl. effects)"
+  }
+]

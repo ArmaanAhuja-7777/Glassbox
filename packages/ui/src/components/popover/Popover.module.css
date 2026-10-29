@@ -1,0 +1,54 @@
+/* Same Graphite popover as menus (level 3 surface, subtle border, 8 px radius, popover shadow), sized for text. */
+.popover {
+  display: flex;
+  box-sizing: border-box;
+  inline-size: min(calc(2 * var(--size-node-width)), calc(100vw - 2 * var(--space-16)));
+  max-block-size: min(calc(3 * var(--size-node-width)), calc(100dvh - 2 * var(--space-16)));
+  border: var(--border-width-default) solid var(--color-border-subtle);
+  border-radius: var(--radius-popover);
+  background: var(--color-surface-hover);
+  box-shadow: var(--shadow-popover);
+  color: var(--color-text-primary);
+}
+
+.popover[data-entering] {
+  animation: popover-in var(--duration-panel) ease-out;
+}
+
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-4)));
+  }
+}
+
+.dialog {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  outline: none;
+}
+
+.title {
+  flex: none;
+  margin: 0;
+  padding: var(--space-12) var(--space-16);
+  border-block-end: var(--border-width-default) solid var(--color-border-subtle);
+  font-family: var(--text-heading-font-family);
+  font-size: var(--text-heading-font-size);
+  font-weight: var(--text-heading-font-weight);
+  line-height: var(--text-heading-line-height);
+  letter-spacing: var(--text-heading-letter-spacing);
+}
+
+/* Long content scrolls here, so the title stays visible. */
+.body {
+  overflow: auto;
+  padding: var(--space-12) var(--space-16) var(--space-16);
+  font-family: var(--text-body-font-family);
+  font-size: var(--text-body-font-size);
+  font-weight: var(--text-body-font-weight);
+  line-height: var(--text-body-line-height);
+  color: var(--color-text-secondary);
+}

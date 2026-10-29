@@ -4,11 +4,19 @@ import {
   MenuButton,
   MenuItem,
   MenuTrigger,
+  Popover,
+  PopoverButton,
+  PopoverTrigger,
   useThemePreference,
   type ThemePreference,
 } from '@flowcanvas/ui';
+import releases from 'virtual:changelog';
 import styles from './App.module.css';
+import { LabsPanel } from './labs/LabsPanel';
+import { LabsProvider } from './labs/LabsProvider';
 import { CATALOGUE_URL } from './links';
+import { useWhatsNewSeen } from './whats-new/seen';
+import { WhatsNew } from './whats-new/WhatsNew';
 
 interface AppProps {
   readonly buildInfo: BuildInfo;
@@ -26,50 +34,79 @@ function themeLabel(preference: ThemePreference): string {
 
 export function App({ buildInfo }: AppProps) {
   const [theme, setTheme] = useThemePreference();
+  const [unseen, markSeen] = useWhatsNewSeen(releases[0]?.version);
   return (
-    <main className={styles.page}>
-      <div className={styles.content}>
-        <h1 className={styles.title}>Flowcanvas</h1>
-        <p className={styles.summary}>
-          A canvas-first development environment. This build has the Graphite design system; the
-          canvas comes in the next phases.
-        </p>
-        <dl className={styles.facts}>
-          <dt className={styles.term}>Build</dt>
-          <dd className={styles.build}>{formatBuildInfo(buildInfo)}</dd>
-        </dl>
-        <div className={styles.actions}>
-          <a className={styles.link} href={CATALOGUE_URL}>
-            Open the component catalogue
-          </a>
-          <MenuTrigger>
-            <MenuButton aria-label={`Theme: ${themeLabel(theme)}`}>
-              Theme: {themeLabel(theme)}
-            </MenuButton>
-            <Menu
-              aria-label="Theme"
-              placement="bottom end"
-              selectionMode="single"
-              disallowEmptySelection
-              selectedKeys={[theme]}
-              onSelectionChange={(keys) => {
-                const next = keys === 'all' ? undefined : THEMES.find(({ id }) => keys.has(id));
-                if (next !== undefined) setTheme(next.id);
-              }}
-            >
-              {THEMES.map(({ id, label }) => (
-                <MenuItem
-                  key={id}
-                  id={id}
-                  {...(id === 'system' ? { description: 'follows your OS' } : {})}
+    <LabsProvider>
+      <main className={styles.page}>
+        <div className={styles.content}>
+          <h1 className={styles.title}>Flowcanvas</h1>
+          <p className={styles.summary}>
+            A canvas-first development environment. This build has the Graphite design system; the
+            canvas comes in the next phases.
+          </p>
+          <dl className={styles.facts}>
+            <dt className={styles.term}>Build</dt>
+            <dd className={styles.build}>{formatBuildInfo(buildInfo)}</dd>
+          </dl>
+          <div className={styles.actions}>
+            <a className={styles.link} href={CATALOGUE_URL}>
+              Open the component catalogue
+            </a>
+            <div className={styles.controls}>
+              <PopoverTrigger
+                onOpenChange={(open) => {
+                  if (open) markSeen();
+                }}
+              >
+                <PopoverButton
+                  kind="ghost"
+                  aria-label={unseen ? "What's new (new changes)" : "What's new"}
                 >
-                  {label}
-                </MenuItem>
-              ))}
-            </Menu>
-          </MenuTrigger>
+                  What&apos;s new
+                  {/* A state dot only when something changed since the notes were last opened. */}
+                  {unseen && <span className={styles.dot} aria-hidden="true" />}
+                </PopoverButton>
+                <Popover title={`What's new in ${buildInfo.version}`}>
+                  <WhatsNew releases={releases} version={buildInfo.version} />
+                </Popover>
+              </PopoverTrigger>
+              {/* Settings → Labs from phase 2, when the app shell has a Settings page. */}
+              <PopoverTrigger>
+                <PopoverButton kind="ghost">Labs</PopoverButton>
+                <Popover title="Labs">
+                  <LabsPanel />
+                </Popover>
+              </PopoverTrigger>
+              <MenuTrigger>
+                <MenuButton aria-label={`Theme: ${themeLabel(theme)}`}>
+                  Theme: {themeLabel(theme)}
+                </MenuButton>
+                <Menu
+                  aria-label="Theme"
+                  placement="bottom end"
+                  selectionMode="single"
+                  disallowEmptySelection
+                  selectedKeys={[theme]}
+                  onSelectionChange={(keys) => {
+                    const next = keys === 'all' ? undefined : THEMES.find(({ id }) => keys.has(id));
+                    if (next !== undefined) setTheme(next.id);
+                  }}
+                >
+                  {THEMES.map(({ id, label }) => (
+                    <MenuItem
+                      key={id}
+                      id={id}
+                      {...(id === 'system' ? { description: 'follows your OS' } : {})}
+                    >
+                      {label}
+                    </MenuItem>
+                  ))}
+                </Menu>
+              </MenuTrigger>
+            </div>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </LabsProvider>
   );
 }

@@ -33,25 +33,3 @@ export const AllTones: Story = {
     </div>
   ),
 };
-
-/**
- * The Figma variants with the Figma component's default text, one per `data-figma` name.
- * The visual test (e2e/visual/figma.spec.ts) compares each with the exported Figma PNG.
- */
-export const FigmaVariants: Story = {
-  render: () => (
-    <div style={{ display: 'grid', gap: vars.space['16'], justifyItems: 'start' }}>
-      {(['added', 'modified', 'removed', 'affected', 'scope', 'neutral', 'accent'] as const).map(
-        (tone) => (
-          <Tag
-            key={tone}
-            tone={tone}
-            data-figma={`Tone=${tone[0]?.toUpperCase() ?? ''}${tone.slice(1)}`}
-          >
-            label
-          </Tag>
-        ),
-      )}
-    </div>
-  ),
-};

@@ -26,5 +26,6 @@ blob-report/
 .idea/
 
 # visual tests (baselines in e2e/visual/__screenshots__ ARE committed)
-visual-report/
 playwright-report-visual/
+report-site/
+reports-data/
