@@ -8349,6 +8349,21 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 | Staging | `https://flowcanvas.ahujaarmaan7777.workers.dev/api/auth/callback/github` | `https://flowcanvas.ahujaarmaan7777.workers.dev/api/auth/callback/google` |
 | Local | `http://localhost:5173/api/auth/callback/github` | `http://localhost:5173/api/auth/callback/google` |
 
+**Google Cloud steps** (Google Auth Platform, current console):
+1. Use a **dedicated `flowcanvas` project**, not an existing one (for example a "Gemini Project"), so keys, quotas and the consent-screen name belong to Flowcanvas alone.
+2. Google Auth Platform → **Get started**:
+   - app name `Flowcanvas`, your support email
+   - audience **External**
+   - contact email, then accept the policy
+3. **Data Access** → *Add or remove scopes*: `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`. All three are non-sensitive, so no verification is needed.
+4. **Audience**: publishing status stays **Testing**; **Test users** → add your Google address. Only test users can sign in, which matches the allowlist.
+5. **Branding**: no logo (uploading one triggers Google's brand verification); leave the domain fields empty while testing.
+6. **Clients** → *Create client* → **Web application** `Flowcanvas`:
+   - JavaScript origins: the staging and `http://localhost:5173` addresses
+   - redirect URIs: the two Google callbacks above
+
+   Copy the client secret when it's shown; Google may show it only once. Don't download the JSON into the repo.
+
 **Don't use Neon's "Set up this app on Neon" agent prompt.** It installs the `neon` CLI, runs `neon init`/`neon deploy` in the repo, writes connection strings into `.env.local`, and asks an agent to wire the database into the app. That would bypass our plan: keys go only into Worker secrets and `.dev.vars`, and the database code is written and reviewed in step 1. Copy the connection strings from the dashboard instead (**Connect** button).
 
 **Values to store:**
