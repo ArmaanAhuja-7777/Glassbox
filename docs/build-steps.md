@@ -8339,7 +8339,7 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 **Concepts:**
 - **Two environments, two sets of keys.** Staging and local development get separate OAuth apps and separate database branches, so a leaked local key can't touch staging, and local experiments can't damage staging data.
 - **Callback URLs.** After you approve, GitHub and Google send the browser back to a registered address with a one-time code. A GitHub OAuth App accepts exactly one callback URL, hence two apps; a Google client accepts several.
-- **Neon branches.** A Neon project has a `main` branch (staging) and can have a `dev` branch (local): separate copies of the database, both free.
+- **Neon branches.** A Neon project has a default branch, named `production` in new projects (used for staging), and can have a `dev` branch (local): separate copies of the database, both free. Create `dev` from `production` with "Branch data and schema".
 - **Where secrets live:** `pnpm exec wrangler secret put NAME` prompts for the value and stores it encrypted on the Worker; `.dev.vars` holds local values and is git-ignored.
 
 **Callback URLs:**
@@ -8349,10 +8349,12 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 | Staging | `https://flowcanvas.ahujaarmaan7777.workers.dev/api/auth/callback/github` | `https://flowcanvas.ahujaarmaan7777.workers.dev/api/auth/callback/google` |
 | Local | `http://localhost:5173/api/auth/callback/github` | `http://localhost:5173/api/auth/callback/google` |
 
+**Don't use Neon's "Set up this app on Neon" agent prompt.** It installs the `neon` CLI, runs `neon init`/`neon deploy` in the repo, writes connection strings into `.env.local`, and asks an agent to wire the database into the app. That would bypass our plan: keys go only into Worker secrets and `.dev.vars`, and the database code is written and reviewed in step 1. Copy the connection strings from the dashboard instead (**Connect** button).
+
 **Values to store:**
 
 | Name | Staging (Worker secret) | Local (`.dev.vars`) |
 | --- | --- | --- |
-| `DATABASE_URL` | Neon `main` branch connection string | Neon `dev` branch connection string |
+| `DATABASE_URL` | Neon `production` branch connection string (pooled) | Neon `dev` branch connection string (pooled) |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | "Flowcanvas (staging)" OAuth app | "Flowcanvas (local)" OAuth app |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | the Google client | the same Google client |
