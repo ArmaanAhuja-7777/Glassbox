@@ -33,10 +33,11 @@ Option 1.
 | Local `wrangler dev` with `.dev.vars` | `/api/health` 200; `/api/db/ping` 200 against Neon `dev` (4.2 s on the first query, while Neon's idle compute woke; 117 ms after); `/` still the static app with the strict CSP; unknown `/api/*` a JSON 404 |
 | Bundle | 18 static files plus the script, 69 KB gzip (free limit 3 MB) |
 | Cloudflare preview at `ba4718e` | `/api/health` 200 from the script; `/api/db/ping` 503 "not configured", as expected before the secrets were attached |
-| Secrets | Five `wrangler versions secret put` calls on 30 Oct succeeded but **didn't attach**: the Worker was assets-only, so no version had a script to bind them to (`versions secret list` crashed, and a later version showed no bindings). Re-set after the first version with a script |
+| Secrets | The first five `wrangler versions secret put` calls (assets-only Worker) said "Success", but the preview built afterwards at `ba4718e` had no `DATABASE_URL`. Re-set after the first version with a script: version `26f9c237` then answered `/api/db/ping` 200 against Neon `production` (734 ms cold, 63 ms warm), checked through its own version URL. `wrangler versions secret list --latest-version` crashes in Wrangler 4.152 ("Cannot read properties of undefined (reading 'bindings')") both before and after, so it's a Wrangler bug, not proof of missing secrets |
 
 ## Consequences
 
+- **Verify secrets by behaviour, not by listing:** call `/api/db/ping` on the version's own URL (`https://<first 8 characters of the version id>-flowcanvas.<subdomain>.workers.dev`).
 - **Secrets are set with `wrangler versions secret put`, not `wrangler secret put`.** Branch previews make the newest version differ from the deployed one, and `secret put` refuses to deploy over that. New versions inherit the latest version's secrets.
 - **The first database query after Neon has been idle takes seconds** (upgrade-later 22). Sign-in will tolerate it, with a timeout and a clear message.
 - **CPU per request is limited to 10 ms** on the free plan (upgrade-later 21). The dashboard's logs show CPU time per request; the vault step (6) checks encryption under it.

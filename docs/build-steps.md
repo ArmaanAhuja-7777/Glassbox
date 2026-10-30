@@ -8343,7 +8343,7 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 - **Where secrets live:**
   - **On Cloudflare:** `pnpm exec wrangler versions secret put NAME` prompts for the value and stores it encrypted on a new Worker version, without deploying. Use `versions secret put`, not `secret put`, because branch previews make the newest version differ from the live one.
   - **Secrets only attach to a Worker version that has a script.** The first attempt, on the assets-only Worker, said "Success" but attached nothing.
-  - Check with `pnpm exec wrangler versions secret list --latest-version`.
+  - **Check by behaviour:** `/api/db/ping` on the new version's own URL (`https://<first 8 characters of the version id>-flowcanvas.ahujaarmaan7777.workers.dev`) answers `{"database":"ok"}`. `wrangler versions secret list --latest-version` crashes in Wrangler 4.152 (a Wrangler bug), so it can't be used.
   - **Locally:** `.dev.vars` holds the values and is git-ignored. Run `cp .dev.vars.example .dev.vars` **once**, before filling it in; running it again overwrites your values.
 
 **Callback URLs:**
@@ -8534,7 +8534,8 @@ curl http://127.0.0.1:8787/api/db/ping                 # {"database":"ok","round
 
 **Run and check it (30 Oct 2026):**
 1. Locally: health 200, and the database ping 200 against Neon `dev` (4.2 s cold, then 117 ms). `/` is still the app, with its CSP.
-2. Preview `https://phase-1c-sign-in-control-plane-flowcanvas.ahujaarmaan7777.workers.dev/api/health` gives 200 from the script; `/api/db/ping` gives 503 "not configured" until the staging secrets are set on a version with a script.
+2. Preview `https://phase-1c-sign-in-control-plane-flowcanvas.ahujaarmaan7777.workers.dev/api/health` gives 200 from the script; `/api/db/ping` gave 503 "not configured" until the staging secrets were set on a version with a script.
+3. After the owner re-set the secrets, version `26f9c237`'s own URL answered `/api/db/ping` 200 against Neon `production` (734 ms cold, 63 ms warm).
 
 **Gotchas:**
 - **`wrangler dev` serves `apps/web/dist`,** so build the web app first.
