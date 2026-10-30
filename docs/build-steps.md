@@ -8322,7 +8322,7 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 | --- | --- | --- |
 | 0 | Owner accounts: Neon database, GitHub OAuth apps (staging + local), Google OAuth client; keys stored as Worker secrets and in `.dev.vars` | done · owner · `.dev.vars` checked by name and format; Worker secrets verified by `/api/db/ping` on version `26f9c237`, and inherited by the next preview (`9ae581e`) |
 | 1 | Spike: Hono and Neon on the Workers free plan; ADR | done · `ba4718e` · Claude · ADR 0013 |
-| 2 | Database schema and migrations | *planned* |
+| 2 | Database schema and migrations | done · see commit below · Claude · ADR 0014 · applied to Neon `dev` |
 | 3 | GitHub sign-in, sessions, sign out | *planned* |
 | 4 | Google sign-in, allowlist, admin role | *planned* |
 | 5 | Projects list and create | *planned* |
@@ -8544,4 +8544,271 @@ curl http://127.0.0.1:8787/api/db/ping                 # {"database":"ok","round
 - **The first request after Neon idles is slow.** That's not a bug.
 
 **Commit:** `feat(control-plane): spike the API in the app Worker with Hono and Neon`
+
+### Step 1c.2 — Database schema and migrations
+
+**Goal:** the tables phase 1c stands on, as versioned migration files, applied by a small runner the same way locally and on staging, and tested against a throwaway Postgres.
+
+**Concepts:**
+- **Migrations:** numbered SQL files applied once, in order, recorded in `schema_migrations` with a SHA-256. Never edit an applied file; add a new one. The runner refuses edited files, unknown versions, bad names and duplicate numbers, and rolls a failing file back completely.
+- **Plain SQL, not an ORM** (ADR 0014): visible, reviewable, nothing added to the Worker bundle; Postgres constraints enforce the rules.
+- **Constraints as the last line of defence:** `check`, `unique`, `references … on delete cascade`.
+- **Sessions as hashes:** the database stores the SHA-256 of the session token, never the token.
+- **Envelope encryption, shaped in the schema:** `project_keys` holds each project's data key encrypted by a master key in a Worker secret; `project_secrets` holds only ciphertext and IV.
+- **PGlite:** Postgres compiled to WebAssembly, in the test process. A fresh database per test, offline, in milliseconds. https://pglite.dev
+- **Transactions:** each migration runs between `begin` and `commit`; on any error, `rollback` leaves no trace.
+- **No personal data in the repo:** the allowlist is filled by `pnpm db:allow`, because migrations are public.
+
+**What changed:**
+- `services/control-plane/migrations/0001_initial.sql`: 9 tables (see `ARCHITECTURE.md`, "Data model").
+- `src/db/migrations.ts` (runner), `src/db/migration-files.ts` (loads the folder), `scripts/db.ts` (status, migrate, allow).
+- `src/db/schema.test.ts`: 13 tests (runner safety, plus every rule: lower-case unique emails, unique identities, 32-byte session hashes with valid expiry, trimmed project names unique per owner, secret name pattern, 12-byte IVs, cascading user deletion, usage periods, allowlist).
+- `@electric-sql/pglite` 0.5.10 (dev only).
+- Scripts:
+  - `db:status`, `db:migrate`, `db:allow` in the package (run with `tsx`, reading `../../.dev.vars`) and at the root
+  - `tsconfig.json` now type-checks `scripts/`; `tsconfig.build.json` emits `src` only
+- Docs: ADR 0014, `ARCHITECTURE.md` (data model), upgrade-later 23 (automatic staging migrations with a lock and backups).
+
+**`services/control-plane/migrations/0001_initial.sql`:**
+
+```sql
+-- 0001 — Phase 1c: accounts, sessions, projects, workspace records, secrets vault, usage.
+-- Never edit this file once applied anywhere; add a new numbered migration instead.
+
+-- People who may sign in while in private development (decisions log, 30 Oct 2026). Filled by
+-- `pnpm db:allow`, never by a migration: the repository is public, so no emails live in it.
+create table sign_in_allowlist (
+  email text primary key check (email = lower(email) and email like '%_@_%'),
+  role text not null default 'member' check (role in ('member', 'admin')),
+  added_at timestamptz not null default now()
+);
+
+create table users (
+  id uuid primary key default gen_random_uuid(),
+  email text not null check (email = lower(email) and email like '%_@_%'),
+  display_name text not null check (char_length(display_name) between 1 and 200),
+  avatar_url text check (avatar_url is null or avatar_url like 'https://%'),
+  role text not null default 'member' check (role in ('member', 'admin')),
+  created_at timestamptz not null default now(),
+  last_signed_in_at timestamptz
+);
+create unique index users_email_key on users (email);
+
+-- One row per external account (GitHub, Google) linked to a user.
+create table identities (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users (id) on delete cascade,
+  provider text not null check (provider in ('github', 'google')),
+  provider_user_id text not null check (char_length(provider_user_id) between 1 and 200),
+  username text,
+  created_at timestamptz not null default now(),
+  unique (provider, provider_user_id)
+);
+create index identities_user_id_idx on identities (user_id);
+
+-- The browser holds a random session token; only its SHA-256 hash is stored, so a database leak
+-- doesn't hand out live sessions.
+create table sessions (
+  token_hash bytea primary key check (octet_length(token_hash) = 32),
+  user_id uuid not null references users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  user_agent text check (user_agent is null or char_length(user_agent) <= 500),
+  check (expires_at > created_at)
+);
+create index sessions_user_id_idx on sessions (user_id);
+create index sessions_expires_at_idx on sessions (expires_at);
+
+create table projects (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references users (id) on delete cascade,
+  name text not null check (char_length(btrim(name)) between 1 and 100 and name = btrim(name)),
+  repo_url text check (repo_url is null or repo_url like 'https://%'),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (owner_id, name)
+);
+
+-- One cloud workspace per project. Records only for now; the machines arrive in phase 1d.
+create table workspaces (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null unique references projects (id) on delete cascade,
+  state text not null default 'not_created'
+    check (state in ('not_created', 'creating', 'running', 'sleeping', 'resuming', 'stopped', 'failed')),
+  region text,
+  machine_size text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Envelope encryption: each project has its own data key, stored only encrypted (wrapped) by a master
+-- key that lives in a Worker secret, never in the database. key_version names which master key.
+create table project_keys (
+  project_id uuid primary key references projects (id) on delete cascade,
+  wrapped_key bytea not null check (octet_length(wrapped_key) between 32 and 64),
+  wrap_iv bytea not null check (octet_length(wrap_iv) = 12),
+  key_version integer not null check (key_version > 0),
+  created_at timestamptz not null default now()
+);
+
+-- Secret values are write-only: stored as AES-GCM ciphertext under the project's data key, never in
+-- plain text, never returned by the API.
+create table project_secrets (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects (id) on delete cascade,
+  name text not null check (name ~ '^[A-Z_][A-Z0-9_]{0,127}$'),
+  ciphertext bytea not null check (octet_length(ciphertext) between 17 and 65552),
+  iv bytea not null check (octet_length(iv) = 12),
+  created_by uuid references users (id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (project_id, name)
+);
+
+-- Usage metering skeleton: measured amounts per user, e.g. workspace seconds (phase 1d onward).
+create table usage_records (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users (id) on delete cascade,
+  workspace_id uuid references workspaces (id) on delete set null,
+  kind text not null check (kind in ('workspace_seconds', 'storage_byte_hours')),
+  quantity bigint not null check (quantity >= 0),
+  started_at timestamptz not null,
+  ended_at timestamptz not null,
+  recorded_at timestamptz not null default now(),
+  check (ended_at >= started_at)
+);
+create index usage_records_user_period_idx on usage_records (user_id, started_at);
+```
+
+**`services/control-plane/src/db/migrations.ts`:**
+
+```ts
+import { createHash } from 'node:crypto';
+
+/** The two things the runner needs from a database connection; Neon and PGlite both fit. */
+export interface MigrationDatabase {
+  /** Runs SQL that may contain several statements (a migration file). */
+  readonly exec: (sql: string) => Promise<void>;
+  /** Runs one parameterised statement and returns its rows. */
+  readonly query: <Row>(sql: string, params?: readonly unknown[]) => Promise<Row[]>;
+}
+
+export interface Migration {
+  /** e.g. "0001_initial". */
+  readonly version: string;
+  readonly sql: string;
+}
+
+export interface MigrationReport {
+  readonly applied: readonly string[];
+  readonly alreadyApplied: readonly string[];
+}
+
+const NAME = /^(\d{4})_[a-z0-9_]+\.sql$/;
+
+export function checksum(sql: string): string {
+  return createHash('sha256').update(sql).digest('hex');
+}
+
+/** Turns migration files into an ordered list, refusing badly named or duplicate-numbered files. */
+export function orderMigrations(files: readonly { name: string; sql: string }[]): Migration[] {
+  const numbers = new Set<string>();
+  return files
+    .map(({ name, sql }) => {
+      const match = NAME.exec(name);
+      if (match?.[1] === undefined) {
+        throw new Error(`migration file "${name}" must be named NNNN_lowercase_words.sql`);
+      }
+      if (numbers.has(match[1])) throw new Error(`two migrations are numbered ${match[1]}`);
+      numbers.add(match[1]);
+      return { version: name.replace(/\.sql$/, ''), sql };
+    })
+    .sort((a, b) => a.version.localeCompare(b.version));
+}
+
+/**
+ * Applies pending migrations in order, each in its own transaction, recording version and checksum.
+ * Refuses to run if an applied migration's file has changed since (never edit applied migrations).
+ */
+export async function migrate(
+  db: MigrationDatabase,
+  migrations: readonly Migration[],
+): Promise<MigrationReport> {
+  await db.exec(`create table if not exists schema_migrations (
+    version text primary key,
+    checksum text not null,
+    applied_at timestamptz not null default now()
+  )`);
+  const rows = await db.query<{ version: string; checksum: string }>(
+    'select version, checksum from schema_migrations',
+  );
+  const done = new Map(rows.map((row) => [row.version, row.checksum]));
+
+  for (const migration of migrations) {
+    const recorded = done.get(migration.version);
+    if (recorded !== undefined && recorded !== checksum(migration.sql)) {
+      throw new Error(
+        `migration ${migration.version} changed after it was applied; add a new migration instead`,
+      );
+    }
+  }
+  const known = new Set(migrations.map((migration) => migration.version));
+  for (const version of done.keys()) {
+    if (!known.has(version))
+      throw new Error(`database has migration ${version}, which this code doesn't know`);
+  }
+
+  const applied: string[] = [];
+  for (const migration of migrations) {
+    if (done.has(migration.version)) continue;
+    await db.exec('begin');
+    try {
+      await db.exec(migration.sql);
+      await db.query('insert into schema_migrations (version, checksum) values ($1, $2)', [
+        migration.version,
+        checksum(migration.sql),
+      ]);
+      await db.exec('commit');
+    } catch (error) {
+      await db.exec('rollback');
+      throw new Error(`migration ${migration.version} failed and was rolled back`, {
+        cause: error,
+      });
+    }
+    applied.push(migration.version);
+  }
+  return { applied, alreadyApplied: [...done.keys()].sort() };
+}
+```
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm --filter @flowcanvas/control-plane test     # 22 passed (13 new, offline with PGlite)
+pnpm db:status                                   # 0001_initial  pending | applied
+pnpm db:migrate                                  # Applied: 0001_initial   (then: Up to date)
+pnpm db:allow you@example.com --admin            # owner: lets you sign in, as admin (needed from step 3)
+```
+
+Staging, when the phase merges (the URL is typed into a hidden prompt, never into history):
+
+```fish
+read -s -P 'Neon production URL: ' DATABASE_URL; DATABASE_URL=$DATABASE_URL pnpm db:migrate; set -e DATABASE_URL
+```
+
+**Run and check it (30 Oct 2026):** against Neon `dev` (AWS ap-southeast-1):
+1. `db:status` showed `pending`.
+2. `db:migrate` showed `Applied: 0001_initial`.
+3. `db:status` showed `applied`.
+4. `db:migrate` again showed `Up to date: nothing to apply.`
+
+**Gotchas:**
+- **Never edit an applied migration.** The runner refuses it; write `0002_…` instead.
+- **Don't put emails or other personal data in migrations.** Use `db:allow`.
+- **Run the db scripts with `tsx`,** not `node`: the package's imports name `.js` files that only exist after a build.
+- **`--env-file-if-exists` doesn't override an exported `DATABASE_URL`.** That's how staging is targeted on purpose, and also how it could happen by accident. The command always prints the host first.
+
+**Commit:** `feat(control-plane): schema migrations, runner and PGlite tests`
 

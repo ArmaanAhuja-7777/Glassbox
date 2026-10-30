@@ -10,7 +10,7 @@ The system as it is **today** (end of phase 1b). Kept current at the end of ever
 | `@flowcanvas/ui` | `packages/ui` | The browser (consumed as source by Vite, ADR 0007) | Graphite components (Button, Tag, Input, Toggle, Tabs, Panel, Menu, Popover, Tooltip, Flow node), global styles, fonts, theme switching; Storybook catalogue |
 | `@flowcanvas/tokens` | `packages/tokens` | Shared (CSS and TypeScript) | Design tokens: DTCG source JSON → generated `css/tokens.css` and typed `vars` / `themeValues`; dark and light themes |
 | `@flowcanvas/figma-tokens` | `tools/figma-tokens` | Developer machine / build | Generator: DTCG token JSON (Figma variable export format) → CSS variables + TypeScript |
-| `@flowcanvas/control-plane` | `services/control-plane` | Our cloud (a container; not deployed yet) | Fastify service with `GET /health`; logs are JSON (pino) with secret redaction |
+| `@flowcanvas/control-plane` | `services/control-plane` | Inside the app's Cloudflare Worker under `/api` (ADR 0013); Neon Postgres | Hono API (`src/api/`), schema migrations and runner (`migrations/`, `src/db/`, ADR 0014). The older Fastify server (`src/server.ts`) remains until the API replaces it |
 | `@flowcanvas/graph-model` | `packages/graph-model` | Shared library (browser and Node) | `BuildInfo` type and `formatBuildInfo()`; becomes the flow graph model in phase 6 |
 | `@flowcanvas/engine` | `packages/engine` | Inside each user workspace (later) | Wired-in placeholder package; indexer arrives in phase 4 |
 | `@flowcanvas/workspace-agent` | `workspace/agent` | Inside each user workspace VM (later) | Wired-in placeholder package; daemon arrives in phase 1d |
@@ -45,6 +45,23 @@ packages/ui components (CSS Modules; Stylelint rejects raw colours, sizes, fonts
   - `tokens` tests check WCAG contrast in both themes.
   - `ui` tests check behaviour and accessibility.
   - `pnpm test:visual` compares every story in both themes, pixel for pixel, with approved baselines of our own rendering, and runs axe on each (`e2e/visual/`). It runs inside Playwright's Docker image on every machine and in CI, so the baselines match everywhere (ADR 0012). Figma is not compared automatically; the owner reviews against it by eye.
+
+## Data model (control plane, Neon Postgres)
+
+Defined by `services/control-plane/migrations/*.sql` (ADR 0014); applied with `pnpm db:migrate`.
+
+| Table | Holds | Notes |
+| --- | --- | --- |
+| `sign_in_allowlist` | Emails allowed to sign in, with role | Filled by `pnpm db:allow`, never in migrations (public repo) |
+| `users` | Email (lower case, unique), name, avatar, role | Deleting a user cascades to everything they own |
+| `identities` | GitHub or Google account linked to a user | Unique per (provider, provider user id) |
+| `sessions` | SHA-256 hash of the session token, expiry | The token itself is never stored |
+| `projects` | Owner, trimmed name (unique per owner), optional repo URL | |
+| `workspaces` | One per project; state (not created … running, sleeping …) | Records only until phase 1d |
+| `project_keys` | Each project's data key, encrypted by a master key held in a Worker secret | Envelope encryption |
+| `project_secrets` | Secret values as AES-GCM ciphertext and IV; environment-variable-style names | Write-only; never returned |
+| `usage_records` | Measured amounts (workspace seconds, storage) over periods | Metering skeleton |
+| `schema_migrations` | Applied migrations and their checksums | Written by the runner |
 
 ## Tooling
 

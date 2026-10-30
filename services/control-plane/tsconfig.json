@@ -1,9 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "types": ["node"]
+    "types": ["node"],
+    "noEmit": true
   },
-  "include": ["src"]
+  // Type-check and lint everything, including the db scripts; the build (tsconfig.build.json) emits src only.
+  "include": ["src", "scripts"]
 }

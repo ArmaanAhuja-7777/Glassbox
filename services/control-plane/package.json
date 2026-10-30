@@ -12,7 +12,10 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "db:migrate": "tsx --env-file-if-exists=../../.dev.vars scripts/db.ts migrate",
+    "db:status": "tsx --env-file-if-exists=../../.dev.vars scripts/db.ts status",
+    "db:allow": "tsx --env-file-if-exists=../../.dev.vars scripts/db.ts allow"
   },
   "dependencies": {
     "@flowcanvas/graph-model": "workspace:*",
@@ -21,6 +24,7 @@
     "hono": "catalog:"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "catalog:",
     "@types/node": "catalog:",
     "eslint": "catalog:",
     "tsx": "catalog:",
