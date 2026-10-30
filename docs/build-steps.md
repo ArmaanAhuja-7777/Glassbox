@@ -8338,7 +8338,7 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 
 **Concepts:**
 - **Two environments, two sets of keys.** Staging and local development get separate OAuth apps and separate database branches, so a leaked local key can't touch staging, and local experiments can't damage staging data.
-- **Callback URLs.** After you approve, GitHub and Google send the browser back to a registered address with a one-time code. A GitHub OAuth App accepts exactly one callback URL, hence two apps; a Google client accepts several.
+- **Callback (redirect) URLs.** After you approve, GitHub and Google send the browser back to a registered address with a one-time code. GitHub's OAuth app form now accepts up to 10 redirect URIs, but we still use **two GitHub apps** (staging and local): each has its own client secret, so a leaked local secret can't be used against staging, and either can be revoked alone. Leave **Allow wildcard matching** off (exact addresses only, so codes can't be sent anywhere else), **Enable Device Flow** off, and **Expire user access tokens** on: we only use GitHub's token once, at sign-in, to read who you are, then issue our own session.
 - **Neon branches.** A Neon project has a default branch, named `production` in new projects (used for staging), and can have a `dev` branch (local): separate copies of the database, both free. Create `dev` from `production` with "Branch data and schema".
 - **Where secrets live:** `pnpm exec wrangler secret put NAME` prompts for the value and stores it encrypted on the Worker; `.dev.vars` holds local values and is git-ignored.
 
