@@ -16,7 +16,9 @@
   },
   "dependencies": {
     "@flowcanvas/graph-model": "workspace:*",
-    "fastify": "catalog:"
+    "@neondatabase/serverless": "catalog:",
+    "fastify": "catalog:",
+    "hono": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
