@@ -8320,7 +8320,7 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 
 | # | Step | Status |
 | --- | --- | --- |
-| 0 | Owner accounts: Neon database, GitHub OAuth apps (staging + local), Google OAuth client; keys stored as Worker secrets and in `.dev.vars` | `.dev.vars` done (checked by name and format) · Worker secrets: re-set after step 1 (see below) · owner |
+| 0 | Owner accounts: Neon database, GitHub OAuth apps (staging + local), Google OAuth client; keys stored as Worker secrets and in `.dev.vars` | done · owner · `.dev.vars` checked by name and format; Worker secrets verified by `/api/db/ping` on version `26f9c237`, and inherited by the next preview (`9ae581e`) |
 | 1 | Spike: Hono and Neon on the Workers free plan; ADR | done · `ba4718e` · Claude · ADR 0013 |
 | 2 | Database schema and migrations | *planned* |
 | 3 | GitHub sign-in, sessions, sign out | *planned* |
@@ -8536,6 +8536,7 @@ curl http://127.0.0.1:8787/api/db/ping                 # {"database":"ok","round
 1. Locally: health 200, and the database ping 200 against Neon `dev` (4.2 s cold, then 117 ms). `/` is still the app, with its CSP.
 2. Preview `https://phase-1c-sign-in-control-plane-flowcanvas.ahujaarmaan7777.workers.dev/api/health` gives 200 from the script; `/api/db/ping` gave 503 "not configured" until the staging secrets were set on a version with a script.
 3. After the owner re-set the secrets, version `26f9c237`'s own URL answered `/api/db/ping` 200 against Neon `production` (734 ms cold, 63 ms warm).
+4. **New uploads inherit secrets.** The preview built from the next push (`9ae581e`) also answered `{"database":"ok"}`, so secrets are set once.
 
 **Gotchas:**
 - **`wrangler dev` serves `apps/web/dist`,** so build the web app first.
