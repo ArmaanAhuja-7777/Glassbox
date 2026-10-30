@@ -8320,8 +8320,8 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 
 | # | Step | Status |
 | --- | --- | --- |
-| 0 | Owner accounts: Neon database, GitHub OAuth apps (staging + local), Google OAuth client; keys stored as Worker secrets and in `.dev.vars` | *in progress* |
-| 1 | Spike: Hono and Neon on the Workers free plan; ADR | *planned* |
+| 0 | Owner accounts: Neon database, GitHub OAuth apps (staging + local), Google OAuth client; keys stored as Worker secrets and in `.dev.vars` | `.dev.vars` done (checked by name and format) · Worker secrets: re-set after step 1 (see below) · owner |
+| 1 | Spike: Hono and Neon on the Workers free plan; ADR | done · `ba4718e` · Claude · ADR 0013 |
 | 2 | Database schema and migrations | *planned* |
 | 3 | GitHub sign-in, sessions, sign out | *planned* |
 | 4 | Google sign-in, allowlist, admin role | *planned* |
@@ -8340,7 +8340,11 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 - **Two environments, two sets of keys.** Staging and local development get separate OAuth apps and separate database branches, so a leaked local key can't touch staging, and local experiments can't damage staging data.
 - **Callback (redirect) URLs.** After you approve, GitHub and Google send the browser back to a registered address with a one-time code. GitHub's OAuth app form now accepts up to 10 redirect URIs, but we still use **two GitHub apps** (staging and local): each has its own client secret, so a leaked local secret can't be used against staging, and either can be revoked alone. Leave **Allow wildcard matching** off (exact addresses only, so codes can't be sent anywhere else), **Enable Device Flow** off, and **Expire user access tokens** on: we only use GitHub's token once, at sign-in, to read who you are, then issue our own session.
 - **Neon branches.** A Neon project has a default branch, named `production` in new projects (used for staging), and can have a `dev` branch (local): separate copies of the database, both free. Create `dev` from `production` with "Branch data and schema".
-- **Where secrets live:** `pnpm exec wrangler secret put NAME` prompts for the value and stores it encrypted on the Worker; `.dev.vars` holds local values and is git-ignored.
+- **Where secrets live:**
+  - **On Cloudflare:** `pnpm exec wrangler versions secret put NAME` prompts for the value and stores it encrypted on a new Worker version, without deploying. Use `versions secret put`, not `secret put`, because branch previews make the newest version differ from the live one.
+  - **Secrets only attach to a Worker version that has a script.** The first attempt, on the assets-only Worker, said "Success" but attached nothing.
+  - Check with `pnpm exec wrangler versions secret list --latest-version`.
+  - **Locally:** `.dev.vars` holds the values and is git-ignored. Run `cp .dev.vars.example .dev.vars` **once**, before filling it in; running it again overwrites your values.
 
 **Callback URLs:**
 
@@ -8373,3 +8377,169 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 | `DATABASE_URL` | Neon `production` branch connection string (pooled) | Neon `dev` branch connection string (pooled) |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | "Flowcanvas (staging)" OAuth app | "Flowcanvas (local)" OAuth app |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | the Google client | the same Google client |
+
+### Step 1c.1 — Spike: the API inside our Worker, talking to Neon
+
+**Goal:** prove decision 1A before building on it. One Worker serves the app's static files *and* a Hono API under `/api`, the API reaches Neon, and a request fits the free plan's CPU limit.
+
+**Concepts:**
+- **A spike:** a small, real experiment answering a risky question first. The result goes into an ADR (0013).
+- **Static assets plus a script in one Worker.** `assets.run_worker_first: ["/api/*"]` sends only `/api/*` to the script. https://developers.cloudflare.com/workers/static-assets/routing/worker-script/
+- **Hono:** a web-standards framework that runs on Workers; `app.request()` tests it without a server. https://hono.dev
+- **Neon's serverless driver:** SQL over HTTPS. https://neon.com/docs/serverless/serverless-driver
+- **Dependency injection for testability.** `createApi({ query, now, log })` lets tests replace the database, clock and logger, so they run offline and deterministically.
+- **Redaction with a canary.** A fake connection string with a recognisable password; the test fails if it appears in any response or log line.
+- **Cold starts.** Neon's free compute sleeps when idle, so the first query took 4.2 s, then 117 ms.
+
+**What changed:**
+- `pnpm-workspace.yaml` catalog: `hono` 4.13.13, `@neondatabase/serverless` 1.2.0 (both MIT, more than two weeks old); added to `services/control-plane`.
+- `services/control-plane/src/api/`:
+  - `app.ts`: `createApi()` with `/api/health`, `/api/db/ping` and a JSON 404
+  - `redact.ts`: removes connection strings and bearer tokens
+  - `worker.ts`: the Worker's entry point
+  - `app.test.ts`: 6 tests, including the canary
+- `wrangler.jsonc`: `main`, `run_worker_first: ["/api/*"]`, `observability.enabled`.
+- `docs/adr/0013-control-plane-in-the-app-worker.md`.
+
+**`services/control-plane/src/api/app.ts`:**
+
+```ts
+import { neon } from '@neondatabase/serverless';
+import { Hono } from 'hono';
+import { describeError } from './redact.js';
+
+/** Values Cloudflare passes to the Worker: Worker secrets on Cloudflare, `.dev.vars` under `wrangler dev`. */
+export interface ApiBindings {
+  readonly DATABASE_URL?: string;
+}
+
+/** Outside effects the API needs, passed in so tests can replace them. */
+export interface ApiDependencies {
+  /** Runs one SQL statement against the database at `databaseUrl`. */
+  readonly query: (
+    databaseUrl: string,
+    text: string,
+  ) => Promise<readonly Record<string, unknown>[]>;
+  readonly now: () => number;
+  readonly log: (message: string) => void;
+}
+
+/** Neon's serverless driver sends SQL over HTTPS, which suits Workers (no long-lived sockets). */
+const neonQuery: ApiDependencies['query'] = async (databaseUrl, text) =>
+  neon(databaseUrl).query(text) as Promise<Record<string, unknown>[]>;
+
+const defaults: ApiDependencies = {
+  query: neonQuery,
+  now: () => Date.now(),
+  log: (message) => {
+    console.error(message);
+  },
+};
+
+/** The control plane's HTTP API, mounted under /api in the app's Worker (decisions log, 30 Oct 2026). */
+export function createApi(overrides: Partial<ApiDependencies> = {}) {
+  const deps = { ...defaults, ...overrides };
+  const api = new Hono<{ Bindings: ApiBindings }>().basePath('/api');
+
+  api.get('/health', (c) => c.json({ status: 'ok', service: 'control-plane' }));
+
+  // Proves the Worker can reach its database; never echoes the connection string, even on errors.
+  api.get('/db/ping', async (c) => {
+    const databaseUrl = c.env.DATABASE_URL;
+    if (databaseUrl === undefined || databaseUrl === '') {
+      return c.json({ database: 'not configured', fix: 'Set the DATABASE_URL secret' }, 503);
+    }
+    const started = deps.now();
+    try {
+      await deps.query(databaseUrl, 'select 1 as ok');
+      return c.json({ database: 'ok', roundTripMs: deps.now() - started });
+    } catch (error) {
+      deps.log(`database ping failed: ${describeError(error)}`);
+      return c.json({ database: 'unreachable' }, 503);
+    }
+  });
+
+  api.notFound((c) => c.json({ error: 'not found' }, 404));
+  return api;
+}
+```
+
+**`services/control-plane/src/api/redact.ts`:**
+
+```ts
+/**
+ * Removes secret-shaped text from anything about to be logged or returned: database connection strings
+ * (which embed a password) and bearer tokens. Errors from drivers can quote the URL they failed on.
+ */
+export function redact(text: string): string {
+  return text
+    .replace(/postgres(?:ql)?:\/\/[^\s"'<>]+/gi, 'postgresql://[redacted]')
+    .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/g, 'Bearer [redacted]');
+}
+
+/** A short, safe description of an unknown error for logs. */
+export function describeError(error: unknown): string {
+  if (error instanceof Error) return redact(`${error.name}: ${error.message}`);
+  return redact(String(error));
+}
+```
+
+**`services/control-plane/src/api/worker.ts`:**
+
+```ts
+import { createApi } from './app.js';
+
+/**
+ * The Worker's script. wrangler.jsonc sends only /api/* here (`run_worker_first`); every other request is
+ * served from the app's static files, as before.
+ */
+export default createApi();
+```
+
+**`wrangler.jsonc`:**
+
+```jsonc
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "flowcanvas",
+  // The control plane's API (Hono), mounted under /api (decisions log, 30 Oct 2026; ADR 0013).
+  "main": "./services/control-plane/src/api/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./apps/web/dist",
+    "not_found_handling": "single-page-application",
+    // Only /api/* runs the script; everything else is served straight from the static files.
+    "run_worker_first": ["/api/*"],
+  },
+  // Request logs, including CPU time per request (free plan allowance), to watch the 10 ms CPU limit.
+  "observability": {
+    "enabled": true,
+  },
+  "preview_urls": true,
+  "workers_dev": true,
+  "send_metrics": false,
+}
+```
+
+**Commands:**
+
+```fish
+pnpm install
+pnpm --filter @flowcanvas/control-plane test           # 9 passed (6 new)
+pnpm build --filter=@flowcanvas/web                    # wrangler dev serves this build
+pnpm exec wrangler dev --port 8787                     # reads .dev.vars; shows each value as (hidden)
+curl http://127.0.0.1:8787/api/health                  # {"status":"ok","service":"control-plane"}
+curl http://127.0.0.1:8787/api/db/ping                 # {"database":"ok","roundTripMs":…}
+```
+
+**Run and check it (30 Oct 2026):**
+1. Locally: health 200, and the database ping 200 against Neon `dev` (4.2 s cold, then 117 ms). `/` is still the app, with its CSP.
+2. Preview `https://phase-1c-sign-in-control-plane-flowcanvas.ahujaarmaan7777.workers.dev/api/health` gives 200 from the script; `/api/db/ping` gives 503 "not configured" until the staging secrets are set on a version with a script.
+
+**Gotchas:**
+- **`wrangler dev` serves `apps/web/dist`,** so build the web app first.
+- **Don't log errors from the database driver raw:** they can quote the connection string. Use `describeError()`.
+- **The first request after Neon idles is slow.** That's not a bug.
+
+**Commit:** `feat(control-plane): spike the API in the app Worker with Hono and Neon`
+
