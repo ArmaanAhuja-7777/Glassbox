@@ -1,7 +1,7 @@
 # Phase 1b — See-and-test harness: report
 
 - Version: `0.3.0`
-- Branch: `phase/1b-see-and-test`; PR https://github.com/ArmaanAhuja-7777/Glassbox/pull/5, merged as `8a6afbc`
+- Branch: `phase/1b-see-and-test`; PR https://github.com/ArmaanAhuja/Flowcanvas/pull/5, merged as `8a6afbc`
 - Dates: 29 Oct 2026
 - Status: **in review** (owner decision, 29 Oct 2026). It is accepted once GitHub Actions runs and the upgrade-later item 8 steps pass, because the Done-when is about CI working on GitHub.
 

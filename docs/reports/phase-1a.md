@@ -2,7 +2,7 @@
 
 - Version: `0.2.0`
 - Branch: `phase/1a-design-system`
-- Pull request: https://github.com/ArmaanAhuja-7777/Glassbox/pull/3 (merged as `ec07da3`)
+- Pull request: https://github.com/ArmaanAhuja/Flowcanvas/pull/3 (merged as `ec07da3`)
 - Dates: 27–28 Oct 2026
 - Status: **accepted** by the owner on 29 Oct 2026
 

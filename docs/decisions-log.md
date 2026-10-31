@@ -48,7 +48,7 @@ The Figma file is the layout reference: a 40 px top bar (project, branch, Graph 
 
 ### A6. Hosting
 
-- Code: GitHub, https://github.com/ArmaanAhuja-7777/Glassbox
+- Code: GitHub, https://github.com/ArmaanAhuja/Flowcanvas (moved from `ArmaanAhuja-7777/Glassbox` on 31 Oct 2026; see that entry)
 - Web app: Cloudflare Pages, with per-PR previews
 - Control-plane stub: Fly.io
 - Prefer free tiers for now.
@@ -272,3 +272,14 @@ Signal is close to, but softer than, the original saturated palette replaced on 
    The evidence files and each licence's SHA-256 are in `corpus/manifest.json`, and `pnpm corpus:check` re-verifies them, also in CI.
 5. **Reports protection deadline relaxed.** Upgrade-later 11 had required protecting the reports site before phase 1d because recordings would show private copies. With public forks it reverts to the general trigger: before reports show real user or project data, or are shared outside the team.
 
+
+## 31 Oct 2026: repository moved to another account (owner decision)
+
+GitHub Actions never ran on `ArmaanAhuja-7777` because of the account billing lock (upgrade-later 8). Instead of clearing the lock, the owner **transferred the repository to their other account, `ArmaanAhuja`**, where Actions runs normally.
+
+1. **New home: https://github.com/ArmaanAhuja/Flowcanvas.** Renamed from `Glassbox` in the same transfer: "Glassbox" has a trademark conflict and shouldn't sit in a public URL. `Flowcanvas` is still a working name; the repository is renamed again when the product name is chosen.
+2. **What moved with it:** history, PRs #1–#6, the Actions secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) and the variable `CLOUDFLARE_WORKERS_SUBDOMAIN` (all checked after the transfer). Old URLs redirect, but links in the docs now point to the new address.
+3. **`ArmaanAhuja-7777` stays a collaborator** (write access, added by the transfer), so commits and PRs can still come from it. Repository settings (secrets, branch protection) need the owner account.
+4. **Cloudflare Workers Builds reconnected** to the moved repository for both `flowcanvas` and `flowcanvas-catalogue`, with the same build commands and variables as before (phase 1 step 11, phase 1a); the Cloudflare GitHub app now has access to this repository only.
+5. **What stays on `ArmaanAhuja-7777`:** the six corpus forks (separate repositories that `corpus:check` only reads) and the GitHub OAuth apps for sign-in (they don't depend on where the code lives).
+6. **Acceptance:** once a PR run and the following `main` run pass on GitHub, the upgrade-later item 8 steps are done, and phases 1 and 1b move to *accepted*. From then on the "PR #1 exception" ends: merge only when CI is green.
