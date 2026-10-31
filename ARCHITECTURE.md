@@ -6,11 +6,11 @@ The system as it is **today** (end of phase 1b). Kept current at the end of ever
 
 | Package | Folder | Runs in | Today |
 | --- | --- | --- | --- |
-| `@flowcanvas/web` | `apps/web` | The user's browser (static files from Cloudflare) | Version page built from the design system: name, status, build line, What's new (from `CHANGELOG.md`, parsed at build time), Labs (switches for unfinished features, off by default; `src/labs/`), theme menu, link to the catalogue |
+| `@flowcanvas/web` | `apps/web` | The user's browser (static files from Cloudflare) | Version page built from the design system: name, status, build line, account line (sign in with GitHub, who is signed in, sign out; `src/account/`), What's new (from `CHANGELOG.md`, parsed at build time), Labs (switches for unfinished features, off by default; `src/labs/`), theme menu, link to the catalogue |
 | `@flowcanvas/ui` | `packages/ui` | The browser (consumed as source by Vite, ADR 0007) | Graphite components (Button, Tag, Input, Toggle, Tabs, Panel, Menu, Popover, Tooltip, Flow node), global styles, fonts, theme switching; Storybook catalogue |
 | `@flowcanvas/tokens` | `packages/tokens` | Shared (CSS and TypeScript) | Design tokens: DTCG source JSON → generated `css/tokens.css` and typed `vars` / `themeValues`; dark and light themes |
 | `@flowcanvas/figma-tokens` | `tools/figma-tokens` | Developer machine / build | Generator: DTCG token JSON (Figma variable export format) → CSS variables + TypeScript |
-| `@flowcanvas/control-plane` | `services/control-plane` | Inside the app's Cloudflare Worker under `/api` (ADR 0013); Neon Postgres | Hono API (`src/api/`), schema migrations and runner (`migrations/`, `src/db/`, ADR 0014). The older Fastify server (`src/server.ts`) remains until the API replaces it |
+| `@flowcanvas/control-plane` | `services/control-plane` | Inside the app's Cloudflare Worker under `/api` (ADR 0013); Neon Postgres | Hono API (`src/api/`): health, database ping, GitHub sign-in, sessions and sign-out (`src/auth/`); schema migrations and runner (`migrations/`, `src/db/`, ADR 0014). The earlier Fastify server was retired in phase 1c step 3 |
 | `@flowcanvas/graph-model` | `packages/graph-model` | Shared library (browser and Node) | `BuildInfo` type and `formatBuildInfo()`; becomes the flow graph model in phase 6 |
 | `@flowcanvas/engine` | `packages/engine` | Inside each user workspace (later) | Wired-in placeholder package; indexer arrives in phase 4 |
 | `@flowcanvas/workspace-agent` | `workspace/agent` | Inside each user workspace VM (later) | Wired-in placeholder package; daemon arrives in phase 1d |
@@ -21,7 +21,6 @@ Dependencies between packages:
 - `web → ui, graph-model`
 - `ui → tokens`
 - `tokens → figma-tokens` (generator, dev only)
-- `control-plane → graph-model`
 - `e2e → web` (build order only)
 
 ## Design system
@@ -79,7 +78,7 @@ Defined by `services/control-plane/migrations/*.sql` (ADR 0014); applied with `p
 git commit ──► root package.json "version" (0.3.0; a Turbo input of the web build)
            └─► commit SHA
                  ├─ web build:     FLOWCANVAS_COMMIT (root `build` script, or Cloudflare's clone) → Vite `define` __FLOWCANVAS_BUILD__ → page text "0.3.0 · abc1234"
-                 └─ control plane: FLOWCANVAS_COMMIT (env / Docker build arg) or `git rev-parse` in dev → GET /health
+                 └─ control plane: GET /api/health reports the version (root package.json, bundled by Wrangler); the commit is on the page
 ```
 
 If no commit is known, every surface shows "unknown commit". A commit is never invented.
@@ -99,23 +98,41 @@ push / PR           ──► GitHub Actions CI (.github/workflows/ci.yml): chec
                         moved to ArmaanAhuja/Flowcanvas; upgrade-later 8 closed)
 test runs           ──► e2e/scripts/publish-report.ts ──► Worker flowcanvas-reports (ADR 0011): one version per run,
                         alias per PR (pr-<n>-flowcanvas-reports.<subdomain>.workers.dev), main address = latest from main
-control plane       ──► docker build -f services/control-plane/Dockerfile .  (local only; deploy deferred to phase 1c)
+control plane       ──► part of the app's Worker (wrangler.jsonc `main`), deployed with the app above; schema changes by `pnpm db:migrate`
 ```
 
 ## Security posture (phase 1b)
 
 - Static UI with a strict Content-Security-Policy (`apps/web/public/_headers`); no inline scripts or styles anywhere in the app (React Aria's injected style is pre-empted).
 - The catalogue runs on its own origin with a looser CSP that Storybook needs (`packages/ui/.storybook/public/_headers`, ADR 0010); it has no cookies or data.
-- Control plane binds to loopback by default, runs as a non-root user in its container, and redacts secret-shaped log fields (canary-tested).
+- Control plane: API answers are `Cache-Control: no-store`; failures are logged through `redact()` (connection strings and bearer tokens removed, canary-tested).
 - No secrets in the repository, image layers or front-end environment.
 - Telemetry off for Turborepo, Wrangler and Storybook.
 - Supply-chain defaults: ADR 0006.
+
+## Sign-in and sessions (phase 1c)
+
+```
+"Sign in with GitHub" ──► GET /api/auth/github
+     sets __Host-fc_oauth = state.verifier (HttpOnly, Secure, SameSite=Lax, 10 min) ──► github.com/login/oauth/authorize
+                                                                                        (state, PKCE S256 challenge)
+GitHub ──► GET /api/auth/callback/github?code&state
+     state must match the cookie ──► code + verifier exchanged for a GitHub token ──► /user, /user/emails
+     primary verified email on sign_in_allowlist? ──► user + identity (linked by provider id, else by email)
+     new random session token ──► SHA-256 stored in sessions; token in __Host-fc_session (30 days) ──► redirect to /
+     the GitHub token is dropped: never stored or logged
+GET /api/me ──► { user, signIn: available | staging-only | not-configured }
+POST /api/auth/sign-out (Origin must be our own) ──► session row deleted, cookie cleared
+```
+
+- **One address signs in:** `APP_ORIGIN` (`wrangler.jsonc` `vars`: staging; `pnpm dev` overrides it with `http://localhost:5173`). GitHub returns only to registered addresses, so branch previews answer `staging-only` (decisions log, 30 Oct 2026).
+- **Problems come back as `/?sign-in=<code>`** (`cancelled`, `expired`, `no-verified-email`, `not-allowed`, `unavailable`, `failed`); the page maps each to a sentence and removes it from the address.
 
 ## Local development
 
 ```fish
 pnpm install
-pnpm dev            # web on http://localhost:5173, control plane on http://127.0.0.1:8080
+pnpm dev            # http://localhost:5173: Vite, with /api forwarded to the Worker in `wrangler dev` on 8787
 pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e
 pnpm --filter @flowcanvas/ui storybook   # catalogue on http://localhost:6006
 pnpm test:visual                         # catalogue baselines in both themes, axe

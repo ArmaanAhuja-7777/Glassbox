@@ -2002,7 +2002,7 @@ E2E_BASE_URL=https://flowcanvas.ahujaarmaan7777.workers.dev E2E_EXPECTED_COMMIT=
 ```fish
 # Locally
 pnpm install
-pnpm dev                                   # http://localhost:5173 and http://127.0.0.1:8080/health
+pnpm dev                                   # http://localhost:5173 (since phase 1c step 3, the API is http://localhost:5173/api/health; the Fastify server on 8080 is retired)
 pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e
 # Deployed
 open https://flowcanvas.ahujaarmaan7777.workers.dev                       # staging (main)
@@ -8323,7 +8323,7 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 | 0 | Owner accounts: Neon database, GitHub OAuth apps (staging + local), Google OAuth client; keys stored as Worker secrets and in `.dev.vars` | done · owner · `.dev.vars` checked by name and format; Worker secrets verified by `/api/db/ping` on version `26f9c237`, and inherited by the next preview (`9ae581e`) |
 | 1 | Spike: Hono and Neon on the Workers free plan; ADR | done · `ba4718e` · Claude · ADR 0013 |
 | 2 | Database schema and migrations | done · see commit below · Claude · ADR 0014 · applied to Neon `dev` |
-| 3 | GitHub sign-in, sessions, sign out | *planned* |
+| 3 | GitHub sign-in, sessions, sign out; Fastify server retired | done · see commit below · Claude · owner: one real sign-in by hand (below) |
 | 4 | Google sign-in, allowlist, admin role | *planned* |
 | 5 | Projects list and create | *planned* |
 | 6 | Secrets vault, Project secrets page, canary tests | *planned* |
@@ -8812,3 +8812,83 @@ read -s -P 'Neon production URL: ' DATABASE_URL; DATABASE_URL=$DATABASE_URL pnpm
 
 **Commit:** `feat(control-plane): schema migrations, runner and PGlite tests`
 
+### Step 1c.3 — GitHub sign-in, sessions, sign out
+
+**Goal:** on the version page, **Sign in with GitHub** takes an allowlisted person to GitHub and back, signed in, with their name and **Sign out**. Anyone else is turned away with a clear message. Also retire the old Fastify server (ADR 0013), so the control plane has one API.
+
+**Concepts:**
+- **OAuth web flow.** The app sends the browser to GitHub with its client ID and a registered return address. GitHub asks the person, then returns the browser to that address with a one-time `code`. The server swaps the code (plus its client secret) for a GitHub token, reads who the person is, and issues its **own** session. https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps
+- **`state`** is a random value sent to GitHub and also kept in a cookie. The callback must bring the same value back. That stops another site from finishing a sign-in into your browser (login CSRF).
+- **PKCE** (RFC 7636): the server keeps a random *verifier* and sends GitHub only its SHA-256 (the *challenge*). The exchange must include the verifier, so an intercepted code is useless alone. https://www.rfc-editor.org/rfc/rfc7636
+- **Session cookie attributes.** `HttpOnly` (page scripts can't read it), `Secure` (HTTPS only, and `http://localhost`), `SameSite=Lax` (not sent on other sites' background requests or form posts, but sent when GitHub sends you back), and the **`__Host-` prefix** (browsers only accept it with `Secure`, `Path=/` and no `Domain`, so no other site or subdomain can set it). https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#cookie_prefixes
+- **Only a hash is stored.** The session token is 32 random bytes; the database keeps its SHA-256. A database leak can't be replayed as live sessions.
+- **One registered address.** `APP_ORIGIN` names where sign-in works: staging in `wrangler.jsonc` `vars`, overridden to `http://localhost:5173` by `pnpm dev`. Branch previews have other addresses, so `/api/me` says `staging-only` and the page links to staging (decision 3A).
+
+**What changed:**
+
+| File | What |
+| --- | --- |
+| `services/control-plane/src/auth/crypto.ts` | Random tokens (base64url), SHA-256, the PKCE challenge, a constant-time compare |
+| `services/control-plane/src/auth/github.ts` | Authorize URL (`read:user user:email`, PKCE S256, `allow_signup=false`), code exchange, profile with the **primary verified** email |
+| `services/control-plane/src/auth/accounts.ts` | `signIn` (allowlist decides entry and role on every sign-in; find by provider ID, else link by verified email, else create), `createSession`, `sessionUser` (also refreshes `last_seen_at`), `endSession` |
+| `services/control-plane/src/auth/routes.ts` | `GET /api/me`, `GET /api/auth/github`, `GET /api/auth/callback/github`, `POST /api/auth/sign-out` |
+| `services/control-plane/src/db/database.ts` | The `Database` interface (one parameterised statement) and its Neon implementation. Neon's HTTP driver has no interactive transactions, so writes that belong together are one SQL statement |
+| `services/control-plane/src/api/app.ts` | Mounts the auth routes; `Cache-Control: no-store` on every API answer; `/api/health` includes the version; dependencies are now `database`, `fetch`, `now`, `log` |
+| `services/control-plane/src/test/database.ts` | PGlite with the real migrations, for tests |
+| removed | Fastify `src/app.ts`, `server.ts`, `build-info.ts`, their test, the `Dockerfile`, `tsconfig.build.json`; the `fastify` and `graph-model` dependencies |
+| `services/control-plane/package.json`, `turbo.json` | `dev` runs `wrangler dev` on 8787 with `APP_ORIGIN=http://localhost:5173`; Turbo builds the web app first (Wrangler refuses to start without `apps/web/dist`) |
+| `apps/web/vite.config.ts` | `/api` forwarded to 8787, keeping the `Host` header |
+| `apps/web/src/account/` | `session.ts` (load, sign out, problem messages), `Account.tsx` and its CSS: the **Account** row |
+| `wrangler.jsonc` | `vars.APP_ORIGIN` = staging |
+
+**Callback problems** come back as `/?sign-in=<code>`, and the page shows one sentence for each:
+- `cancelled`: you clicked Cancel on GitHub
+- `expired`: the state didn't match, or the 10-minute cookie was gone
+- `no-verified-email`: GitHub has no verified primary email for you
+- `not-allowed`: that email isn't on the allowlist
+- `unavailable`: sign-in was tried on a preview
+- `failed`: anything else; the details go to the log, redacted
+
+Unknown codes show the `failed` sentence; the address text is never echoed onto the page.
+
+**Tests (all offline):**
+
+| File | Proves |
+| --- | --- |
+| `auth/crypto.test.ts` (4) | RFC 7636's own PKCE example; token shape and uniqueness |
+| `auth/github.test.ts` (7) | Scopes and PKCE in the authorize URL; GitHub's "200 with error" handled; primary *verified* email only; errors never contain the code |
+| `auth/accounts.test.ts` (9, PGlite) | Not allowlisted: nothing stored. First sign-in creates the user with the allowlist role; the next finds the same user and refreshes name and role; a second provider with the same email links to the same user. Only the token's SHA-256 is stored; unknown and expired tokens are ignored; sign-out deletes the row |
+| `auth/routes.test.ts` (16, PGlite + fake GitHub) | The whole flow with real cookies: a `__Host-` cookie with the right attributes, state and PKCE checked, `/api/me` with the user. Plus forged state, missing cookie, cancel, not allowlisted, unverified email, previews, a missing secret, `no-store`, session replaced on re-sign-in, sign-out (with a foreign `Origin` refused). Canary client secret, code and GitHub token never in logs, responses or the database |
+| `account/Account.test.tsx` (8) and `App.test.tsx` (+1) | Every account state, sign out (and its failure), problem messages, the address cleaned, unknown codes not echoed |
+
+**Run and check it:**
+
+```fish
+pnpm install
+pnpm --filter @flowcanvas/control-plane test     # 55 passed
+pnpm --filter @flowcanvas/web test               # includes the 8 Account tests
+pnpm dev                                         # open http://localhost:5173
+```
+
+Owner, by hand (a real GitHub sign-in can't run in CI without a real account and password):
+1. Run `pnpm db:allow <your GitHub primary email> --admin` once, if you haven't.
+2. `pnpm dev`, open http://localhost:5173. The **Account** row says **Sign in with GitHub**.
+3. Click it, then approve "Flowcanvas (local)" on GitHub. You're back on the page with your name, your email and "· admin", and **Sign out**.
+4. Reload the page: you're still signed in. In devtools → Application → Cookies, `__Host-fc_session` is HttpOnly and Secure, and `document.cookie` in the console doesn't show it.
+5. Click **Sign out**: the row shows **Sign in with GitHub** again.
+6. Optional: sign in with a GitHub account whose email isn't allowlisted. The page says the account isn't on the allowlist.
+
+Checked by Claude in Chromium (31 Oct 2026), against `pnpm dev` with the Neon `dev` database:
+- `/api/me` → `available`
+- the button reached github.com's sign-in page
+- Chrome stored `__Host-fc_oauth` on `http://localhost` (HttpOnly, Secure, Lax)
+- a forged callback showed the "expired" sentence and cleared the cookie
+
+**Gotchas:**
+- **Vite's proxy shorthand rewrites `Host`.** `proxy: { '/api': 'http://…' }` sets `changeOrigin`, so the Worker sees `127.0.0.1:8787`, decides it's a preview, and won't offer sign-in. Use the object form with `changeOrigin: false`.
+- **`wrangler dev` refuses to start without `apps/web/dist`.** Turbo builds the web app before the control plane's `dev`.
+- **A leftover `wrangler dev` holds port 8787.** The new one then fails, or you test old code. Find it with `ss -ltnp | grep 8787` and stop that PID.
+- **No profile pictures yet:** the CSP only allows images from our own origin (upgrade-later 24).
+- **Request logs:** Cloudflare's request logs may record the callback URL, including the one-time `code`. With PKCE the code is useless without the verifier, which never leaves the cookie. Step 9 checks everything the logs record.
+
+**Commit:** `feat(control-plane): GitHub sign-in with sessions; retire the Fastify server`

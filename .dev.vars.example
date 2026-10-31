@@ -4,3 +4,4 @@ GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
+# APP_ORIGIN (where sign-in works) comes from `pnpm dev` (http://localhost:5173); don't set it here.

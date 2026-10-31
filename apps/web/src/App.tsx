@@ -11,6 +11,7 @@ import {
   type ThemePreference,
 } from '@flowcanvas/ui';
 import releases from 'virtual:changelog';
+import { Account } from './account/Account';
 import styles from './App.module.css';
 import { LabsPanel } from './labs/LabsPanel';
 import { LabsProvider } from './labs/LabsProvider';
@@ -20,6 +21,8 @@ import { WhatsNew } from './whats-new/WhatsNew';
 
 interface AppProps {
   readonly buildInfo: BuildInfo;
+  /** Replaces the browser's fetch for the API calls, in tests. */
+  readonly fetcher?: typeof fetch;
 }
 
 const THEMES: readonly { readonly id: ThemePreference; readonly label: string }[] = [
@@ -32,7 +35,7 @@ function themeLabel(preference: ThemePreference): string {
   return THEMES.find((theme) => theme.id === preference)?.label ?? 'System';
 }
 
-export function App({ buildInfo }: AppProps) {
+export function App({ buildInfo, fetcher }: AppProps) {
   const [theme, setTheme] = useThemePreference();
   const [unseen, markSeen] = useWhatsNewSeen(releases[0]?.version);
   return (
@@ -47,6 +50,7 @@ export function App({ buildInfo }: AppProps) {
           <dl className={styles.facts}>
             <dt className={styles.term}>Build</dt>
             <dd className={styles.build}>{formatBuildInfo(buildInfo)}</dd>
+            <Account {...(fetcher === undefined ? {} : { fetcher })} />
           </dl>
           <div className={styles.actions}>
             <a className={styles.link} href={CATALOGUE_URL}>

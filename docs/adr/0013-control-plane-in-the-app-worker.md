@@ -24,7 +24,8 @@ Option 1.
 - **`@neondatabase/serverless` 1.2** sends SQL over HTTPS (no long-lived sockets), which suits Workers.
 - **Outside effects are injected** (`query`, `now`, `log`), so tests run offline. A canary test proves a failing database never leaks the connection string into responses or logs (`redact()`).
 - **Observability logs are on**, recording CPU time per request.
-- The Fastify service in `services/control-plane/src` stays until step 2 moves its remaining behaviour (health with build info, log redaction) into the Hono API. It's the shape of a future separate service (upgrade-later 12).
+- The Fastify service in `services/control-plane/src` stays until its remaining behaviour (health with build info, log redaction) moves into the Hono API. It's the shape of a future separate service (upgrade-later 12).
+- **Update (31 Oct 2026, phase 1c step 3):** done. The Fastify server, its Dockerfile and `tsconfig.build.json` are removed; `/api/health` reports the version, and logging goes through `redact()` with canary tests. Keeping a second, unused server would have meant two APIs to secure and test. A separate service can be rebuilt from git history (`git show 6512034:services/control-plane/Dockerfile`) if upgrade-later 12 is triggered. Outside effects are now `database`, `fetch`, `now` and `log`.
 
 ## Spike results (30 Oct 2026)
 

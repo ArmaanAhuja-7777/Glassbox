@@ -14,6 +14,11 @@
   "observability": {
     "enabled": true,
   },
+  // The only address sign-in works on: the one registered with GitHub and Google. Branch previews have other
+  // addresses, so they show "sign in on staging" (decisions log, 30 Oct 2026). `pnpm dev` overrides it.
+  "vars": {
+    "APP_ORIGIN": "https://flowcanvas.ahujaarmaan7777.workers.dev",
+  },
   "preview_urls": true,
   "workers_dev": true,
   "send_metrics": false,
