@@ -3,7 +3,7 @@
 - Version: `0.3.0`
 - Branch: `phase/1b-see-and-test`; PR https://github.com/ArmaanAhuja/Flowcanvas/pull/5, merged as `8a6afbc`
 - Dates: 29 Oct 2026
-- Status: **in review** (owner decision, 29 Oct 2026). It is accepted once GitHub Actions runs and the upgrade-later item 8 steps pass, because the Done-when is about CI working on GitHub.
+- Status: **accepted** on 31 Oct 2026, once the workflow ran on GitHub (see "CI on GitHub"). It was in review from 29 Oct by owner decision, because the Done-when is about CI working on GitHub.
 
 ## From the build plan
 
@@ -28,8 +28,8 @@
 | What's new | ✅ | Built from `CHANGELOG.md` at build time; a guard test keeps the newest entry equal to the version |
 | Labs switches | ✅ | Typed registry (empty, rules tested), `LabsFeature`, Labs panel with an honest empty state |
 | "Open demo project" | ➡ phase 1d (owner decision) | Needs cloud workspaces. 1b delivers the pinned corpus it will open (`corpus/manifest.json`, `pnpm corpus:check`: 6 of 6) |
-| **Done when:** every merged phase produces a link, a report and a recording without manual steps | ⚠ **built, not provable yet** | The workflow (`.github/workflows/ci.yml`) does exactly this, verified job by job with `act`: checks ✅, visual ✅ (58 at that commit), walkthroughs against the preview ✅. Publishing works (`pr-test` report). Unverifiable locally: the artifact hand-off (an `act` limitation) and the real PR comment. **Proven only when Actions runs** (upgrade-later 8) |
-| **Try it:** open the preview, watch the recording in the CI report | ⚠ partly | Preview ✅. The report with recordings is live from a manual publish (link below). The CI-made report waits for Actions |
+| **Done when:** every merged phase produces a link, a report and a recording without manual steps | ✅ (31 Oct 2026) | Proven on GitHub: PR #7 and its merge, see "CI on GitHub". Before that: | The workflow (`.github/workflows/ci.yml`) does exactly this, verified job by job with `act`: checks ✅, visual ✅ (58 at that commit), walkthroughs against the preview ✅. Publishing works (`pr-test` report). Unverifiable locally: the artifact hand-off (an `act` limitation) and the real PR comment. **Proven only when Actions runs** (upgrade-later 8) |
+| **Try it:** open the preview, watch the recording in the CI report | ✅ (31 Oct 2026) | Preview ✅; the CI-made report with recordings is linked from the PR comment and, for `main`, at the reports' main address |
 
 ## After the merge (29 Oct 2026)
 
@@ -38,6 +38,17 @@
 | Staging `https://flowcanvas.ahujaarmaan7777.workers.dev` | `wait-for-deploy` saw `8a6afbc`; the 4 walkthroughs passed against it (`E2E_EXPECTED_COMMIT=8a6afbc`) |
 | Catalogue `https://flowcanvas-catalogue.ahujaarmaan7777.workers.dev` | Rebuilt from `main` about a minute after the merge; includes the Popover stories |
 | Reports `https://flowcanvas-reports.ahujaarmaan7777.workers.dev` | Main address moved to the `main` report (published manually with `--production`): commit `8a6afbc`, 4 walkthroughs and 64 visual passed |
+
+## CI on GitHub (31 Oct 2026)
+
+The repository moved to `ArmaanAhuja/Flowcanvas` (decisions log), where Actions runs. Upgrade-later item 8's steps, all without manual steps:
+
+| Run | Result |
+| --- | --- |
+| PR #7 (https://github.com/ArmaanAhuja/Flowcanvas/pull/7), head `ded1a27`, run https://github.com/ArmaanAhuja/Flowcanvas/actions/runs/41183657084 | Checks ✅ · visual 64 passed in the Docker image ✅ · walkthroughs 4 passed against the PR's branch preview, after it served the commit ✅ · report published to `pr-7-flowcanvas-reports…` ✅ · one PR comment with the preview and report links ✅ |
+| Merge to `main`, `157b55f`, run https://github.com/ArmaanAhuja/Flowcanvas/actions/runs/41183867839 | All four jobs ✅ · walkthroughs ran against staging once it served `157b55f` · the reports' main address now shows `157b55f` |
+
+Found by the first run and fixed in PR #7: the report and comment named GitHub's temporary PR merge commit instead of the tested head (`publish-report.ts` now reads the workflow's `COMMIT`). `act` couldn't show this.
 
 ## How to try it
 
@@ -70,7 +81,7 @@
 1. **No automated Figma comparison** (owner): Figma is a reference reviewed by eye. The phase 1a comparison test was removed (step 1).
 2. **"Open demo project" moves to 1d** (owner): it needs workspaces.
 3. **Corpus of six public forks, not two** (owner). LibreChat replaces Inbox Zero, because Inbox Zero's licence restricts commercial use.
-4. **CI not yet running on GitHub** (billing lock): verified with `act` and `actionlint`. Acceptance waits for item 8.
+4. **CI first verified locally** with `act` and `actionlint` because of the billing lock; it ran on GitHub on 31 Oct 2026 after the repository moved to another account.
 5. **Labs lives on the version page** until the phase 2 app shell has a Settings page.
 
 ## Decision records added
@@ -80,7 +91,7 @@
 
 ## Known issues and follow-ups
 
-- **CI on GitHub** (upgrade-later 8): run the workflow on a real PR and a merge, record both, then accept the phase.
+- ~~CI on GitHub (upgrade-later 8)~~: done 31 Oct 2026.
 - **Labs choices are per browser** (item 20); per account once sign-in exists (phase 1c).
 - **Reports and previews are public by link** (item 11). Protect them before they show real user or project data.
 - **Theme flash on load** (item 17) and **no bundle-size budget** yet (item 18; the web bundle grew from 121 to 126 kB gzip).
@@ -90,7 +101,7 @@
 
 | Item | Status |
 | --- | --- |
-| 8 GitHub billing lock | Open; now also blocks phase 1b's acceptance. Its "then" list covers 1b |
+| 8 GitHub billing lock | Open at 1b's close; closed 31 Oct 2026 by moving the repository |
 | 11 Protect previews and reports | Open; deadline relaxed (public forks) |
 | 14, 16, 19 | Closed in this phase (Figma no longer a source or test; visual baselines in Docker) |
 | 17, 18 | Open, unchanged |

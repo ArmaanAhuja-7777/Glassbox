@@ -78,8 +78,8 @@ push / merge        ──► Cloudflare Workers Builds (project flowcanvas-cata
                         catalogue from main: flowcanvas-catalogue.<subdomain>.workers.dev (packages/ui/wrangler.jsonc)
 push / PR           ──► GitHub Actions CI (.github/workflows/ci.yml): checks · visual in the Playwright image ·
                         walkthroughs against the PR preview (or staging on main) once it serves the commit ·
-                        publish to flowcanvas-reports + one PR comment. Can't start yet (billing lock, upgrade-later 8);
-                        verified locally with actionlint and act
+                        publish to flowcanvas-reports + one PR comment. Runs on GitHub since 31 Oct 2026 (repository
+                        moved to ArmaanAhuja/Flowcanvas; upgrade-later 8 closed)
 test runs           ──► e2e/scripts/publish-report.ts ──► Worker flowcanvas-reports (ADR 0011): one version per run,
                         alias per PR (pr-<n>-flowcanvas-reports.<subdomain>.workers.dev), main address = latest from main
 control plane       ──► docker build -f services/control-plane/Dockerfile .  (local only; deploy deferred to phase 1c)
