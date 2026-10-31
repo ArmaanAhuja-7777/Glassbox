@@ -3,6 +3,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { describeError } from '../api/redact.js';
 import { requireSameOrigin, requireUser, type SignedInEnv } from '../auth/guards.js';
 import type { Database } from '../db/database.js';
+import { secretRoutes } from '../vault/routes.js';
 import { createProject, listProjects, parseNewProject } from './projects.js';
 
 interface ProjectDependencies {
@@ -62,6 +63,8 @@ export function projectRoutes(deps: ProjectDependencies) {
       }
     },
   );
+
+  projects.route('/:projectId/secrets', secretRoutes(deps));
 
   return projects;
 }

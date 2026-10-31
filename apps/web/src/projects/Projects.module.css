@@ -101,3 +101,32 @@
   line-height: var(--text-caption-line-height);
   color: var(--color-text-muted);
 }
+
+.itemHeader {
+  display: flex;
+  gap: var(--space-12);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+/* A text button, like the account links: underlined, never accent-coloured. */
+.toggle {
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  cursor: pointer;
+  font-family: var(--text-small-strong-font-family);
+  font-size: var(--text-small-strong-font-size);
+  font-weight: var(--text-small-strong-font-weight);
+  line-height: var(--text-small-strong-line-height);
+  color: var(--color-text-primary);
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: var(--space-4);
+  transition: text-decoration-color var(--duration-hover) ease-out;
+}
+
+.toggle:hover {
+  text-decoration-color: var(--color-text-primary);
+}

@@ -107,3 +107,19 @@ export async function createProject(
   const row = rows[0];
   return row === undefined ? 'duplicate-name' : toProject(row);
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Whether this project exists and belongs to this person. Anything else, including a malformed ID, is "no". */
+export async function ownsProject(
+  db: Database,
+  projectId: string,
+  ownerId: string,
+): Promise<boolean> {
+  if (!UUID.test(projectId)) return false;
+  const rows = await db.query('select 1 from projects where id = $1 and owner_id = $2', [
+    projectId,
+    ownerId,
+  ]);
+  return rows.length > 0;
+}

@@ -6,25 +6,25 @@ export interface Project {
   readonly createdAt: string;
 }
 
-export type ProjectField = 'name' | 'repoUrl';
+/** Form fields the API can name in an error: a project's name and address, a secret's name and value. */
+export type ApiField = 'name' | 'repoUrl' | 'value';
+const FIELDS: readonly unknown[] = ['name', 'repoUrl', 'value'];
 
 /** What the page can show: the API's own sentence, and which field it's about when it names one. */
 export interface ApiProblem {
   readonly message: string;
-  readonly field?: ProjectField;
+  readonly field?: ApiField;
 }
 
-const UNREACHABLE: ApiProblem = {
+export const UNREACHABLE: ApiProblem = {
   message: 'Couldn’t reach Flowcanvas. Check your connection and try again.',
 };
 
-async function problemFrom(response: Response): Promise<ApiProblem> {
+export async function problemFrom(response: Response): Promise<ApiProblem> {
   try {
     const body = (await response.json()) as { error?: unknown; field?: unknown };
     const message = typeof body.error === 'string' ? body.error : UNREACHABLE.message;
-    return body.field === 'name' || body.field === 'repoUrl'
-      ? { message, field: body.field }
-      : { message };
+    return FIELDS.includes(body.field) ? { message, field: body.field as ApiField } : { message };
   } catch {
     return UNREACHABLE;
   }

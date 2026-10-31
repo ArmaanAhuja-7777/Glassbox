@@ -8326,7 +8326,7 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 | 3 | GitHub sign-in, sessions, sign out; Fastify server retired | done · see commit below · Claude · owner: one real sign-in by hand (below) |
 | 4 | Google sign-in, allowlist, admin role | done · see commit below · Claude · owner: one real Google sign-in by hand |
 | 5 | Projects list and create | done · see commit below · Claude · checked against Neon `dev` |
-| 6 | Secrets vault, Project secrets page, canary tests | *planned* |
+| 6 | Secrets vault, Project secrets page, canary tests | done · see commit below · Claude · ADR 0015 · owner: local VAULT_KEY |
 | 7 | Usage metering skeleton and workspace records | *planned* |
 | 8 | Admin view | *planned* |
 | 9 | Logs and redaction across everything; walkthroughs | *planned* |
@@ -9017,3 +9017,83 @@ Owner, by hand:
 - **typescript-eslint flags `[...text].length`.** Counting code points is deliberate here, to match Postgres; `Array.from(text).length` says the same thing explicitly.
 
 **Commit:** `feat: projects list and create for signed-in people`
+
+### Step 1c.6 — Secrets vault, project secrets, canary tests
+
+**Goal:** each project can hold secrets (environment-variable values). They're saved encrypted, listed by name only, can be replaced or deleted, and are never shown, logged or returned. This is the second half of the phase's *Done when*.
+
+**Concepts:**
+- **AES-GCM** is authenticated encryption: it hides the value and detects any change to the ciphertext. Each encryption needs a fresh random IV (nonce); reusing one with the same key breaks it. https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/encrypt#aes-gcm
+- **Envelope encryption.** A master key (`VAULT_KEY`, a Worker secret) encrypts ("wraps") a random data key per project. The data key encrypts that project's values. The database holds only wrapped keys and ciphertext, so a database copy alone decrypts nothing. https://cloud.google.com/kms/docs/envelope-encryption
+- **Additional authenticated data (AAD)** is extra text that must match when decrypting but isn't stored in the ciphertext. Here it's the project and the secret's name, so a ciphertext moved to another row fails to open.
+- **Write-only values.** No API route returns a value, so the page can't leak one even by mistake. To change a value, save it again under the same name ("rotate").
+- **Canary tests** plant a recognisable fake value (`CANARY-…`) and assert it never appears in responses, logs or any database row.
+
+**Design:** ADR 0015.
+
+**What changed:**
+
+| File | What |
+| --- | --- |
+| `services/control-plane/src/vault/crypto.ts` | Master key import (32 bytes, base64; errors never echo it), wrap and unwrap a data key, encrypt and decrypt a value with AAD, hex helpers |
+| `services/control-plane/src/vault/vault.ts` | Name and value rules (`^[A-Z_][A-Z0-9_]{0,127}$`, 1 byte to 64 KB), data key created on first use (safe if two requests race), `listSecrets` (names, who added, when), `putSecret` (created or replaced), `deleteSecret`, `readSecret` (for phase 1d's workspace and the tests) |
+| `services/control-plane/src/vault/routes.ts` | `GET /api/projects/:id/secrets`; `PUT …/secrets/:name` with `{ value }` (201 created, 200 replaced; the answer has only the name); `DELETE …/secrets/:name`. Another person's project, or a malformed ID, answers like a missing one (404). A missing `VAULT_KEY` answers 503 with the fix |
+| `services/control-plane/src/projects/projects.ts` | `ownsProject` |
+| `apps/web/src/secrets/` | API client and the **Secrets** panel: masked list with who added and when, two-click delete, a form whose button says **Replace NAME** for an existing name, and a value field that browsers and password managers shouldn't save |
+| `apps/web/src/projects/Projects.tsx` | A **Secrets** toggle on each project |
+| `.dev.vars.example` | `VAULT_KEY` |
+
+**Tests:**
+- **`vault/crypto.test.ts` (5):**
+  - a bad master key is refused without being echoed
+  - round trip; a fresh IV every time
+  - moved or renamed ciphertext won't open
+  - another master key, or another project, can't unwrap
+- **`vault/vault.test.ts` (9, PGlite):**
+  - name and value rules
+  - listed by name only
+  - **the canary appears nowhere in the database, as text or as hex**
+  - replace (rotate); one 48-byte data key per project
+  - a different master key fails; a copied ciphertext fails; delete
+- **`vault/routes.test.ts` (7):**
+  - 201 then 200; names only
+  - **the canary never appears in any response or log line**, including failed saves, a missing key and a database outage
+  - 401 when signed out; 404 for other people's projects; per-field 400; 413; the 503 fix message; a foreign `Origin` gets 403; delete
+- **`ProjectSecrets.test.tsx` (5), `Projects.test.tsx` (+1):**
+  - masked list; save clears the value and the canary isn't in the page
+  - Replace; errors next to their field; two-click delete; the toggle opens the panel
+
+**Checked against Neon `dev` (31 Oct 2026):** a throwaway script, with a test key and user, saved then replaced a value and read it back. Stored sizes were 41-byte ciphertext, 12-byte IV and 48-byte wrapped key; the value wasn't readable as text. It then deleted everything (0 left).
+
+**Owner: create the local master key** (fish). It goes straight from `openssl` into the git-ignored `.dev.vars`, and the value is never printed:
+
+```fish
+printf '\nVAULT_KEY=%s\n' (openssl rand -base64 32) >> .dev.vars
+grep -c '^VAULT_KEY=' .dev.vars        # 1 (counts the line; doesn't show it)
+```
+
+Then restart `pnpm dev`, because Wrangler reads `.dev.vars` only at startup. Losing this local key only loses local test secrets.
+
+**Staging's key comes at phase close,** with the other Worker secrets. Generate it, **save it in your password manager first**, then `pnpm exec wrangler versions secret put VAULT_KEY` and paste it at the prompt. If the staging key is lost, every saved staging secret is lost with it.
+
+**Run and check it:**
+
+```fish
+pnpm --filter @flowcanvas/control-plane test     # includes 21 vault tests
+pnpm --filter @flowcanvas/web test
+pnpm dev                                         # http://localhost:5173, signed in
+```
+
+Owner, by hand:
+1. On a project, click **Secrets**. It says "No secrets yet."
+2. Save `STRIPE_KEY` with any made-up value. It's listed as `STRIPE_KEY ••••••••`, "Added by <you>", and the value field is empty again.
+3. Type `STRIPE_KEY` again with a new value: the button says **Replace STRIPE_KEY**.
+4. Try the name `stripe_key`: you get the naming rule next to the Name field.
+5. **Delete**, then **Delete STRIPE_KEY**: gone.
+6. In devtools → Network, the `PUT` response contains only the name and `created` or `replaced`. In the terminal running `pnpm dev`, the value never appears.
+
+**Gotchas:**
+- **With only Node's types, `CryptoKey` is a value, not a type.** `AesKey` is derived from `crypto.subtle.importKey` instead, so it means the same in Workers and Node.
+- **Bytes go to Postgres as hex** (`decode($1, 'hex')`), so Neon's HTTP driver and PGlite agree.
+
+**Commit:** `feat: secrets vault with envelope encryption, write-only project secrets`

@@ -1,6 +1,7 @@
 import { Button, Input } from '@flowcanvas/ui';
 import { useEffect, useId, useState, type SubmitEvent } from 'react';
 import { createProject, fetchProjects, isProblem, type ApiProblem, type Project } from './api';
+import { ProjectSecrets } from '../secrets/ProjectSecrets';
 import styles from './Projects.module.css';
 
 interface ProjectsProps {
@@ -52,17 +53,47 @@ export function Projects({ fetcher = fetch }: ProjectsProps) {
         ) : (
           <ul className={styles.list} aria-label="Your projects">
             {projects.map((project) => (
-              <li key={project.id} className={styles.item}>
-                <span className={styles.name}>{project.name}</span>
-                {project.repoUrl !== null && <span className={styles.repo}>{project.repoUrl}</span>}
-                <span className={styles.meta}>
-                  Created {dateFormat.format(new Date(project.createdAt))}
-                </span>
-              </li>
+              <ProjectItem key={project.id} project={project} fetcher={fetcher} />
             ))}
           </ul>
         ))}
     </section>
+  );
+}
+
+function ProjectItem({
+  project,
+  fetcher,
+}: {
+  readonly project: Project;
+  readonly fetcher: typeof fetch;
+}) {
+  const [showSecrets, setShowSecrets] = useState(false);
+  const secretsId = useId();
+  return (
+    <li className={styles.item}>
+      <span className={styles.itemHeader}>
+        <span className={styles.name}>{project.name}</span>
+        <button
+          type="button"
+          className={styles.toggle}
+          aria-expanded={showSecrets}
+          aria-controls={secretsId}
+          onClick={() => {
+            setShowSecrets((open) => !open);
+          }}
+        >
+          {showSecrets ? 'Hide secrets' : 'Secrets'}
+        </button>
+      </span>
+      {project.repoUrl !== null && <span className={styles.repo}>{project.repoUrl}</span>}
+      <span className={styles.meta}>Created {dateFormat.format(new Date(project.createdAt))}</span>
+      <div id={secretsId} hidden={!showSecrets}>
+        {showSecrets && (
+          <ProjectSecrets projectId={project.id} projectName={project.name} fetcher={fetcher} />
+        )}
+      </div>
+    </li>
   );
 }
 

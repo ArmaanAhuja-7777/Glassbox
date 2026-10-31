@@ -32,6 +32,24 @@ describe('Projects', () => {
     expect(within(list).getByText('https://github.com/lukevella/rallly')).toBeTruthy();
   });
 
+  it('opens a project’s secrets from its row', async () => {
+    const fetcher = vi.fn<typeof fetch>((input) =>
+      Promise.resolve(
+        (input as string).endsWith('/secrets')
+          ? Response.json({ secrets: [] })
+          : Response.json({ projects: [rallly] }),
+      ),
+    );
+    const user = userEvent.setup();
+    render(<Projects fetcher={fetcher} />);
+    const toggle = await screen.findByRole('button', { name: 'Secrets' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    await user.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(await screen.findByRole('region', { name: 'Secrets for Rallly' })).toBeTruthy();
+    expect(fetcher).toHaveBeenCalledWith('/api/projects/p-1/secrets', expect.anything());
+  });
+
   it('creates a project, shows it first and clears the form', async () => {
     const documenso = { ...rallly, id: 'p-2', name: 'Documenso', repoUrl: null };
     const fetcher = api([rallly], () => Response.json({ project: documenso }, { status: 201 }));
@@ -45,7 +63,9 @@ describe('Projects', () => {
     const items = within(await screen.findByRole('list', { name: 'Your projects' })).getAllByRole(
       'listitem',
     );
-    expect(items.map((item) => item.firstChild?.textContent)).toEqual(['Documenso', 'Rallly']);
+    expect(items.map((item) => within(item).getByText(/^(Documenso|Rallly)$/).textContent)).toEqual(
+      ['Documenso', 'Rallly'],
+    );
     expect(screen.getByLabelText<HTMLInputElement>('Project name').value).toBe('');
     const [, init] = fetcher.mock.calls.at(-1) ?? [];
     expect(init?.method).toBe('POST');

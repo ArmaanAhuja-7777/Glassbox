@@ -6,11 +6,11 @@ The system as it is **today** (end of phase 1b). Kept current at the end of ever
 
 | Package | Folder | Runs in | Today |
 | --- | --- | --- | --- |
-| `@flowcanvas/web` | `apps/web` | The user's browser (static files from Cloudflare) | Version page built from the design system: name, status, build line, account line (sign in with GitHub or Google, who is signed in, sign out; `src/account/`), projects list and create when signed in (`src/projects/`; a stand-in for the phase 2 start screen), What's new (from `CHANGELOG.md`, parsed at build time), Labs (switches for unfinished features, off by default; `src/labs/`), theme menu, link to the catalogue |
+| `@flowcanvas/web` | `apps/web` | The user's browser (static files from Cloudflare) | Version page built from the design system: name, status, build line, account line (sign in with GitHub or Google, who is signed in, sign out; `src/account/`), projects list and create when signed in (`src/projects/`; a stand-in for the phase 2 start screen), each with a write-only Secrets panel (`src/secrets/`), What's new (from `CHANGELOG.md`, parsed at build time), Labs (switches for unfinished features, off by default; `src/labs/`), theme menu, link to the catalogue |
 | `@flowcanvas/ui` | `packages/ui` | The browser (consumed as source by Vite, ADR 0007) | Graphite components (Button, Tag, Input, Toggle, Tabs, Panel, Menu, Popover, Tooltip, Flow node), global styles, fonts, theme switching; Storybook catalogue |
 | `@flowcanvas/tokens` | `packages/tokens` | Shared (CSS and TypeScript) | Design tokens: DTCG source JSON → generated `css/tokens.css` and typed `vars` / `themeValues`; dark and light themes |
 | `@flowcanvas/figma-tokens` | `tools/figma-tokens` | Developer machine / build | Generator: DTCG token JSON (Figma variable export format) → CSS variables + TypeScript |
-| `@flowcanvas/control-plane` | `services/control-plane` | Inside the app's Cloudflare Worker under `/api` (ADR 0013); Neon Postgres | Hono API (`src/api/`): health, database ping, GitHub and Google sign-in, sessions, sign-out and the user/admin/same-origin guards (`src/auth/`), projects list and create (`src/projects/`); schema migrations and runner (`migrations/`, `src/db/`, ADR 0014). The earlier Fastify server was retired in phase 1c step 3 |
+| `@flowcanvas/control-plane` | `services/control-plane` | Inside the app's Cloudflare Worker under `/api` (ADR 0013); Neon Postgres | Hono API (`src/api/`): health, database ping, GitHub and Google sign-in, sessions, sign-out and the user/admin/same-origin guards (`src/auth/`), projects list and create (`src/projects/`), the secrets vault (`src/vault/`, ADR 0015); schema migrations and runner (`migrations/`, `src/db/`, ADR 0014). The earlier Fastify server was retired in phase 1c step 3 |
 | `@flowcanvas/graph-model` | `packages/graph-model` | Shared library (browser and Node) | `BuildInfo` type and `formatBuildInfo()`; becomes the flow graph model in phase 6 |
 | `@flowcanvas/engine` | `packages/engine` | Inside each user workspace (later) | Wired-in placeholder package; indexer arrives in phase 4 |
 | `@flowcanvas/workspace-agent` | `workspace/agent` | Inside each user workspace VM (later) | Wired-in placeholder package; daemon arrives in phase 1d |
@@ -131,6 +131,18 @@ POST /api/auth/sign-out (Origin must be our own) ──► session row deleted, 
 
 - **One address signs in:** `APP_ORIGIN` (`wrangler.jsonc` `vars`: staging; `pnpm dev` overrides it with `http://localhost:5173`). GitHub returns only to registered addresses, so branch previews answer `staging-only` (decisions log, 30 Oct 2026).
 - **Problems come back as `/?sign-in=<code>`** (`cancelled`, `expired`, `no-verified-email`, `not-allowed`, `unavailable`, `failed`); the page maps each to a sentence and removes it from the address.
+
+## Secrets vault (phase 1c, ADR 0015)
+
+```
+VAULT_KEY (Worker secret / .dev.vars) ──wraps──► project_keys.wrapped_key (one AES-256 data key per project)
+                                                   └──encrypts──► project_secrets.ciphertext (AES-GCM, fresh IV,
+                                                                  AAD = secret:<project>:<name>)
+PUT /api/projects/:id/secrets/:name { value } ──► 201 created | 200 replaced (answer: name only)
+GET /api/projects/:id/secrets ──► names, who added, when: never values
+DELETE /api/projects/:id/secrets/:name
+readSecret() ──► only for the project's workspace (phase 1d)
+```
 
 ## Local development
 

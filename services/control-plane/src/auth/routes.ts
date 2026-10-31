@@ -13,6 +13,8 @@ export interface AuthBindings extends ProviderBindings {
   readonly DATABASE_URL?: string;
   /** The one address sign-in works on (staging, or http://localhost:5173 locally); see `signInState`. */
   readonly APP_ORIGIN?: string;
+  /** The secrets vault's master key (32 random bytes, base64); see src/vault/crypto.ts. */
+  readonly VAULT_KEY?: string;
 }
 
 export interface AuthDependencies {

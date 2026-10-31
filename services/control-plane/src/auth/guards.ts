@@ -7,7 +7,12 @@ import { SESSION_COOKIE } from './cookies.js';
 
 /** What a guarded route can read: `c.get('user')` is the signed-in person. */
 export interface SignedInEnv {
-  Bindings: { readonly DATABASE_URL?: string; readonly APP_ORIGIN?: string };
+  // Every binding a guarded route might read (VAULT_KEY: the secrets vault's master key, src/vault/).
+  Bindings: {
+    readonly DATABASE_URL?: string;
+    readonly APP_ORIGIN?: string;
+    readonly VAULT_KEY?: string;
+  };
   Variables: { user: SessionUser };
 }
 
