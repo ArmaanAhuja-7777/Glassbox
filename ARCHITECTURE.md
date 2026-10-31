@@ -75,9 +75,9 @@ Defined by `services/control-plane/migrations/*.sql` (ADR 0014); applied with `p
 ## How the version and commit travel
 
 ```
-git commit ──► root package.json "version" (0.3.0; a Turbo input of the web build)
+git commit ──► root package.json "version" (0.4.0; a Turbo input of the web build)
            └─► commit SHA
-                 ├─ web build:     FLOWCANVAS_COMMIT (root `build` script, or Cloudflare's clone) → Vite `define` __FLOWCANVAS_BUILD__ → page text "0.3.0 · abc1234"
+                 ├─ web build:     FLOWCANVAS_COMMIT (root `build` script, or Cloudflare's clone) → Vite `define` __FLOWCANVAS_BUILD__ → page text "0.4.0 · abc1234"
                  └─ control plane: GET /api/health reports the version (root package.json, bundled by Wrangler); the commit is on the page
 ```
 

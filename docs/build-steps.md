@@ -8330,7 +8330,7 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 | 7 | Usage metering skeleton and workspace records | done · see commit below · Claude · migration 0002 applied to Neon `dev` |
 | 8 | Admin view | done · see commit below · Claude · read-only check against Neon `dev` |
 | 9 | Logs and redaction across everything; walkthroughs | done · see commit below · Claude · owner: Cloudflare logs check at phase close |
-| 10 | Close the phase (0.4.0) | *planned* |
+| 10 | Close the phase (0.4.0) | done · see commit below · Claude · owner: after-merge checks on staging |
 
 ### Step 1c.0 — Account setup (owner)
 
@@ -9268,3 +9268,43 @@ pnpm --filter @flowcanvas/e2e report             # watch the recordings
 - **`vite preview` uses the dev server's proxy too** (`preview.proxy` defaults to `server.proxy`). So a local walkthrough reaches the real local API when `pnpm dev` is running.
 
 **Commit:** `feat(control-plane): redact every log line, no-leaks acceptance test, phase 1c walkthrough`
+
+### Step 1c.10 — Close the phase (0.4.0)
+
+**Goal:** release 0.4.0 and write the phase report. Then open the PR, and after the merge make staging work: secrets, database and the real Try it.
+
+**What changed:**
+- `package.json` version `0.4.0`. The version page and What's new show it. The guard test keeps the newest changelog entry equal to it.
+- `CHANGELOG.md`: the 0.4.0 entry, with Try it first (shown in What's new).
+- `docs/reports/phase-1c.md`: the report, including the after-merge checks in order.
+- `docs/STATUS.md`: 1c in review. `docs/upgrade-later.md`: item 20's trigger moved to the first Labs switch. `ARCHITECTURE.md`: the version example.
+
+**Evidence (31 Oct 2026):**
+- 347 tests pass, the format, lint and type checks pass, the build passes (web bundle 131 kB gzip), and all 6 walkthroughs pass.
+- CI runs the same checks, plus visual tests in Docker, on the PR.
+
+**Owner, after the merge (staging), in this order:**
+
+1. **Wait for staging to deploy `main`:** Cloudflare → Workers & Pages → `flowcanvas` → Deployments shows the merge commit.
+2. **Put the Worker secrets,** one at a time. Each command prompts for the value, so it's never typed on the command line:
+   ```fish
+   pnpm exec wrangler versions secret put DATABASE_URL          # Neon production branch URL
+   pnpm exec wrangler versions secret put GITHUB_CLIENT_ID      # the STAGING OAuth app
+   pnpm exec wrangler versions secret put GITHUB_CLIENT_SECRET  # a NEW secret, generated on the staging OAuth app
+   pnpm exec wrangler versions secret put GOOGLE_CLIENT_ID
+   pnpm exec wrangler versions secret put GOOGLE_CLIENT_SECRET
+   pnpm exec wrangler versions secret put VAULT_KEY             # new; in the password manager first
+   pnpm exec wrangler versions deploy                           # pick the newest version, 100%
+   ```
+   To create the staging vault key, run `openssl rand -base64 32`, save the output in the password manager, then paste it at the `VAULT_KEY` prompt. Afterwards, clear the terminal.
+3. **Migrate staging and allow yourself** (fish; the URL is typed at a hidden prompt):
+   ```fish
+   read -s -P 'Neon production URL: ' DATABASE_URL; DATABASE_URL=$DATABASE_URL pnpm db:status; DATABASE_URL=$DATABASE_URL pnpm db:migrate; DATABASE_URL=$DATABASE_URL pnpm db:allow <your email> --admin; set -e DATABASE_URL
+   ```
+4. **Check** that `https://flowcanvas.ahujaarmaan7777.workers.dev/api/db/ping` says `"database":"ok"`, and that the page offers sign-in.
+5. **Try it on staging:** sign in with GitHub, create a project, and add a secret with a made-up value.
+6. **Cloudflare's logs:** Workers & Pages → `flowcanvas` → Observability → Logs (or Events).
+   - Search for the made-up value: there should be no results.
+   - Open the `GET /api/auth/callback/github` entry. If it shows `code=` or a `cookie` header, tell Claude: invocation logs get turned off in a follow-up PR.
+
+**Commit:** `chore: release 0.4.0, close phase 1c`
