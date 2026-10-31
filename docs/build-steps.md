@@ -8889,6 +8889,7 @@ Checked by Claude in Chromium (31 Oct 2026), against `pnpm dev` with the Neon `d
 - **`wrangler dev` refuses to start without `apps/web/dist`.** Turbo builds the web app before the control plane's `dev`.
 - **A leftover `wrangler dev` holds port 8787.** The new one then fails, or you test old code. Find it with `ss -ltnp | grep 8787` and stop that PID.
 - **No profile pictures yet:** the CSP only allows images from our own origin (upgrade-later 24).
+- **Secrets on previews disappeared after PRs #7 and #8.** Each new Worker version copies its secrets from the newest version. Merging those PRs deployed `main`, which has no script until phase 1c merges, as static-files-only versions, and secrets can't attach to those. Previews built afterwards had no `DATABASE_URL` (`/api/me` said `not-configured`). Fix: put the five secrets again with `pnpm exec wrangler versions secret put NAME`. Until 1c merges, any merge to `main` breaks the chain again. **At phase close, check staging's secrets** (`/api/db/ping` on staging), because `main`'s first deploy with a script starts from a version without them.
 - **Request logs:** Cloudflare's request logs may record the callback URL, including the one-time `code`. With PKCE the code is useless without the verifier, which never leaves the cookie. Step 9 checks everything the logs record.
 
 **Commit:** `feat(control-plane): GitHub sign-in with sessions; retire the Fastify server`
