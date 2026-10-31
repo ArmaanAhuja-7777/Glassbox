@@ -190,7 +190,8 @@ function main(): void {
     fail('no walkthroughs report found; run `pnpm test:e2e` first');
   }
 
-  const commit = process.env.GITHUB_SHA ?? git('rev-parse', 'HEAD');
+  // CI's COMMIT is the commit it tested. On pull requests GITHUB_SHA is GitHub's temporary merge commit instead.
+  const commit = process.env.COMMIT ?? process.env.GITHUB_SHA ?? git('rev-parse', 'HEAD');
   // GITHUB_HEAD_REF is set but empty outside pull requests, so an empty value falls through on purpose.
   const headRef = process.env.GITHUB_HEAD_REF;
   const branch =

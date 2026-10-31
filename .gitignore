@@ -17,7 +17,10 @@ blob-report/
 # secrets: never committed (non-negotiable rule 5)
 .env
 .env.*
+.dev.vars
+.dev.vars.*
 !.env.example
+!.dev.vars.example
 
 # tooling and OS
 .wrangler/

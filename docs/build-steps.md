@@ -8286,4 +8286,8 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 - Don't accept Cloudflare's default commands on reconnect: `pnpm run build` without `corepack enable` and an install fails, and `npx wrangler preview` is the beta preview feature we don't use.
 - Commit and PR links in older docs point at the old address and still work through GitHub's redirect; never create a repository named `Glassbox` on the old account, or the redirect breaks.
 
-**Commit:** `docs: move the repository to ArmaanAhuja/Flowcanvas`
+**First run on GitHub (PR #7):** all four jobs passed (checks, visual 64 passed, walkthroughs 4 passed against the PR preview, publish), and the PR comment appeared with the preview and report links.
+
+**A bug only GitHub could show:** the comment named commit `1c83d3e`, not the branch head `e0589159` that was tested. On pull requests `GITHUB_SHA` is GitHub's temporary merge commit, and `publish-report.ts` read it; under `act` the two are the same. Fix: the script reads the workflow's `COMMIT` (the tested head) first.
+
+**Commits:** `docs: move the repository to ArmaanAhuja/Flowcanvas` · `fix(e2e): label the report with the tested commit, not the PR merge commit`
