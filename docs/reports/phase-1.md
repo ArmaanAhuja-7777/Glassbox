@@ -3,7 +3,7 @@
 - Version: `0.1.0`
 - Pull request: https://github.com/ArmaanAhuja/Flowcanvas/pull/1
 - Dates: 26–27 Oct 2026
-- Status: **in review** (see "Result")
+- Status: **accepted** on 31 Oct 2026, when CI first ran green on GitHub (see "Result")
 
 ## From the build plan
 
@@ -17,12 +17,12 @@
 | --- | --- | --- |
 | Monorepo with web app, workspace agent, engine, control plane, shared types | ✅ | 6 workspace projects (`pnpm ls -r --depth -1`): `@flowcanvas/web`, `control-plane`, `graph-model`, `engine`, `workspace-agent`, `e2e` |
 | React web app deployed to a staging URL | ✅ | `https://flowcanvas.ahujaarmaan7777.workers.dev`, deployed by Cloudflare from `main`; Playwright verification recorded in the follow-up section below |
-| CI with lint, type checks and tests | ⚠ defined, can't run | `.github/workflows/ci.yml` (format, lint, typecheck, unit, build, e2e). Jobs don't start: "account is locked due to a billing issue". Every check passes locally. `docs/upgrade-later.md` item 8 |
+| CI with lint, type checks and tests | ✅ (31 Oct 2026) | Ran green on GitHub after the repository moved to `ArmaanAhuja/Flowcanvas`: PR #7 and its merge (phase 1b report, "CI on GitHub"). Until then: | `.github/workflows/ci.yml` (format, lint, typecheck, unit, build, e2e). Jobs don't start: "account is locked due to a billing issue". Every check passes locally. `docs/upgrade-later.md` item 8 |
 | Done when: the staging URL loads the app | ✅ | Playwright passed against staging at `9a18708` (follow-up section) |
 | Done when: every pull request gets its own preview URL | ✅ (with a gap) | PR #1 has the Cloudflare check "Workers Builds: flowcanvas"; preview `https://phase-1-project-skeleton-flowcanvas.ahujaarmaan7777.workers.dev` (branch alias) and `https://dadc1dc8-flowcanvas.ahujaarmaan7777.workers.dev` (version). Gap: the URL isn't posted on the PR (`docs/upgrade-later.md` item 10) |
 | Try it: staging shows the version | ✅ | `0.1.0 · 9a18708` on staging (follow-up section) |
 
-Phase 1 can't be **accepted** until the CI workflow runs green on GitHub (trigger of `docs/upgrade-later.md` item 8).
+Phase 1 couldn't be accepted until the CI workflow ran green on GitHub (`docs/upgrade-later.md` item 8). That happened on 31 Oct 2026, and the owner had agreed to accept it then.
 
 ## How to try it
 
@@ -66,7 +66,7 @@ Recordings and Figma screenshot comparison arrive with phase 1b. This phase has 
 
 ## Known issues and follow-ups
 
-- GitHub Actions can't start: account billing lock (`docs/upgrade-later.md` item 8). **Blocks acceptance.**
+- GitHub Actions can't start: account billing lock (`docs/upgrade-later.md` item 8). Resolved 31 Oct 2026 by moving the repository.
 - The preview URL isn't posted on PRs; the e2e test runs against previews manually (item 10).
 - Previews and staging are public URLs (item 11).
 - Control-plane image builds are slow on a busy connection; no `buildx` on the dev machine (item 13).

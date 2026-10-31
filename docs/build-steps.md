@@ -56,7 +56,7 @@ pnpm format:check
 | 7 | `services/control-plane`: Fastify `/health`, tests, log redaction | done · `f03f422` · Claude |
 | 8 | Minimal `workspace/agent` and `packages/engine` | done · `c30c1c0` · Claude |
 | 9 | Playwright smoke test | done · `9f4245f` · Claude |
-| 10 | GitHub Actions CI, open the PR, branch protection | done · `a3247c7` · Claude · ⚠ CI can't run until the GitHub account billing lock is resolved (`docs/upgrade-later.md` item 8) |
+| 10 | GitHub Actions CI, open the PR, branch protection | done · `a3247c7` · Claude · CI first ran on GitHub on 31 Oct 2026, after the repository moved (phase 1b step 9); branch protection: upgrade-later item 1 |
 | 11 | Cloudflare (Workers static assets): previews per PR, smoke test on preview | done · `6359831` · Claude (repo) + owner (Cloudflare setup) · verified on preview of `be3cf59` |
 | 12 | Control-plane Docker image, built and run locally (Fly.io deploy deferred: `docs/upgrade-later.md` item 12) | done · `17b96b7` · Claude · repo image verified (`/health` reports `17b96b7`, non-root, clean shutdown) |
 | 13 | ADRs, `ARCHITECTURE.md`, `STATUS.md`, `CHANGELOG.md`, phase report, merge, staging live | done · `1df8872` + merge `9a18708` · Claude · staging verified with Playwright |
@@ -1982,7 +1982,7 @@ E2E_BASE_URL=https://flowcanvas.ahujaarmaan7777.workers.dev E2E_EXPECTED_COMMIT=
 | The staging URL loads the app | Open `https://flowcanvas.ahujaarmaan7777.workers.dev`: **Flowcanvas** + `0.1.0 · <main commit>`; the Playwright test passes against it |
 | Every pull request gets its own preview URL | PR #1: Cloudflare check "Workers Builds: flowcanvas" plus the branch alias `https://phase-1-project-skeleton-flowcanvas.ahujaarmaan7777.workers.dev`; verified with Playwright. (The URL isn't posted on the PR yet: upgrade-later item 10) |
 | Try it: open the staging link; the app loads and shows its version | Same as the first row |
-| Build: CI with lint, type checks and tests | Workflow `.github/workflows/ci.yml` committed; **can't run until the GitHub account billing lock is resolved** (upgrade-later item 8). The same checks pass locally |
+| Build: CI with lint, type checks and tests | Workflow `.github/workflows/ci.yml` committed; **ran green on GitHub on 31 Oct 2026** after the repository moved (phase 1b step 9; upgrade-later item 8 closed). The same checks pass locally |
 
 **Gotchas:**
 - **`main` shows the merge commit's SHA, not the last PR commit's.** That's correct: staging runs exactly what's on `main`.
@@ -6910,7 +6910,7 @@ After the merge:
 - The app has a What's new panel and Settings → Labs.
 - `corpus/manifest.json` pins six repos, and a check verifies each copy.
 
-The CI parts can only run on GitHub once the billing lock is cleared. Until then they are verified locally with `act`, so the phase stays *in review* until Actions run.
+The CI parts were first verified locally with `act` (billing lock). They ran on GitHub on 31 Oct 2026, after the repository moved (step 9), and the phase was accepted.
 
 ### Steps (planned)
 
@@ -6920,12 +6920,12 @@ The CI parts can only run on GitHub once the billing lock is cleared. Until then
 | 2 | Video and trace for every end-to-end test; one walkthrough file per phase (`e2e/try-it/`) | done · see commit below · Claude |
 | 3 | `flowcanvas-reports` Worker: publish a run's report with videos at its own URL (owner: Cloudflare API token) | done · see commit below · Claude (code) + owner (token, secrets, `wrangler login`) · ADR 0011 |
 | 4a | Visual tests in Playwright's Docker image, locally and in CI (one set of baselines) | done · see commit below · Claude · ADR 0012 |
-| 4b | CI workflow: checks, visual, walkthroughs against the deployed preview or staging, publish the report, comment on the PR; verified with `actionlint` and `act` | done · `7b8536e` · Claude (owner: `act`, repo variable) · first GitHub run waits for upgrade-later 8 |
+| 4b | CI workflow: checks, visual, walkthroughs against the deployed preview or staging, publish the report, comment on the PR; verified with `actionlint` and `act` | done · `7b8536e` · Claude (owner: `act`, repo variable) · first GitHub run 31 Oct 2026 (step 9) |
 | 5 | What's new: `CHANGELOG.md` turned into data at build time; panel in the app | done · see commit below · Claude |
 | 6 | Labs: typed switch list (off by default, marked as preview), Settings → Labs page | done · see commit below · Claude · on the version page until the phase 2 Settings page |
 | 7 | Test corpus: six pinned public forks, `corpus/manifest.json`, a check of fork, commit, licence and stack | done · see commit below · Claude (forks created with the owner's approval) |
 | 8 | Close phase 1b: docs, report, PR | done · see commit below · Claude · phase in review until Actions runs |
-| 9 | Move the repository to `ArmaanAhuja/Flowcanvas` and run CI on GitHub (resolves upgrade-later 8) | in progress · owner (transfer, Cloudflare reconnect) + Claude (docs, PR, checks) |
+| 9 | Move the repository to `ArmaanAhuja/Flowcanvas` and run CI on GitHub (resolves upgrade-later 8) | done · PR #7, merged as `157b55f` · owner (transfer, Cloudflare reconnect) + Claude (docs, fix, PR, checks) · phases 1 and 1b accepted |
 
 ### Step 1b.1 — Retire the Figma comparison test
 
@@ -8290,4 +8290,8 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 
 **A bug only GitHub could show:** the comment named commit `1c83d3e`, not the branch head `e0589159` that was tested. On pull requests `GITHUB_SHA` is GitHub's temporary merge commit, and `publish-report.ts` read it; under `act` the two are the same. Fix: the script reads the workflow's `COMMIT` (the tested head) first.
 
-**Commits:** `docs: move the repository to ArmaanAhuja/Flowcanvas` · `fix(e2e): label the report with the tested commit, not the PR merge commit`
+- **`.dev.vars` almost committed.** `main` didn't ignore `.dev.vars` yet (that rule was added on the phase 1c branch), and `git add -A` picked it up. GitHub's push protection rejected the push, so nothing left the laptop; the file was removed from the commit and the ignore rule added to `main`. Never click the "allow secret" links push protection offers. Stage named paths, and check `git show --stat HEAD` before pushing.
+
+**After the merge:** the `main` run (https://github.com/ArmaanAhuja/Flowcanvas/actions/runs/41183867839) passed all four jobs; the walkthroughs ran against staging once it served `157b55f`, and the reports' main address moved to `157b55f`. Phases 1 and 1b accepted (decisions log, 31 Oct 2026).
+
+**Commits:** `docs: move the repository to ArmaanAhuja/Flowcanvas` · `fix(e2e): label the report with the tested commit, not the PR merge commit` · `docs: accept phases 1 and 1b after CI ran on GitHub`
