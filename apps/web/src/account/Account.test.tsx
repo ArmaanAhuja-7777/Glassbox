@@ -29,10 +29,24 @@ function renderAccount(fetcher: typeof fetch) {
 }
 
 describe('Account', () => {
-  it('offers GitHub sign-in where sign-in works', async () => {
-    renderAccount(api(() => Response.json({ user: null, signIn: 'available' })));
-    const link = await screen.findByRole('link', { name: 'Sign in with GitHub' });
-    expect(link.getAttribute('href')).toBe('/api/auth/github');
+  it('offers GitHub and Google sign-in where sign-in works', async () => {
+    renderAccount(
+      api(() =>
+        Response.json({ user: null, signIn: 'available', providers: ['github', 'google'] }),
+      ),
+    );
+    const github = await screen.findByRole('link', { name: 'Sign in with GitHub' });
+    expect(github.getAttribute('href')).toBe('/api/auth/github');
+    const google = screen.getByRole('link', { name: 'Sign in with Google' });
+    expect(google.getAttribute('href')).toBe('/api/auth/google');
+  });
+
+  it('offers only the providers this copy has keys for', async () => {
+    renderAccount(
+      api(() => Response.json({ user: null, signIn: 'available', providers: ['google'] })),
+    );
+    expect(await screen.findByRole('link', { name: 'Sign in with Google' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Sign in with GitHub' })).toBeNull();
   });
 
   it('sends people on previews to staging', async () => {
@@ -55,7 +69,9 @@ describe('Account', () => {
     let signedIn = true;
     const fetcher = api(() =>
       Response.json(
-        signedIn ? { user: ada, signIn: 'available' } : { user: null, signIn: 'available' },
+        signedIn
+          ? { user: ada, signIn: 'available', providers: ['github', 'google'] }
+          : { user: null, signIn: 'available', providers: ['github', 'google'] },
       ),
     );
     renderAccount(fetcher);
@@ -69,7 +85,12 @@ describe('Account', () => {
   });
 
   it('says so when signing out fails, and stays signed in', async () => {
-    renderAccount(api(() => Response.json({ user: ada, signIn: 'available' }), 503));
+    renderAccount(
+      api(
+        () => Response.json({ user: ada, signIn: 'available', providers: ['github', 'google'] }),
+        503,
+      ),
+    );
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Sign out' }));
     expect((await screen.findByRole('status')).textContent).toBe('Couldn’t sign out. Try again.');
     expect(screen.getByText('Ada')).toBeTruthy();
@@ -77,9 +98,13 @@ describe('Account', () => {
 
   it('explains why sign-in came back without a session, then removes it from the address', async () => {
     window.history.replaceState(null, '', '/?sign-in=not-allowed&tab=1');
-    renderAccount(api(() => Response.json({ user: null, signIn: 'available' })));
+    renderAccount(
+      api(() =>
+        Response.json({ user: null, signIn: 'available', providers: ['github', 'google'] }),
+      ),
+    );
     expect(screen.getByRole('status').textContent).toBe(
-      'This GitHub account’s primary email isn’t on the Flowcanvas allowlist yet. Ask the admin to add it.',
+      'That account’s email (on GitHub, its primary email) isn’t on the Flowcanvas allowlist yet. Ask the admin to add it.',
     );
     expect(window.location.pathname + window.location.search).toBe('/?tab=1');
     await screen.findByRole('link', { name: 'Sign in with GitHub' });
@@ -87,7 +112,11 @@ describe('Account', () => {
 
   it('treats an unknown problem code as a generic failure, never echoing it', async () => {
     window.history.replaceState(null, '', '/?sign-in=%3Cscript%3E');
-    renderAccount(api(() => Response.json({ user: null, signIn: 'available' })));
+    renderAccount(
+      api(() =>
+        Response.json({ user: null, signIn: 'available', providers: ['github', 'google'] }),
+      ),
+    );
     expect(screen.getByRole('status').textContent).toBe('Sign-in failed. Try again in a moment.');
     await screen.findByRole('link', { name: 'Sign in with GitHub' });
   });

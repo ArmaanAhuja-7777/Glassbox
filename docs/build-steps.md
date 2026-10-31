@@ -8324,7 +8324,7 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 | 1 | Spike: Hono and Neon on the Workers free plan; ADR | done · `ba4718e` · Claude · ADR 0013 |
 | 2 | Database schema and migrations | done · see commit below · Claude · ADR 0014 · applied to Neon `dev` |
 | 3 | GitHub sign-in, sessions, sign out; Fastify server retired | done · see commit below · Claude · owner: one real sign-in by hand (below) |
-| 4 | Google sign-in, allowlist, admin role | *planned* |
+| 4 | Google sign-in, allowlist, admin role | done · see commit below · Claude · owner: one real Google sign-in by hand |
 | 5 | Projects list and create | *planned* |
 | 6 | Secrets vault, Project secrets page, canary tests | *planned* |
 | 7 | Usage metering skeleton and workspace records | *planned* |
@@ -8896,3 +8896,60 @@ Checked by Claude in Chromium (31 Oct 2026), against `pnpm dev` with the Neon `d
 - **Request logs:** Cloudflare's request logs may record the callback URL, including the one-time `code`. With PKCE the code is useless without the verifier, which never leaves the cookie. Step 9 checks everything the logs record.
 
 **Commit:** `feat(control-plane): GitHub sign-in with sessions; retire the Fastify server`
+
+### Step 1c.4 — Google sign-in, allowlist, admin role
+
+**Goal:** **Sign in with Google** next to GitHub. A person who uses both with the same verified email gets one Flowcanvas account. Routes can require a signed-in user, or an admin.
+
+**Concepts:**
+- **OpenID Connect (OIDC)** is OAuth plus a standard way to learn who signed in. With the scopes `openid email profile`, Google's **userinfo** endpoint returns `sub` (a stable account ID), `email`, `email_verified` and `name`. https://developers.google.com/identity/openid-connect/openid-connect
+- **Why userinfo, not the ID token.** Google also returns an *ID token* (a signed JWT). Using it means checking its signature against Google's published keys, its audience and its expiry. Calling userinfo with the token we just received, over TLS from Google's own endpoint, gives the same facts without any of that code. One more request per sign-in.
+- **`prompt=select_account`** makes Google, and GitHub when several accounts are signed in, show an account picker, instead of silently using the account already signed in. That was the confusion in step 3.
+- **Linking by verified email.** The `identities` table links each external account to a user. A Google account with the same **verified** email as an existing user is linked to that user, not made into a second one. This is safe only because both providers verify the email. Unverified emails are refused (`no-verified-email`).
+- **Guards (middleware).** `requireUser` reads the session cookie and gives the route `c.get('user')`, or answers 401. `requireAdmin` runs after it and answers 403 unless the allowlist made the user an admin. The projects (step 5) and admin (step 8) routes use them. https://hono.dev/docs/guides/middleware
+
+**What changed:**
+
+| File | What |
+| --- | --- |
+| `services/control-plane/src/auth/google.ts` | Authorize URL (`openid email profile`, PKCE S256, `prompt=select_account`), code exchange, userinfo with the **verified** email only |
+| `services/control-plane/src/auth/providers.ts` | One `OAuthProvider` shape for GitHub and Google: keys, authorize URL, `identify` (the provider's token never leaves it) |
+| `services/control-plane/src/auth/routes.ts` | `/api/auth/:provider` and `/api/auth/callback/:provider`. The sign-in cookie records which provider started, and a callback for another provider is refused. `/api/me` also lists `providers` (those with both keys set) |
+| `services/control-plane/src/auth/guards.ts` | `requireUser`, `requireAdmin` |
+| `services/control-plane/src/auth/cookies.ts` | Cookie names and attributes, shared by routes and guards |
+| `services/control-plane/src/auth/github.ts` | Adds `prompt=select_account` |
+| `apps/web/src/account/` | One link per configured provider. Problem messages no longer name GitHub. **Sign out** is a text button that lines up with the text (owner's screenshot) |
+
+**Tests:**
+- **`google.test.ts` (6):** the grant includes the PKCE verifier; Google's error is named without the code or secret; only verified emails count; a missing name falls back to the email's name part; a missing `sub` fails clearly.
+- **`routes.test.ts` (now 25, fake GitHub and Google):**
+  - Google's authorize URL, sign-in, an unverified email, and an email not on the allowlist
+  - **the same verified email on GitHub and Google is one user with two identities**
+  - a callback for the wrong provider is refused
+  - `/api/me` lists only providers with both keys, or `not-configured` when there are none
+  - unknown providers answer 404
+  - Google's secret, code and token are canaries: never logged
+- **`guards.test.ts` (5):** no session or an unknown one gets 401; a signed-in user reaches the route; an admin passes `requireAdmin`; a member gets 403.
+- **`Account.test.tsx` (9):** both links, only the configured ones, the new message wording.
+
+**Run and check it:**
+
+```fish
+pnpm --filter @flowcanvas/control-plane test
+pnpm --filter @flowcanvas/web test
+pnpm dev                                         # http://localhost:5173
+```
+
+Owner, by hand:
+1. The **Account** row shows **Sign in with GitHub** and **Sign in with Google**.
+2. **Sign in with Google**, using an account that is both a **test user** in Google Auth Platform → Audience and on the allowlist. You come back signed in.
+3. If that Google account has the same email as your GitHub account, it's the **same** Flowcanvas account: same name row, and still admin.
+4. **Sign out**, then sign in with GitHub. GitHub now shows its account picker when several GitHub accounts are signed in.
+
+Checked by Claude (31 Oct 2026), against the owner's running `pnpm dev`: `/api/me` listed `github` and `google`, and **Sign in with Google** reached Google's "Sign in to continue to Flowcanvas" page. That means Google accepted the client ID and the local return address (a mismatch would show "Error 400: redirect_uri_mismatch").
+
+**Gotchas:**
+- **Google only lets test users in while the app is in *Testing*** (step 0). Anyone else sees "Access blocked" on Google's side, before our allowlist runs. A Google sign-in needs both: a test user in Google, and the email on our allowlist (upgrade-later 26).
+- **`wrangler dev` reloads on code changes** but reads `.dev.vars` only at startup.
+
+**Commit:** `feat(control-plane): Google sign-in, one account across providers, user and admin guards`

@@ -9,9 +9,24 @@ export interface SessionUser {
 /** Mirrors the API's SignInState, plus `unreachable` when there is no API (e.g. `vite preview`) or it failed. */
 export type SignInState = 'available' | 'staging-only' | 'not-configured' | 'unreachable';
 
+export type ProviderId = 'github' | 'google';
+
 export type Session =
   | { readonly kind: 'signed-in'; readonly user: SessionUser }
-  | { readonly kind: 'signed-out'; readonly signIn: SignInState };
+  | {
+      readonly kind: 'signed-out';
+      readonly signIn: SignInState;
+      /** The providers this copy can sign in with, in the order to offer them. */
+      readonly providers: readonly ProviderId[];
+    };
+
+/** Where each sign-in starts, and its link text. A plain navigation (not fetch): it leaves for the provider. */
+export const PROVIDERS: Readonly<
+  Record<ProviderId, { readonly path: string; readonly label: string }>
+> = {
+  github: { path: '/api/auth/github', label: 'Sign in with GitHub' },
+  google: { path: '/api/auth/google', label: 'Sign in with Google' },
+};
 
 const SIGN_IN_STATES = new Set(['available', 'staging-only', 'not-configured']);
 
@@ -28,14 +43,21 @@ function isSessionUser(value: unknown): value is SessionUser {
 
 /** Asks the API who is signed in. Never throws: anything unexpected means sign-in can't be offered. */
 export async function loadSession(fetcher: typeof fetch = fetch): Promise<Session> {
-  const unreachable: Session = { kind: 'signed-out', signIn: 'unreachable' };
+  const unreachable: Session = { kind: 'signed-out', signIn: 'unreachable', providers: [] };
   try {
     const response = await fetcher('/api/me', { headers: { accept: 'application/json' } });
     if (!response.ok) return unreachable;
-    const body = (await response.json()) as { user?: unknown; signIn?: unknown };
+    const body = (await response.json()) as {
+      user?: unknown;
+      signIn?: unknown;
+      providers?: unknown;
+    };
     if (isSessionUser(body.user)) return { kind: 'signed-in', user: body.user };
     if (typeof body.signIn === 'string' && SIGN_IN_STATES.has(body.signIn)) {
-      return { kind: 'signed-out', signIn: body.signIn as SignInState };
+      const providers = Array.isArray(body.providers)
+        ? body.providers.filter((id): id is ProviderId => id === 'github' || id === 'google')
+        : [];
+      return { kind: 'signed-out', signIn: body.signIn as SignInState, providers };
     }
     return unreachable;
   } catch {
@@ -53,17 +75,14 @@ export async function signOut(fetcher: typeof fetch = fetch): Promise<boolean> {
   }
 }
 
-/** Where sign-in starts. A plain navigation (not fetch), because it leaves for GitHub and comes back. */
-export const GITHUB_SIGN_IN_PATH = '/api/auth/github';
-
 /** Why sign-in came back without a session (`/?sign-in=<problem>`, set by the API), in plain words. */
 export const SIGN_IN_PROBLEMS: Readonly<Record<string, string>> = {
-  cancelled: 'Sign-in was cancelled on GitHub.',
+  cancelled: 'Sign-in was cancelled.',
   expired: 'That sign-in expired or was started in another tab. Try again.',
   'no-verified-email':
-    'Your GitHub account has no verified primary email. Verify one in your GitHub email settings, then try again.',
+    'That account has no verified email (on GitHub, its primary email). Verify it with GitHub or Google, then try again.',
   'not-allowed':
-    'This GitHub account’s primary email isn’t on the Flowcanvas allowlist yet. Ask the admin to add it.',
+    'That account’s email (on GitHub, its primary email) isn’t on the Flowcanvas allowlist yet. Ask the admin to add it.',
   unavailable: 'Sign-in only works on staging.',
   failed: 'Sign-in failed. Try again in a moment.',
 };

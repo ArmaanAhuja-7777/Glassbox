@@ -38,6 +38,8 @@ export function authorizeUrl(options: {
     code_challenge_method: 'S256',
     // Never offer "sign up for GitHub" in the middle of signing in to Flowcanvas.
     allow_signup: 'false',
+    // Show GitHub's account picker when several accounts are signed in, instead of using one silently.
+    prompt: 'select_account',
   }).toString();
   return url.toString();
 }

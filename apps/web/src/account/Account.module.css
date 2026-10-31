@@ -40,7 +40,8 @@
 }
 
 /* Same as the catalogue link: underlined text, never accent-coloured (the accent is for selection and focus). */
-.link {
+.link,
+.textButton {
   border-radius: var(--radius-control);
   font-family: var(--text-small-strong-font-family);
   font-size: var(--text-small-strong-font-size);
@@ -53,6 +54,14 @@
   transition: text-decoration-color var(--duration-hover) ease-out;
 }
 
-.link:hover {
+.textButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.link:hover,
+.textButton:hover {
   text-decoration-color: var(--color-text-primary);
 }

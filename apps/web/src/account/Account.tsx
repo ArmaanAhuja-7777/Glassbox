@@ -1,14 +1,7 @@
-import { Button } from '@flowcanvas/ui';
 import { useEffect, useState } from 'react';
 import { STAGING_URL } from '../links';
 import styles from './Account.module.css';
-import {
-  GITHUB_SIGN_IN_PATH,
-  loadSession,
-  signOut,
-  takeSignInProblem,
-  type Session,
-} from './session';
+import { loadSession, PROVIDERS, signOut, takeSignInProblem, type Session } from './session';
 
 interface AccountProps {
   /** Replaces the browser's fetch in tests. */
@@ -73,18 +66,23 @@ function AccountState({
           {email}
           {role === 'admin' ? ' · admin' : ''}
         </span>
-        <Button kind="ghost" onClick={() => void onSignOut()}>
+        {/* A text button like the sign-in links, so it lines up with the text around it. */}
+        <button type="button" className={styles.textButton} onClick={() => void onSignOut()}>
           Sign out
-        </Button>
+        </button>
       </span>
     );
   }
   switch (session.signIn) {
     case 'available':
       return (
-        <a className={styles.link} href={GITHUB_SIGN_IN_PATH}>
-          Sign in with GitHub
-        </a>
+        <span className={styles.row}>
+          {session.providers.map((id) => (
+            <a key={id} className={styles.link} href={PROVIDERS[id].path}>
+              {PROVIDERS[id].label}
+            </a>
+          ))}
+        </span>
       );
     case 'staging-only':
       // Branch previews have their own addresses, which GitHub won't return to (decisions log, 30 Oct 2026).

@@ -14,7 +14,9 @@ afterEach(() => {
 const buildInfo = { version: '0.1.0', commit: '7e59ec1a2b3c' };
 // The API's answer for nobody signed in (account/Account.test.tsx covers the other states).
 const signedOut: typeof fetch = () =>
-  Promise.resolve(Response.json({ user: null, signIn: 'available' }));
+  Promise.resolve(
+    Response.json({ user: null, signIn: 'available', providers: ['github', 'google'] }),
+  );
 
 describe('App', () => {
   it('shows the product name', () => {

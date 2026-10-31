@@ -6,11 +6,11 @@ The system as it is **today** (end of phase 1b). Kept current at the end of ever
 
 | Package | Folder | Runs in | Today |
 | --- | --- | --- | --- |
-| `@flowcanvas/web` | `apps/web` | The user's browser (static files from Cloudflare) | Version page built from the design system: name, status, build line, account line (sign in with GitHub, who is signed in, sign out; `src/account/`), What's new (from `CHANGELOG.md`, parsed at build time), Labs (switches for unfinished features, off by default; `src/labs/`), theme menu, link to the catalogue |
+| `@flowcanvas/web` | `apps/web` | The user's browser (static files from Cloudflare) | Version page built from the design system: name, status, build line, account line (sign in with GitHub or Google, who is signed in, sign out; `src/account/`), What's new (from `CHANGELOG.md`, parsed at build time), Labs (switches for unfinished features, off by default; `src/labs/`), theme menu, link to the catalogue |
 | `@flowcanvas/ui` | `packages/ui` | The browser (consumed as source by Vite, ADR 0007) | Graphite components (Button, Tag, Input, Toggle, Tabs, Panel, Menu, Popover, Tooltip, Flow node), global styles, fonts, theme switching; Storybook catalogue |
 | `@flowcanvas/tokens` | `packages/tokens` | Shared (CSS and TypeScript) | Design tokens: DTCG source JSON → generated `css/tokens.css` and typed `vars` / `themeValues`; dark and light themes |
 | `@flowcanvas/figma-tokens` | `tools/figma-tokens` | Developer machine / build | Generator: DTCG token JSON (Figma variable export format) → CSS variables + TypeScript |
-| `@flowcanvas/control-plane` | `services/control-plane` | Inside the app's Cloudflare Worker under `/api` (ADR 0013); Neon Postgres | Hono API (`src/api/`): health, database ping, GitHub sign-in, sessions and sign-out (`src/auth/`); schema migrations and runner (`migrations/`, `src/db/`, ADR 0014). The earlier Fastify server was retired in phase 1c step 3 |
+| `@flowcanvas/control-plane` | `services/control-plane` | Inside the app's Cloudflare Worker under `/api` (ADR 0013); Neon Postgres | Hono API (`src/api/`): health, database ping, GitHub and Google sign-in, sessions, sign-out and the user/admin guards (`src/auth/`); schema migrations and runner (`migrations/`, `src/db/`, ADR 0014). The earlier Fastify server was retired in phase 1c step 3 |
 | `@flowcanvas/graph-model` | `packages/graph-model` | Shared library (browser and Node) | `BuildInfo` type and `formatBuildInfo()`; becomes the flow graph model in phase 6 |
 | `@flowcanvas/engine` | `packages/engine` | Inside each user workspace (later) | Wired-in placeholder package; indexer arrives in phase 4 |
 | `@flowcanvas/workspace-agent` | `workspace/agent` | Inside each user workspace VM (later) | Wired-in placeholder package; daemon arrives in phase 1d |
@@ -113,15 +113,17 @@ control plane       ──► part of the app's Worker (wrangler.jsonc `main`), 
 ## Sign-in and sessions (phase 1c)
 
 ```
-"Sign in with GitHub" ──► GET /api/auth/github
-     sets __Host-fc_oauth = state.verifier (HttpOnly, Secure, SameSite=Lax, 10 min) ──► github.com/login/oauth/authorize
-                                                                                        (state, PKCE S256 challenge)
-GitHub ──► GET /api/auth/callback/github?code&state
-     state must match the cookie ──► code + verifier exchanged for a GitHub token ──► /user, /user/emails
-     primary verified email on sign_in_allowlist? ──► user + identity (linked by provider id, else by email)
+"Sign in with GitHub | Google" ──► GET /api/auth/:provider
+     sets __Host-fc_oauth = provider.state.verifier (HttpOnly, Secure, SameSite=Lax, 10 min) ──► provider's authorize page
+                                                              (state, PKCE S256 challenge, prompt=select_account)
+provider ──► GET /api/auth/callback/:provider?code&state
+     provider and state must match the cookie ──► code + verifier exchanged for the provider's token
+         GitHub: /user, /user/emails (primary verified email) · Google: OIDC userinfo (email_verified)
+     verified email on sign_in_allowlist? ──► user + identity (linked by provider id, else by the same verified email)
      new random session token ──► SHA-256 stored in sessions; token in __Host-fc_session (30 days) ──► redirect to /
-     the GitHub token is dropped: never stored or logged
-GET /api/me ──► { user, signIn: available | staging-only | not-configured }
+     the provider's token is dropped: never stored or logged
+GET /api/me ──► { user, signIn: available | staging-only | not-configured, providers }
+guarded routes ──► requireUser (401 without a live session; c.get('user')) ──► requireAdmin (403 unless admin)
 POST /api/auth/sign-out (Origin must be our own) ──► session row deleted, cookie cleared
 ```
 

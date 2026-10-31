@@ -23,6 +23,7 @@ describe('authorizeUrl', () => {
       code_challenge: 'challenge-1',
       code_challenge_method: 'S256',
       allow_signup: 'false',
+      prompt: 'select_account',
     });
   });
 });
