@@ -1,7 +1,7 @@
 # Phase 1 — Project skeleton: report
 
 - Version: `0.1.0`
-- Pull request: https://github.com/ArmaanAhuja-7777/Glassbox/pull/1
+- Pull request: https://github.com/ArmaanAhuja/Flowcanvas/pull/1
 - Dates: 26–27 Oct 2026
 - Status: **in review** (see "Result")
 

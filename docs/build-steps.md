@@ -97,7 +97,7 @@ git init -b main
 git add .gitignore CLAUDE.md docs
 git status                              # only docs; nothing secret
 git commit -m "docs: add product, design and build reference documents"
-git remote add origin https://github.com/ArmaanAhuja-7777/Glassbox.git
+git remote add origin https://github.com/ArmaanAhuja/Flowcanvas.git
 git push -u origin main
 ```
 
@@ -1647,7 +1647,7 @@ gh pr checks --watch                    # follow both jobs live in the terminal
 **Commit:** `ci: add GitHub Actions workflow for checks and e2e`
 
 **Done notes (step 10):**
-- Workflow committed (`a3247c7`), branch pushed, PR #1 opened: https://github.com/ArmaanAhuja-7777/Glassbox/pull/1
+- Workflow committed (`a3247c7`), branch pushed, PR #1 opened: https://github.com/ArmaanAhuja/Flowcanvas/pull/1
 - Branch protection: option 3 (not enforced), and the free plan blocked it while the repo was private.
 - **Blocked:** GitHub Actions jobs don't start ("account is locked due to a billing issue"), on private *and* public repos. Diagnosis: `gh run view <id>` showed only "workflow file issue"; a one-line probe workflow failed the same way, which ruled out our file; the check-run **annotations** (`gh api repos/<owner>/<repo>/check-runs/<id>/annotations`) gave the real reason. Lesson: when a run fails in 0–4 seconds with no steps, look at annotations, not logs.
 - Until resolved, run the CI checks locally:
@@ -1755,7 +1755,7 @@ Least privilege: a package only runs code at install time if we said yes.
   Permissions-Policy: camera=(), microphone=(), geolocation=()
 ```
 
-**Cloudflare dashboard (owner does this):** on "Set up your application" (Workers & Pages → Create → import the GitHub repo `ArmaanAhuja-7777/Glassbox`, granting the Cloudflare app access to **only** this repo):
+**Cloudflare dashboard (owner does this):** on "Set up your application" (Workers & Pages → Create → import the GitHub repo `ArmaanAhuja/Flowcanvas`, granting the Cloudflare app access to **only** this repo):
 
 | Field | Value |
 | --- | --- |
@@ -6777,7 +6777,7 @@ export default preview;
 
 `apps/web/package.json`: `lint` is now `eslint . && stylelint "src/**/*.css"`; new dev dependencies `stylelint` and `@testing-library/user-event` (catalog).
 
-**Owner task: create the catalogue project in Cloudflare.** Same flow as the app (phase 1, step 11): Workers & Pages → Create → Import a repository → `ArmaanAhuja-7777/Glassbox`.
+**Owner task: create the catalogue project in Cloudflare.** Same flow as the app (phase 1, step 11): Workers & Pages → Create → Import a repository → `ArmaanAhuja/Flowcanvas`.
 
 | Field | Value |
 | --- | --- |
@@ -6925,6 +6925,7 @@ The CI parts can only run on GitHub once the billing lock is cleared. Until then
 | 6 | Labs: typed switch list (off by default, marked as preview), Settings → Labs page | done · see commit below · Claude · on the version page until the phase 2 Settings page |
 | 7 | Test corpus: six pinned public forks, `corpus/manifest.json`, a check of fork, commit, licence and stack | done · see commit below · Claude (forks created with the owner's approval) |
 | 8 | Close phase 1b: docs, report, PR | done · see commit below · Claude · phase in review until Actions runs |
+| 9 | Move the repository to `ArmaanAhuja/Flowcanvas` and run CI on GitHub (resolves upgrade-later 8) | in progress · owner (transfer, Cloudflare reconnect) + Claude (docs, PR, checks) |
 
 ### Step 1b.1 — Retire the Figma comparison test
 
@@ -8246,3 +8247,47 @@ docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12   # workflow li
 
 **Commits:** `chore: release 0.3.0, close phase 1b` · `test(e2e): grey text smoothing for deterministic screenshots`
 
+### Step 1b.9 — Move the repository and run CI on GitHub
+
+**Goal:** get GitHub Actions running, so the CI workflow from step 4b proves phase 1b's Done-when on GitHub itself. The old account's billing lock stopped every job, so the owner moved the repository to their other account (decisions log, 31 Oct 2026).
+
+**Concepts:**
+- **Repository transfer** moves a repository to another owner and keeps its history, issues, PRs, stars, Actions secrets and webhooks. Old web and git URLs redirect, until someone creates a repository at the old name. The new owner has one day to accept. https://docs.github.com/en/repositories/creating-and-managing-repositories/transferring-a-repository
+- **Who pays for Actions:** the repository's owner. Public repositories get standard runners free, so the old account's lock no longer matters. https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions
+- **Workers Builds is tied to a GitHub App installation**, which belongs to an account. After a transfer, the Cloudflare app must be installed on the new account and each Worker's Git connection redone. https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/github-integration/
+
+**Owner (in the browser):**
+1. GitHub → the repository → Settings → General → Danger zone → **Transfer ownership**, to `ArmaanAhuja`, new name `Flowcanvas`. Accept from the new account (within one day).
+2. Install **Cloudflare Workers and Pages** on `ArmaanAhuja` for this repository only; remove the old account's installation.
+3. Cloudflare → Workers & Pages → each Worker → Settings → Build → Git repository → reconnect. The form fills in Cloudflare's defaults (`pnpm run build`, `npx wrangler deploy`, `npx wrangler preview`); replace them with:
+
+   | Field | `flowcanvas` | `flowcanvas-catalogue` |
+   | --- | --- | --- |
+   | Build command | `corepack enable && pnpm install --frozen-lockfile && pnpm build --filter=@flowcanvas/web` | `corepack enable && pnpm install --frozen-lockfile && pnpm turbo run build-storybook --filter=@flowcanvas/ui` |
+   | Deploy command | `pnpm exec wrangler deploy` | `pnpm exec wrangler deploy --config packages/ui/wrangler.jsonc` |
+   | Preview command | `pnpm exec wrangler versions upload` | `pnpm exec wrangler versions upload --config packages/ui/wrangler.jsonc` |
+   | Enable Preview builds | on | on |
+   | Advanced → root directory | `/` | `/` |
+   | Advanced → variables | `NODE_VERSION=24`, `SKIP_DEPENDENCY_INSTALL=true`, `TURBO_TELEMETRY_DISABLED=1`, `COREPACK_ENABLE_DOWNLOAD_PROMPT=0`, `WRANGLER_SEND_METRICS=false` | the same, plus `STORYBOOK_DISABLE_TELEMETRY=1` |
+
+**Claude:**
+
+```fish
+git remote set-url origin https://github.com/ArmaanAhuja/Flowcanvas.git
+gh api repos/ArmaanAhuja/Flowcanvas/actions/secrets --jq '.secrets[].name'      # CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN
+gh api repos/ArmaanAhuja/Flowcanvas/actions/variables --jq '.variables[].name'  # CLOUDFLARE_WORKERS_SUBDOMAIN
+```
+
+Then repository links in the docs updated, and this branch (`chore/move-repo`) opened as a PR to run the whole workflow on GitHub.
+
+**Verify:** on the PR, every CI job passes on GitHub (checks, visual in Docker, walkthroughs against the PR preview, publish), and one PR comment carries the preview and report links. After merge, the `main` run tests staging and moves the reports' main address. Then the upgrade-later 8 steps are complete.
+
+**Gotchas:**
+- Don't accept Cloudflare's default commands on reconnect: `pnpm run build` without `corepack enable` and an install fails, and `npx wrangler preview` is the beta preview feature we don't use.
+- Commit and PR links in older docs point at the old address and still work through GitHub's redirect; never create a repository named `Glassbox` on the old account, or the redirect breaks.
+
+**First run on GitHub (PR #7):** all four jobs passed (checks, visual 64 passed, walkthroughs 4 passed against the PR preview, publish), and the PR comment appeared with the preview and report links.
+
+**A bug only GitHub could show:** the comment named commit `1c83d3e`, not the branch head `e0589159` that was tested. On pull requests `GITHUB_SHA` is GitHub's temporary merge commit, and `publish-report.ts` read it; under `act` the two are the same. Fix: the script reads the workflow's `COMMIT` (the tested head) first.
+
+**Commits:** `docs: move the repository to ArmaanAhuja/Flowcanvas` · `fix(e2e): label the report with the tested commit, not the PR merge commit`
