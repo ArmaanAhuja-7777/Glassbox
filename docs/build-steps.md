@@ -8328,7 +8328,7 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 | 5 | Projects list and create | done · see commit below · Claude · checked against Neon `dev` |
 | 6 | Secrets vault, Project secrets page, canary tests | done · see commit below · Claude · ADR 0015 · owner: local VAULT_KEY |
 | 7 | Usage metering skeleton and workspace records | done · see commit below · Claude · migration 0002 applied to Neon `dev` |
-| 8 | Admin view | *planned* |
+| 8 | Admin view | done · see commit below · Claude · read-only check against Neon `dev` |
 | 9 | Logs and redaction across everything; walkthroughs | *planned* |
 | 10 | Close the phase (0.4.0) | *planned* |
 
@@ -9152,3 +9152,60 @@ Owner, by hand (optional; the tests cover it):
 - **No allowance or limit yet.** The meter shows only what was measured; inventing a free allowance now would be a product decision (phase 44a).
 
 **Commit:** `feat(control-plane): workspace record with every project, usage metering skeleton`
+
+### Step 1c.8 — Admin view
+
+**Goal:** the admin can see who has signed in and how much each person uses, and manage the allowlist from the app instead of `pnpm db:allow`. Counts only: the admin view never shows project names, repository addresses or secrets.
+
+**Concepts:**
+- **Authorisation on the server, every time.** The page hides the Admin section from members, but that's only for clarity. Each `/api/admin` request checks the session and the role (`requireUser`, then `requireAdmin`), so calling the API directly gets 403.
+- **Revoking access means ending sessions.** A session stays valid until it expires (30 days), whatever the allowlist says. Removing an email therefore deletes that person's sessions in the same statement, and they're signed out everywhere at once.
+- **Lockout protection.** An admin can't demote or remove their own entry (409). Another admin has to do it, so the app can't be left with nobody able to manage it by accident.
+- **Data minimisation:** an admin needs to know *how much*, not *what*. The queries return counts and sums, and a test checks that a project's name and address never appear.
+
+**What changed:**
+
+| File | What |
+| --- | --- |
+| `services/control-plane/src/admin/admin.ts` | `parseEmail` (trimmed, lower case, ≤ 254), `listPeople` (role, providers, project count, workspace seconds this month, last sign-in, still allowed), `listAllowlist` (role, added, signed up yet), `allowEmail` (add, or change the role; a signed-up person's role changes at once), `disallowEmail` (remove and end their sessions in one statement; their data stays) |
+| `services/control-plane/src/admin/routes.ts` | `GET /api/admin`, `PUT /api/admin/allowlist/:email` with `{ role }` (201 added, 200 changed), `DELETE /api/admin/allowlist/:email` (204). Admins only; changes need our own `Origin`; 409 for your own entry. Logs the acting admin's user ID, never the email |
+| `apps/web/src/admin/` | The **Admin** section: people with their counts; the allowlist with **Make admin** or **Make member**, a two-click **Remove**, and a form with an **Admin** switch. Your own entry shows "You" and no actions |
+| `apps/web/src/App.tsx` | Keeps the whole session (not just "signed in"), and shows Admin only to admins |
+
+**Tests:**
+- **`admin/admin.test.ts` (4, PGlite):**
+  - email parsing
+  - people listed with counts and usage; **the project's name and address don't appear**
+  - add, then change a role, including for someone already signed in
+  - removal ends their session and keeps their data; removing twice reports nothing removed
+- **`admin/routes.test.ts` (6):**
+  - 401 signed out; 403 for members on every route
+  - the view, with `no-store`
+  - add, change and remove; **log lines never contain the email**
+  - a removed person's next request gets 401
+  - no self-demotion or self-removal (409)
+  - bad email, bad role, and a foreign `Origin` refused
+- **`Admin.test.tsx` (6), `App.test.tsx` (+1):** people's counts; no actions on your own entry; allow as admin; the field error; two-click remove; a load error; admins only
+
+**Checked against Neon `dev` (31 Oct 2026):** a read-only script ran `listPeople` and `listAllowlist` and printed only roles and counts: 2 people, 2 allowlist entries.
+
+**Run and check it:**
+
+```fish
+pnpm --filter @flowcanvas/control-plane test     # 133 tests
+pnpm --filter @flowcanvas/web test               # 59 tests
+pnpm dev                                         # http://localhost:5173, signed in as the admin
+```
+
+Owner, by hand:
+1. Under Usage, the **Admin** section lists everyone who has signed in, with providers, project count, workspace time and last sign-in.
+2. In **Allowlist**, your own email says "You" and has no buttons.
+3. Allow a made-up address such as `test-person@example.com`. It appears as "Member · hasn't signed in yet". Click **Make admin**, then **Make member**.
+4. **Remove**, then **Remove test-person@example.com**: it's gone.
+5. Optional: sign in with your second account in another browser, remove it here, then reload there. It's signed out.
+
+**Gotchas:**
+- **A data-modifying CTE runs even if nothing reads it.** `allowEmail` updates `users.role` in a CTE that the final `select` doesn't use. Postgres still runs it, which keeps the role change in one statement.
+- **The email goes in the path, URL-encoded** (`/allowlist/ada%40example.com`). Hono decodes it, and `parseEmail` lower-cases it, so `Ada@Example.com` and `ada@example.com` are the same entry.
+
+**Commit:** `feat: admin view with people, usage and allowlist management`

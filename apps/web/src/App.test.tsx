@@ -35,12 +35,14 @@ describe('App', () => {
     expect(link.getAttribute('href')).toBe('/api/auth/github');
   });
 
-  it('shows projects only to a signed-in person', async () => {
-    const signedIn: typeof fetch = (input) =>
+  /** A fake API for a signed-in person with this role. */
+  const signedInAs =
+    (role: 'member' | 'admin'): typeof fetch =>
+    (input) =>
       Promise.resolve(
         input === '/api/me'
           ? Response.json({
-              user: { id: 'u-1', email: 'ada@example.com', displayName: 'Ada', role: 'member' },
+              user: { id: 'u-1', email: 'ada@example.com', displayName: 'Ada', role },
               signIn: 'available',
               providers: ['github'],
             })
@@ -53,8 +55,13 @@ describe('App', () => {
                   storageByteHours: 0,
                 },
               })
-            : Response.json({ projects: [] }),
+            : input === '/api/admin'
+              ? Response.json({ people: [], allowlist: [] })
+              : Response.json({ projects: [] }),
       );
+
+  it('shows projects only to a signed-in person', async () => {
+    const signedIn = signedInAs('member');
     render(<App buildInfo={buildInfo} fetcher={signedIn} />);
     expect(await screen.findByRole('heading', { name: 'Projects' })).toBeTruthy();
     expect(await screen.findByRole('heading', { name: 'Usage this month' })).toBeTruthy();
@@ -64,6 +71,16 @@ describe('App', () => {
     await screen.findByRole('link', { name: 'Sign in with GitHub' });
     expect(screen.queryByRole('heading', { name: 'Projects' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Usage this month' })).toBeNull();
+  });
+
+  it('shows the admin section to admins only', async () => {
+    render(<App buildInfo={buildInfo} fetcher={signedInAs('member')} />);
+    await screen.findByRole('heading', { name: 'Projects' });
+    expect(screen.queryByRole('heading', { name: 'Admin' })).toBeNull();
+    cleanup();
+
+    render(<App buildInfo={buildInfo} fetcher={signedInAs('admin')} />);
+    expect(await screen.findByRole('heading', { name: 'Admin' })).toBeTruthy();
   });
 
   it('links to the component catalogue', () => {

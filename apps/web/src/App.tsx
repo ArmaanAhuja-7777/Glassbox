@@ -13,6 +13,7 @@ import {
 import { useCallback, useState } from 'react';
 import releases from 'virtual:changelog';
 import { Account } from './account/Account';
+import { Admin } from './admin/Admin';
 import type { Session } from './account/session';
 import styles from './App.module.css';
 import { LabsPanel } from './labs/LabsPanel';
@@ -42,10 +43,11 @@ function themeLabel(preference: ThemePreference): string {
 export function App({ buildInfo, fetcher }: AppProps) {
   const [theme, setTheme] = useThemePreference();
   const [unseen, markSeen] = useWhatsNewSeen(releases[0]?.version);
-  const [signedIn, setSignedIn] = useState(false);
-  const onSessionChange = useCallback((session: Session) => {
-    setSignedIn(session.kind === 'signed-in');
+  const [session, setSession] = useState<Session | undefined>(undefined);
+  const onSessionChange = useCallback((changed: Session) => {
+    setSession(changed);
   }, []);
+  const user = session?.kind === 'signed-in' ? session.user : undefined;
   const apiFetcher = fetcher === undefined ? {} : { fetcher };
   return (
     <LabsProvider>
@@ -61,8 +63,10 @@ export function App({ buildInfo, fetcher }: AppProps) {
             <dd className={styles.build}>{formatBuildInfo(buildInfo)}</dd>
             <Account {...apiFetcher} onSessionChange={onSessionChange} />
           </dl>
-          {signedIn && <Projects {...apiFetcher} />}
-          {signedIn && <Usage {...apiFetcher} />}
+          {user !== undefined && <Projects {...apiFetcher} />}
+          {user !== undefined && <Usage {...apiFetcher} />}
+          {/* The API checks the role on every request too; hiding the section is for clarity, not security. */}
+          {user?.role === 'admin' && <Admin ownEmail={user.email} {...apiFetcher} />}
           <div className={styles.actions}>
             <a className={styles.link} href={CATALOGUE_URL}>
               Open the component catalogue

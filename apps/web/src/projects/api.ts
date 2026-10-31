@@ -11,9 +11,12 @@ export interface Project {
   readonly workspace: { readonly id: string; readonly state: WorkspaceState };
 }
 
-/** Form fields the API can name in an error: a project's name and address, a secret's name and value. */
-export type ApiField = 'name' | 'repoUrl' | 'value';
-const FIELDS: readonly unknown[] = ['name', 'repoUrl', 'value'];
+/**
+ * Form fields the API can name in an error: a project's name and address, a secret's name and value, an
+ * allowlist email.
+ */
+export type ApiField = 'name' | 'repoUrl' | 'value' | 'email';
+const FIELDS: readonly unknown[] = ['name', 'repoUrl', 'value', 'email'];
 
 /** What the page can show: the API's own sentence, and which field it's about when it names one. */
 export interface ApiProblem {

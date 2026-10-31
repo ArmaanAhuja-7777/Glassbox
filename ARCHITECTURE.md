@@ -156,6 +156,17 @@ GET  /api/usage    ──► this UTC month's sums for the signed-in person, and
 
 Nothing records usage until workspaces run (phase 1d), so the meter reads a real 0. The free allowance, limits and the graceful pause come with plans (phase 44a).
 
+## Admin view (phase 1c)
+
+```
+GET    /api/admin                    ──► people (role, providers, project count, workspace time this month,
+                                         last sign-in, still allowed?) and the allowlist; counts only
+PUT    /api/admin/allowlist/:email   ──► add, or change the role ({ role }); a signed-up person's role changes now
+DELETE /api/admin/allowlist/:email   ──► remove, and end that person's sessions; their data stays
+```
+
+Every route runs `requireUser` then `requireAdmin`; changes also need `requireSameOrigin`. An admin can't demote or remove themselves (409), so the allowlist can't be left without an admin by accident. Changes are logged by the acting admin's user ID, never by email. `pnpm db:allow` still works for the first admin, before anyone can sign in.
+
 ## Local development
 
 ```fish
