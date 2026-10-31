@@ -9085,11 +9085,12 @@ pnpm dev                                         # http://localhost:5173, signed
 ```
 
 Owner, by hand:
+(Any name works: `MY_TEST_SECRET` is just an example. Nothing here connects to Stripe or any other service; you're only checking that a value can be stored and never shown back.)
 1. On a project, click **Secrets**. It says "No secrets yet."
-2. Save `STRIPE_KEY` with any made-up value. It's listed as `STRIPE_KEY ••••••••`, "Added by <you>", and the value field is empty again.
-3. Type `STRIPE_KEY` again with a new value: the button says **Replace STRIPE_KEY**.
-4. Try the name `stripe_key`: you get the naming rule next to the Name field.
-5. **Delete**, then **Delete STRIPE_KEY**: gone.
+2. Save `MY_TEST_SECRET` with any made-up value. It's listed as `MY_TEST_SECRET ••••••••`, "Added by <you>", and the value field is empty again.
+3. Type `MY_TEST_SECRET` again with a new value: the button says **Replace MY_TEST_SECRET**.
+4. Try the name `my_test_secret`: you get the naming rule next to the Name field.
+5. **Delete**, then **Delete MY_TEST_SECRET**: gone.
 6. In devtools → Network, the `PUT` response contains only the name and `created` or `replaced`. In the terminal running `pnpm dev`, the value never appears.
 
 **Gotchas:**
