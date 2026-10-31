@@ -6,11 +6,17 @@ import { loadSession, PROVIDERS, signOut, takeSignInProblem, type Session } from
 interface AccountProps {
   /** Replaces the browser's fetch in tests. */
   readonly fetcher?: typeof fetch;
+  /** Told whenever the session is loaded or ends, so the page can show what needs a signed-in person. */
+  readonly onSessionChange?: (session: Session) => void;
 }
 
 /** The "Account" row of the version page: who is signed in, or how to sign in here. Renders a <dt>/<dd> pair. */
-export function Account({ fetcher = fetch }: AccountProps) {
+export function Account({ fetcher = fetch, onSessionChange }: AccountProps) {
   const [session, setSession] = useState<Session | undefined>(undefined);
+
+  useEffect(() => {
+    if (session !== undefined) onSessionChange?.(session);
+  }, [session, onSessionChange]);
   const [message, setMessage] = useState<string | undefined>(() =>
     takeSignInProblem(window.location, window.history),
   );

@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '../db/database.js';
 import { migratedDatabase } from '../test/database.js';
-import { createSession, signIn } from './accounts.js';
+import { signedInAs } from '../test/sessions.js';
 import { requireAdmin, requireUser, type SignedInEnv } from './guards.js';
 
 let db: Database;
@@ -22,17 +22,7 @@ function app() {
 }
 
 async function sessionFor(email: string, role: 'member' | 'admin'): Promise<string> {
-  await db.query('insert into sign_in_allowlist (email, role) values ($1, $2)', [email, role]);
-  const result = await signIn(db, {
-    provider: 'github',
-    providerUserId: email,
-    username: undefined,
-    email,
-    displayName: email.split('@')[0] ?? email,
-    avatarUrl: undefined,
-  });
-  if (result.kind !== 'signed-in') throw new Error('expected sign-in');
-  return `__Host-fc_session=${await createSession(db, result.userId, undefined)}`;
+  return (await signedInAs(db, email, role)).cookie;
 }
 
 describe('requireUser', () => {

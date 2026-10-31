@@ -10,11 +10,14 @@ import {
   useThemePreference,
   type ThemePreference,
 } from '@flowcanvas/ui';
+import { useCallback, useState } from 'react';
 import releases from 'virtual:changelog';
 import { Account } from './account/Account';
+import type { Session } from './account/session';
 import styles from './App.module.css';
 import { LabsPanel } from './labs/LabsPanel';
 import { LabsProvider } from './labs/LabsProvider';
+import { Projects } from './projects/Projects';
 import { CATALOGUE_URL } from './links';
 import { useWhatsNewSeen } from './whats-new/seen';
 import { WhatsNew } from './whats-new/WhatsNew';
@@ -38,6 +41,11 @@ function themeLabel(preference: ThemePreference): string {
 export function App({ buildInfo, fetcher }: AppProps) {
   const [theme, setTheme] = useThemePreference();
   const [unseen, markSeen] = useWhatsNewSeen(releases[0]?.version);
+  const [signedIn, setSignedIn] = useState(false);
+  const onSessionChange = useCallback((session: Session) => {
+    setSignedIn(session.kind === 'signed-in');
+  }, []);
+  const apiFetcher = fetcher === undefined ? {} : { fetcher };
   return (
     <LabsProvider>
       <main className={styles.page}>
@@ -50,8 +58,9 @@ export function App({ buildInfo, fetcher }: AppProps) {
           <dl className={styles.facts}>
             <dt className={styles.term}>Build</dt>
             <dd className={styles.build}>{formatBuildInfo(buildInfo)}</dd>
-            <Account {...(fetcher === undefined ? {} : { fetcher })} />
+            <Account {...apiFetcher} onSessionChange={onSessionChange} />
           </dl>
+          {signedIn && <Projects {...apiFetcher} />}
           <div className={styles.actions}>
             <a className={styles.link} href={CATALOGUE_URL}>
               Open the component catalogue

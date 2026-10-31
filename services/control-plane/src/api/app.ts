@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import rootPackage from '../../../../package.json' with { type: 'json' };
 import { authRoutes, type AuthBindings } from '../auth/routes.js';
+import { projectRoutes } from '../projects/routes.js';
 import { neonDatabase, type Database } from '../db/database.js';
 import { describeError } from './redact.js';
 
@@ -58,6 +59,7 @@ export function createApi(overrides: Partial<ApiDependencies> = {}) {
   });
 
   api.route('/', authRoutes(deps));
+  api.route('/projects', projectRoutes(deps));
 
   api.notFound((c) => c.json({ error: 'not found' }, 404));
   return api;

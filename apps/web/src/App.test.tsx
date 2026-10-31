@@ -35,6 +35,26 @@ describe('App', () => {
     expect(link.getAttribute('href')).toBe('/api/auth/github');
   });
 
+  it('shows projects only to a signed-in person', async () => {
+    const signedIn: typeof fetch = (input) =>
+      Promise.resolve(
+        input === '/api/me'
+          ? Response.json({
+              user: { id: 'u-1', email: 'ada@example.com', displayName: 'Ada', role: 'member' },
+              signIn: 'available',
+              providers: ['github'],
+            })
+          : Response.json({ projects: [] }),
+      );
+    render(<App buildInfo={buildInfo} fetcher={signedIn} />);
+    expect(await screen.findByRole('heading', { name: 'Projects' })).toBeTruthy();
+    cleanup();
+
+    render(<App buildInfo={buildInfo} fetcher={signedOut} />);
+    await screen.findByRole('link', { name: 'Sign in with GitHub' });
+    expect(screen.queryByRole('heading', { name: 'Projects' })).toBeNull();
+  });
+
   it('links to the component catalogue', () => {
     render(<App buildInfo={buildInfo} fetcher={signedOut} />);
     const link = screen.getByRole('link', { name: 'Open the component catalogue' });

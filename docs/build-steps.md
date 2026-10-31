@@ -8325,7 +8325,7 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 | 2 | Database schema and migrations | done · see commit below · Claude · ADR 0014 · applied to Neon `dev` |
 | 3 | GitHub sign-in, sessions, sign out; Fastify server retired | done · see commit below · Claude · owner: one real sign-in by hand (below) |
 | 4 | Google sign-in, allowlist, admin role | done · see commit below · Claude · owner: one real Google sign-in by hand |
-| 5 | Projects list and create | *planned* |
+| 5 | Projects list and create | done · see commit below · Claude · checked against Neon `dev` |
 | 6 | Secrets vault, Project secrets page, canary tests | *planned* |
 | 7 | Usage metering skeleton and workspace records | *planned* |
 | 8 | Admin view | *planned* |
@@ -8953,3 +8953,67 @@ Checked by Claude (31 Oct 2026), against the owner's running `pnpm dev`: `/api/m
 - **`wrangler dev` reloads on code changes** but reads `.dev.vars` only at startup.
 
 **Commit:** `feat(control-plane): Google sign-in, one account across providers, user and admin guards`
+
+### Step 1c.5 — Projects list and create
+
+**Goal:** a signed-in person creates a project (a name, and optionally a repository address) and sees it in their list. Nobody sees anyone else's projects. This is the first half of the phase's *Done when*.
+
+**Concepts:**
+- **Authorization by query, not by check.** Every projects query includes `where owner_id = <the signed-in user>`, taken from the session (`c.get('user')`) and never from the request. A forged project ID or owner in a request has nothing to act on.
+- **Validate at the edge, enforce in the database.** `parseNewProject` gives readable messages (and names the field). The schema's checks (`0001_initial.sql`: trimmed, 1–100 characters, unique per owner) stay as the backstop. Both count *code points*, so a name in Hindi or Japanese fits the same 100 as one in English.
+- **`on conflict do nothing … returning`** makes a duplicate name come back as "no row", so there's no database error code to parse (Neon and PGlite word their errors differently).
+- **Changes need our own `Origin`.** The same-origin check from sign-out is now the shared guard `requireSameOrigin`. Creating also requires `content-type: application/json` (415 otherwise): a cross-site form can't send that type without a CORS preflight, which we don't allow. Bodies are capped at 4 KB.
+- **No credentials in URLs.** A repository address with a username or token (`https://ghp_…@github.com/…`) is refused with a reason, so it's never stored or shown. Private repositories connect another way later.
+
+**What changed:**
+
+| File | What |
+| --- | --- |
+| `services/control-plane/src/projects/projects.ts` | `parseNewProject`, `listProjects` (own projects only, newest first), `createProject` |
+| `services/control-plane/src/projects/routes.ts` | `GET /api/projects`, `POST /api/projects` (201; 400 with `field`; 409 for a duplicate name; 403, 413, 415) |
+| `services/control-plane/src/auth/guards.ts` | `requireSameOrigin`, now used by sign-out and project creation |
+| `services/control-plane/src/test/sessions.ts` | `signedInAs(db, email, role)` for route tests |
+| `apps/web/src/projects/` | `api.ts` (list, create, readable problems), `Projects.tsx` (form, list, empty and error states) and its CSS |
+| `apps/web/src/App.tsx`, `account/Account.tsx` | The Projects section shows only when signed in (`onSessionChange`) |
+
+**Design note for the owner's review:** the design brief puts projects on the **Start screen** ("Recent projects": type and support badges, last opened, a canvas thumbnail; plus "Clone from URL", "Upload folder" and "New project"). That screen comes with the app shell (phase 2) and with workspaces (phase 1d). This step adds a plain Projects section to the version page, built from the design system's Input and Button, so the *Done when* can be shown now.
+
+**Tests:**
+- **`projects/projects.test.ts` (8, PGlite):**
+  - trimming and name limits; names in other scripts; https only
+  - a token in the address refused
+  - newest first; nobody sees another person's projects
+  - duplicate names refused per person only
+- **`projects/routes.test.ts` (9):**
+  - 401 when signed out; empty, then the created project listed
+  - per-person lists; 400 with the field; 409
+  - a foreign `Origin` gets 403; 415, 400 and 413 for bad bodies
+  - a pasted token never stored or echoed; database failures logged without the canary
+- **`Projects.test.tsx` (6) and `App.test.tsx` (+1):**
+  - empty state, list, create (newest first, form cleared)
+  - the name is required before any request
+  - the API's reason shown next to the field it names (`aria-invalid`, `aria-describedby`)
+  - load failure; Projects hidden when signed out
+
+**Checked against Neon `dev` (31 Oct 2026):** a throwaway script created a test user and two projects through the same functions, got `duplicate-name` for a repeated name, listed them newest first with ISO dates, then deleted the user and its allowlist row (0 left).
+
+**Run and check it:**
+
+```fish
+pnpm --filter @flowcanvas/control-plane test
+pnpm --filter @flowcanvas/web test
+pnpm dev                                         # http://localhost:5173, signed in
+```
+
+Owner, by hand:
+1. Signed in, the page shows **Projects** with "No projects yet".
+2. Create "Rallly" with `https://github.com/lukevella/rallly`. It appears at the top, and the form clears.
+3. Create "Rallly" again: "You already have a project with that name."
+4. Try `https://abc@github.com/x/y` as the address: it's refused with the reason, and nothing is created.
+5. Reload: the list is still there. Sign out: the section disappears.
+
+**Gotchas:**
+- **React 19's types deprecate `FormEvent`;** a form's submit handler takes `SubmitEvent<HTMLFormElement>`.
+- **typescript-eslint flags `[...text].length`.** Counting code points is deliberate here, to match Postgres; `Array.from(text).length` says the same thing explicitly.
+
+**Commit:** `feat: projects list and create for signed-in people`

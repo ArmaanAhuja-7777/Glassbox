@@ -4,6 +4,7 @@ import type { Database } from '../db/database.js';
 import { describeError } from '../api/redact.js';
 import { cookieBase, OAUTH_COOKIE, SESSION_COOKIE } from './cookies.js';
 import { createSession, endSession, SESSION_DAYS, sessionUser, signIn } from './accounts.js';
+import { requireSameOrigin } from './guards.js';
 import { constantTimeEqual, pkceChallenge, randomToken } from './crypto.js';
 import { findProvider, PROVIDERS, type ProviderBindings, type ProviderId } from './providers.js';
 
@@ -146,13 +147,7 @@ export function authRoutes(deps: AuthDependencies) {
     }
   });
 
-  auth.post('/auth/sign-out', async (c) => {
-    // Only our own pages may sign someone out (SameSite=Lax already keeps the cookie off other sites' posts).
-    // APP_ORIGIN covers local development, where Vite forwards /api to the Worker on another port.
-    const ownOrigins = [new URL(c.req.url).origin, c.env.APP_ORIGIN];
-    if (!ownOrigins.includes(c.req.header('origin'))) {
-      return c.json({ error: 'Sign-out must come from Flowcanvas itself.' }, 403);
-    }
+  auth.post('/auth/sign-out', requireSameOrigin, async (c) => {
     const token = getCookie(c, SESSION_COOKIE, 'host');
     deleteCookie(c, SESSION_COOKIE, cookieBase);
     if (token !== undefined && c.env.DATABASE_URL) {

@@ -7,7 +7,7 @@ import { SESSION_COOKIE } from './cookies.js';
 
 /** What a guarded route can read: `c.get('user')` is the signed-in person. */
 export interface SignedInEnv {
-  Bindings: { readonly DATABASE_URL?: string };
+  Bindings: { readonly DATABASE_URL?: string; readonly APP_ORIGIN?: string };
   Variables: { user: SessionUser };
 }
 
@@ -39,6 +39,22 @@ export function requireUser(deps: GuardDependencies): MiddlewareHandler<SignedIn
 /** After `requireUser`: only admins (role from the allowlist) get through, 403 for everyone else. */
 export const requireAdmin: MiddlewareHandler<SignedInEnv> = async (c, next) => {
   if (c.get('user').role !== 'admin') return c.json({ error: 'Only admins can do this.' }, 403);
+  await next();
+  return undefined;
+};
+
+/**
+ * For requests that change something: only our own pages may send them. SameSite=Lax already keeps the session
+ * cookie off other sites' background requests; this checks the Origin header too (defence in depth).
+ * APP_ORIGIN covers local development, where Vite forwards /api to the Worker on another port.
+ */
+export const requireSameOrigin: MiddlewareHandler<{
+  Bindings: { readonly APP_ORIGIN?: string };
+}> = async (c, next) => {
+  const ownOrigins = [new URL(c.req.url).origin, c.env.APP_ORIGIN];
+  if (!ownOrigins.includes(c.req.header('origin'))) {
+    return c.json({ error: 'This request must come from Flowcanvas itself.' }, 403);
+  }
   await next();
   return undefined;
 };
