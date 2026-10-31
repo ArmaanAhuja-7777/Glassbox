@@ -105,7 +105,13 @@ control plane       ──► part of the app's Worker (wrangler.jsonc `main`), 
 
 - Static UI with a strict Content-Security-Policy (`apps/web/public/_headers`); no inline scripts or styles anywhere in the app (React Aria's injected style is pre-empted).
 - The catalogue runs on its own origin with a looser CSP that Storybook needs (`packages/ui/.storybook/public/_headers`, ADR 0010); it has no cookies or data.
-- Control plane: API answers are `Cache-Control: no-store`; failures are logged through `redact()` (connection strings and bearer tokens removed, canary-tested).
+- Control plane: API answers are `Cache-Control: no-store`. **Logging rules (phase 1c):**
+  - Routes log a short message with `describeError()`, never a request, body, cookie or error object.
+  - `createApi` passes every log line through `redact()` on its way out, whatever the caller wrote. It removes connection strings, bearer tokens, GitHub (`gh*_`) and Google (`ya29.`) tokens, OAuth `code`, `state`, verifier, client secret and tokens, our `__Host-fc_*` cookies, and email addresses.
+  - People are named in logs by user ID only.
+  - `api.onError` answers anything a route didn't catch with a plain 500, and logs only a redacted description (Hono's default would print the whole error).
+  - `no-leaks.test.ts` runs the whole flow, failures included, with canaries, and checks every response, log line and console write.
+  - Cloudflare's own request (invocation) logs are outside our code. The owner checks them at phase close; see `docs/STATUS.md`.
 - No secrets in the repository, image layers or front-end environment.
 - Telemetry off for Turborepo, Wrangler and Storybook.
 - Supply-chain defaults: ADR 0006.

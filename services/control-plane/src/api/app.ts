@@ -5,7 +5,7 @@ import { authRoutes, type AuthBindings } from '../auth/routes.js';
 import { projectRoutes } from '../projects/routes.js';
 import { neonDatabase, type Database } from '../db/database.js';
 import { usageRoutes } from '../usage/routes.js';
-import { describeError } from './redact.js';
+import { describeError, redact } from './redact.js';
 
 /** Values Cloudflare passes to the Worker: Worker secrets and `vars` on Cloudflare, `.dev.vars` under `wrangler dev`. */
 export type ApiBindings = AuthBindings;
@@ -31,7 +31,14 @@ const defaults: ApiDependencies = {
 
 /** The control plane's HTTP API, mounted under /api in the app's Worker (decisions log, 30 Oct 2026). */
 export function createApi(overrides: Partial<ApiDependencies> = {}) {
-  const deps = { ...defaults, ...overrides };
+  const given = { ...defaults, ...overrides };
+  // Every log line is redacted on its way out, whatever the caller passed in (see redact.ts).
+  const deps: ApiDependencies = {
+    ...given,
+    log: (message) => {
+      given.log(redact(message));
+    },
+  };
   const api = new Hono<{ Bindings: ApiBindings }>().basePath('/api');
 
   // Answers are per person and may name them: never stored by the browser or any cache in between.
@@ -66,5 +73,11 @@ export function createApi(overrides: Partial<ApiDependencies> = {}) {
   api.route('/admin', adminRoutes(deps));
 
   api.notFound((c) => c.json({ error: 'not found' }, 404));
+  // Anything a route didn't catch: a plain answer, and only a redacted description in the logs. Hono's default
+  // would print the whole error object, which can quote a request or a connection string.
+  api.onError((error, c) => {
+    deps.log(`unhandled error on ${c.req.method} ${c.req.path}: ${describeError(error)}`);
+    return c.json({ error: 'Something went wrong. Try again in a moment.' }, 500);
+  });
   return api;
 }

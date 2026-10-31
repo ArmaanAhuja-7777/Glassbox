@@ -8329,7 +8329,7 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 | 6 | Secrets vault, Project secrets page, canary tests | done · see commit below · Claude · ADR 0015 · owner: local VAULT_KEY |
 | 7 | Usage metering skeleton and workspace records | done · see commit below · Claude · migration 0002 applied to Neon `dev` |
 | 8 | Admin view | done · see commit below · Claude · read-only check against Neon `dev` |
-| 9 | Logs and redaction across everything; walkthroughs | *planned* |
+| 9 | Logs and redaction across everything; walkthroughs | done · see commit below · Claude · owner: Cloudflare logs check at phase close |
 | 10 | Close the phase (0.4.0) | *planned* |
 
 ### Step 1c.0 — Account setup (owner)
@@ -9209,3 +9209,62 @@ Owner, by hand:
 - **The email goes in the path, URL-encoded** (`/allowlist/ada%40example.com`). Hono decodes it, and `parseEmail` lower-cases it, so `Ada@Example.com` and `ada@example.com` are the same entry.
 
 **Commit:** `feat: admin view with people, usage and allowlist management`
+
+### Step 1c.9 — Logs and redaction across everything; the walkthrough
+
+**Goal:** prove the phase's *Done when*, "saved secrets never appear in logs", for the whole control plane at once, not route by route. Also make leaking hard even for code written later, and record the phase's Try it as a walkthrough.
+
+**Concepts:**
+- **Defence in depth for logs.**
+  - First, routes log short messages and never raw requests or error objects.
+  - Second, every line passes through `redact()` on its way out (in `createApi`), so a mistake in a future route is still caught.
+  - Third, a test plants canaries and checks everything.
+- **Over-redaction is the safe failure.** The patterns also hide harmless text, such as `state: running` or any email address. Losing a little log detail beats leaking a token.
+- **A mutation check proves a test can fail.** With `redact()` switched off, `no-leaks.test.ts` fails on the leaked database password; with it on, it passes. A leak test that can't fail proves nothing.
+- **Playwright `page.route`** answers the page's requests from inside the test, so the signed-in steps can be recorded without a real GitHub sign-in. https://playwright.dev/docs/mock
+
+**What changed:**
+
+| File | What |
+| --- | --- |
+| `services/control-plane/src/api/redact.ts` | Also removes GitHub and Google tokens; OAuth `code`, `state`, verifier, client secret and tokens (query strings, form bodies, JSON); our `__Host-fc_*` cookies; email addresses |
+| `services/control-plane/src/api/app.ts` | Wraps `log` so every line is redacted. `onError` answers uncaught errors with a plain 500 and logs only a redacted description |
+| `services/control-plane/src/api/no-leaks.test.ts` | The phase's acceptance test (below) |
+| `e2e/try-it/phase-1c.spec.ts` | The phase 1c walkthrough (below) |
+
+**Tests:**
+- **`api/app.test.ts` (+4):**
+  - each new redaction pattern; ordinary messages untouched
+  - a route that logs raw text is still redacted
+  - an uncaught error answers 500 and logs nothing private
+- **`api/no-leaks.test.ts`: the phase's acceptance test.**
+  - **Flow:** a fake GitHub sign-in, then create a project; save and replace a secret; list secrets, projects, usage, the admin view and `/api/me`.
+  - **Failures:** a missing vault key, a bad name, an oversized value, a database outage on every route, a GitHub that echoes what it was sent, then sign out.
+  - **Canaries:** the secret value, the rotated value, the OAuth client secret, the code, the GitHub token and the database password. None may appear in any response (body and headers), any log line or anything written to the console. The email may not appear in logs or the console.
+- **`e2e/try-it/phase-1c.spec.ts` (2 walkthroughs):**
+  1. **Real API:** signed out, the page offers sign-in or says where it works, and `/api/projects`, `/api/usage`, `/api/admin` and `/api/projects/x/secrets` answer 401 with `no-store`. Skipped only where there's no API. Locally, `vite preview` forwards `/api` to `pnpm dev` if it's running.
+  2. **Real page, API answered by the test:** projects, usage and admin shown; create a project; save a secret. Afterwards it's listed by name and masked, the field is empty, and the value appears neither in the page nor in any response.
+
+**Why the signed-in walkthrough uses a fake API:** a real sign-in needs a GitHub or Google account and only works on staging, so it can't run unattended. Instead:
+- the API's side is proven by `no-leaks.test.ts`
+- the page's side by walkthrough 2
+- the real sign-in, and Cloudflare's own request logs, by the owner's check at phase close
+
+**Run and check it:**
+
+```fish
+pnpm --filter @flowcanvas/control-plane test     # 138 tests, including no-leaks
+pnpm test:e2e                                    # 6 walkthroughs, 2 for phase 1c
+pnpm --filter @flowcanvas/e2e report             # watch the recordings
+```
+
+**Owner, at phase close** (on staging, after merge):
+1. Sign in with GitHub, create a project, and add a secret with a made-up value.
+2. In the Cloudflare dashboard, go to Workers & Pages → `flowcanvas` → Observability → Logs, and search for the made-up value. There should be no results.
+3. Open the `GET /api/auth/callback/github` entry. If its URL shows `code=` or it lists request headers with cookies, turn invocation logs off in `wrangler.jsonc` (`"observability": { "enabled": true, "logs": { "invocation_logs": false } }`). Cloudflare's docs don't say what these logs record or redact, so we check by looking.
+
+**Gotchas:**
+- **`getByLabel('Value')` also matched "Value hidden"** (the masked dots' label). Use `{ exact: true }`.
+- **`vite preview` uses the dev server's proxy too** (`preview.proxy` defaults to `server.proxy`). So a local walkthrough reaches the real local API when `pnpm dev` is running.
+
+**Commit:** `feat(control-plane): redact every log line, no-leaks acceptance test, phase 1c walkthrough`
