@@ -63,7 +63,7 @@ export const SIGN_IN_PROBLEMS: Readonly<Record<string, string>> = {
   'no-verified-email':
     'Your GitHub account has no verified primary email. Verify one in your GitHub email settings, then try again.',
   'not-allowed':
-    'This account isn’t on the Flowcanvas allowlist yet. Ask the admin to add your email.',
+    'This GitHub account’s primary email isn’t on the Flowcanvas allowlist yet. Ask the admin to add it.',
   unavailable: 'Sign-in only works on staging.',
   failed: 'Sign-in failed. Try again in a moment.',
 };

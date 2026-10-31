@@ -79,7 +79,7 @@ describe('Account', () => {
     window.history.replaceState(null, '', '/?sign-in=not-allowed&tab=1');
     renderAccount(api(() => Response.json({ user: null, signIn: 'available' })));
     expect(screen.getByRole('status').textContent).toBe(
-      'This account isn’t on the Flowcanvas allowlist yet. Ask the admin to add your email.',
+      'This GitHub account’s primary email isn’t on the Flowcanvas allowlist yet. Ask the admin to add it.',
     );
     expect(window.location.pathname + window.location.search).toBe('/?tab=1');
     await screen.findByRole('link', { name: 'Sign in with GitHub' });
