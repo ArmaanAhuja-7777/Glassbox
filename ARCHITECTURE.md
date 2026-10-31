@@ -56,10 +56,10 @@ Defined by `services/control-plane/migrations/*.sql` (ADR 0014); applied with `p
 | `identities` | GitHub or Google account linked to a user | Unique per (provider, provider user id) |
 | `sessions` | SHA-256 hash of the session token, expiry | The token itself is never stored |
 | `projects` | Owner, trimmed name (unique per owner), optional repo URL | |
-| `workspaces` | One per project; state (not created … running, sleeping …) | Records only until phase 1d |
+| `workspaces` | One per project, created in the same statement as the project; state (not created … running, sleeping …) | Records only until phase 1d; migration 0002 backfilled older projects |
 | `project_keys` | Each project's data key, encrypted by a master key held in a Worker secret | Envelope encryption |
 | `project_secrets` | Secret values as AES-GCM ciphertext and IV; environment-variable-style names | Write-only; never returned |
-| `usage_records` | Measured amounts (workspace seconds, storage) over periods | Metering skeleton |
+| `usage_records` | Measured amounts (workspace seconds, storage) over periods | Metering skeleton; each record sits within one UTC month |
 | `schema_migrations` | Applied migrations and their checksums | Written by the runner |
 
 ## Tooling
@@ -143,6 +143,18 @@ GET /api/projects/:id/secrets ──► names, who added, when: never values
 DELETE /api/projects/:id/secrets/:name
 readSecret() ──► only for the project's workspace (phase 1d)
 ```
+
+## Workspace records and usage (phase 1c)
+
+```
+POST /api/projects ──► one SQL statement inserts the project and its workspace (state not_created)
+GET  /api/projects ──► each project with { workspace: { id, state } }
+recordUsage()      ──► usage_records (phase 1d's workspaces call it; refuses negative or impossible amounts,
+                       records crossing a month boundary, and other people's workspaces)
+GET  /api/usage    ──► this UTC month's sums for the signed-in person, and when they reset
+```
+
+Nothing records usage until workspaces run (phase 1d), so the meter reads a real 0. The free allowance, limits and the graceful pause come with plans (phase 44a).
 
 ## Local development
 

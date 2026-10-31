@@ -19,6 +19,7 @@ import { LabsPanel } from './labs/LabsPanel';
 import { LabsProvider } from './labs/LabsProvider';
 import { Projects } from './projects/Projects';
 import { CATALOGUE_URL } from './links';
+import { Usage } from './usage/Usage';
 import { useWhatsNewSeen } from './whats-new/seen';
 import { WhatsNew } from './whats-new/WhatsNew';
 
@@ -61,6 +62,7 @@ export function App({ buildInfo, fetcher }: AppProps) {
             <Account {...apiFetcher} onSessionChange={onSessionChange} />
           </dl>
           {signedIn && <Projects {...apiFetcher} />}
+          {signedIn && <Usage {...apiFetcher} />}
           <div className={styles.actions}>
             <a className={styles.link} href={CATALOGUE_URL}>
               Open the component catalogue

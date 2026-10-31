@@ -1,9 +1,14 @@
+/** A workspace's state as the control plane records it; only `not_created` until phase 1d. */
+export type WorkspaceState =
+  'not_created' | 'creating' | 'running' | 'sleeping' | 'resuming' | 'stopped' | 'failed';
+
 export interface Project {
   readonly id: string;
   readonly name: string;
   readonly repoUrl: string | null;
   /** ISO 8601, UTC. */
   readonly createdAt: string;
+  readonly workspace: { readonly id: string; readonly state: WorkspaceState };
 }
 
 /** Form fields the API can name in an error: a project's name and address, a secret's name and value. */

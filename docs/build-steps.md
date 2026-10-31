@@ -8327,7 +8327,7 @@ Then repository links in the docs updated, and this branch (`chore/move-repo`) o
 | 4 | Google sign-in, allowlist, admin role | done · see commit below · Claude · owner: one real Google sign-in by hand |
 | 5 | Projects list and create | done · see commit below · Claude · checked against Neon `dev` |
 | 6 | Secrets vault, Project secrets page, canary tests | done · see commit below · Claude · ADR 0015 · owner: local VAULT_KEY |
-| 7 | Usage metering skeleton and workspace records | *planned* |
+| 7 | Usage metering skeleton and workspace records | done · see commit below · Claude · migration 0002 applied to Neon `dev` |
 | 8 | Admin view | *planned* |
 | 9 | Logs and redaction across everything; walkthroughs | *planned* |
 | 10 | Close the phase (0.4.0) | *planned* |
@@ -9098,3 +9098,57 @@ Owner, by hand:
 - **Bytes go to Postgres as hex** (`decode($1, 'hex')`), so Neon's HTTP driver and PGlite agree.
 
 **Commit:** `feat: secrets vault with envelope encryption, write-only project secrets`
+
+### Step 1c.7 — Workspace records and usage metering skeleton
+
+**Goal:** every project has its cloud workspace record from the moment it's created, and the control plane can record and sum usage per person. Phase 1d's machines then only update the record and write usage; phase 44a builds limits and billing on the sums.
+
+**Concepts:**
+- **A data-modifying CTE** (`with p as (insert … returning *), w as (insert … select from p)`) runs two inserts as one statement, so both happen or neither does. Neon's HTTP driver sends one statement per request, so this replaces a multi-call transaction. https://www.postgresql.org/docs/current/queries-with.html#QUERIES-WITH-MODIFYING
+- **A backfill migration** fixes existing rows when a rule changes. Migration 0002 gives projects created before this step their workspace record. Applied migrations are never edited (ADR 0014), so this is a new file.
+- **Metering:** measure raw amounts (seconds, byte-hours) over periods, and sum them per billing period when needed. Each record must fall within one UTC month, so a monthly sum never has to split a record. The recorder splits at the boundary instead.
+
+**What changed:**
+
+| File | What |
+| --- | --- |
+| `services/control-plane/migrations/0002_workspace_for_every_project.sql` | Backfills a `not_created` workspace for every existing project |
+| `services/control-plane/src/projects/projects.ts` | `createProject` inserts the project and its workspace in one statement; projects carry `workspace: { id, state }` |
+| `services/control-plane/src/usage/usage.ts` | `monthPeriod` (UTC calendar month), `recordUsage` (refuses negative, fractional or impossible amounts, records crossing a month, more workspace seconds than the period has, and another person's workspace), `usageSummary` (this month's sums, a real 0 when nothing's recorded) |
+| `services/control-plane/src/usage/routes.ts` | `GET /api/usage` (signed in only): `{ usage: { periodStart, resetsAt, workspaceSeconds, storageByteHours } }` |
+| `apps/web/src/projects/` | Each project's line says its workspace state in words ("Workspace not created yet") |
+| `apps/web/src/usage/` | **Usage this month**: workspace time ("2 h 5 min") and the reset date (shown in UTC, because the period is UTC) |
+
+**Tests:**
+- **`usage/usage.test.ts` (5, PGlite):**
+  - the month period, including across a year end
+  - a real 0 and the reset date before anything is recorded
+  - sums this month only, per person and per kind
+  - refuses six kinds of impossible record, and stores nothing
+  - refuses another person's workspace; usage with no workspace is allowed
+- **`usage/routes.test.ts` (3):** 401 when signed out; only the signed-in person's sums, with `no-store`; a database failure answers 503 without details, and is logged
+- **`projects/projects.test.ts` (+1):** the workspace is created with the project, `not_created`, exactly once (a duplicate name creates none)
+- **`db/schema.test.ts` (+1):** a project made before 0002 gets its workspace when 0002 runs
+- **`Usage.test.tsx` (4), `Projects.test.tsx`, `App.test.tsx`:** time formatting; the measured time and reset date; a real 0; the error; the workspace state on each project; usage only for a signed-in person
+
+**Applied to Neon `dev` (31 Oct 2026):** `pnpm db:migrate` applied 0002. A count afterwards showed 1 project, 1 workspace and none missing. Staging is migrated at phase close.
+
+**Run and check it:**
+
+```fish
+pnpm --filter @flowcanvas/control-plane test     # 123 tests
+pnpm --filter @flowcanvas/web test               # 52 tests
+pnpm db:status                                   # 0002_workspace_for_every_project applied
+pnpm dev                                         # http://localhost:5173, signed in
+```
+
+Owner, by hand (optional; the tests cover it):
+1. Each project's line ends with "Workspace not created yet".
+2. Under the projects, **Usage this month** says "Workspace time: 0 min. Resets <the 1st of next month>."
+
+**Gotchas:**
+- **Pull, then `pnpm db:migrate`.** Without 0002, projects created earlier have no workspace and drop out of the list.
+- **Postgres `bigint` and `sum()` come back as strings** from drivers. The sums are cast to `float8` so they arrive as numbers; exact up to 2^53, far beyond any month's seconds.
+- **No allowance or limit yet.** The meter shows only what was measured; inventing a free allowance now would be a product decision (phase 44a).
+
+**Commit:** `feat(control-plane): workspace record with every project, usage metering skeleton`

@@ -1,6 +1,13 @@
 import { Button, Input } from '@flowcanvas/ui';
 import { useEffect, useId, useState, type SubmitEvent } from 'react';
-import { createProject, fetchProjects, isProblem, type ApiProblem, type Project } from './api';
+import {
+  createProject,
+  fetchProjects,
+  isProblem,
+  type ApiProblem,
+  type Project,
+  type WorkspaceState,
+} from './api';
 import { ProjectSecrets } from '../secrets/ProjectSecrets';
 import styles from './Projects.module.css';
 
@@ -10,6 +17,17 @@ interface ProjectsProps {
 }
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
+
+/** Words for each workspace state; state is always written out, never shown by colour alone. */
+const WORKSPACE_STATES: Record<WorkspaceState, string> = {
+  not_created: 'Workspace not created yet',
+  creating: 'Workspace starting',
+  running: 'Workspace running',
+  sleeping: 'Workspace sleeping',
+  resuming: 'Workspace resuming',
+  stopped: 'Workspace stopped',
+  failed: 'Workspace failed',
+};
 
 /**
  * The signed-in person's projects and a form to create one. A stand-in until the phase 2 start screen
@@ -87,7 +105,10 @@ function ProjectItem({
         </button>
       </span>
       {project.repoUrl !== null && <span className={styles.repo}>{project.repoUrl}</span>}
-      <span className={styles.meta}>Created {dateFormat.format(new Date(project.createdAt))}</span>
+      <span className={styles.meta}>
+        Created {dateFormat.format(new Date(project.createdAt))} ·{' '}
+        {WORKSPACE_STATES[project.workspace.state]}
+      </span>
       <div id={secretsId} hidden={!showSecrets}>
         {showSecrets && (
           <ProjectSecrets projectId={project.id} projectName={project.name} fetcher={fetcher} />

@@ -3,6 +3,7 @@ import rootPackage from '../../../../package.json' with { type: 'json' };
 import { authRoutes, type AuthBindings } from '../auth/routes.js';
 import { projectRoutes } from '../projects/routes.js';
 import { neonDatabase, type Database } from '../db/database.js';
+import { usageRoutes } from '../usage/routes.js';
 import { describeError } from './redact.js';
 
 /** Values Cloudflare passes to the Worker: Worker secrets and `vars` on Cloudflare, `.dev.vars` under `wrangler dev`. */
@@ -60,6 +61,7 @@ export function createApi(overrides: Partial<ApiDependencies> = {}) {
 
   api.route('/', authRoutes(deps));
   api.route('/projects', projectRoutes(deps));
+  api.route('/usage', usageRoutes(deps));
 
   api.notFound((c) => c.json({ error: 'not found' }, 404));
   return api;

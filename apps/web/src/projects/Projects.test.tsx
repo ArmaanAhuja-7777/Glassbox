@@ -10,6 +10,7 @@ const rallly = {
   name: 'Rallly',
   repoUrl: 'https://github.com/lukevella/rallly',
   createdAt: '2026-10-31T09:00:00.000Z',
+  workspace: { id: 'w-1', state: 'not_created' },
 };
 
 /** A fake /api/projects: GET answers `list`, POST answers `created` (or an error response). */
@@ -30,6 +31,7 @@ describe('Projects', () => {
     const list = await screen.findByRole('list', { name: 'Your projects' });
     expect(within(list).getByText('Rallly')).toBeTruthy();
     expect(within(list).getByText('https://github.com/lukevella/rallly')).toBeTruthy();
+    expect(within(list).getByText(/Workspace not created yet/)).toBeTruthy();
   });
 
   it('opens a project’s secrets from its row', async () => {

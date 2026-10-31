@@ -88,4 +88,17 @@ describe('projects in the database', () => {
       name: 'Rallly',
     });
   });
+
+  it('creates the workspace record with the project, not created yet, and only once', async () => {
+    const created = await createProject(db, ada, { name: 'Rallly', repoUrl: null });
+    if (created === 'duplicate-name') throw new Error('unexpected duplicate');
+    expect(created.workspace.state).toBe('not_created');
+    expect(await createProject(db, ada, { name: 'Rallly', repoUrl: null })).toBe('duplicate-name');
+
+    const rows = await db.query<{ id: string; project_id: string }>(
+      'select id, project_id from workspaces',
+    );
+    expect(rows).toEqual([{ id: created.workspace.id, project_id: created.id }]);
+    expect((await listProjects(db, ada))[0]?.workspace).toEqual(created.workspace);
+  });
 });

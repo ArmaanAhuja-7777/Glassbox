@@ -1,11 +1,17 @@
 import type { Database } from '../db/database.js';
 
+/** The states a workspace record can be in (0001_initial.sql); only `not_created` until phase 1d. */
+export type WorkspaceState =
+  'not_created' | 'creating' | 'running' | 'sleeping' | 'resuming' | 'stopped' | 'failed';
+
 export interface Project {
   readonly id: string;
   readonly name: string;
   readonly repoUrl: string | null;
   /** ISO 8601, UTC. */
   readonly createdAt: string;
+  /** The project's one cloud workspace, as the control plane last recorded it. */
+  readonly workspace: { readonly id: string; readonly state: WorkspaceState };
 }
 
 export interface NewProject {
@@ -69,9 +75,12 @@ interface ProjectRow {
   readonly name: string;
   readonly repo_url: string | null;
   readonly created_ms: number;
+  readonly workspace_id: string;
+  readonly workspace_state: WorkspaceState;
 }
 
-const COLUMNS = `id, name, repo_url, (extract(epoch from created_at) * 1000)::float8 as created_ms`;
+const columns = (p: string) =>
+  `${p}.id, ${p}.name, ${p}.repo_url, (extract(epoch from ${p}.created_at) * 1000)::float8 as created_ms`;
 
 function toProject(row: ProjectRow): Project {
   return {
@@ -79,29 +88,38 @@ function toProject(row: ProjectRow): Project {
     name: row.name,
     repoUrl: row.repo_url,
     createdAt: new Date(row.created_ms).toISOString(),
+    workspace: { id: row.workspace_id, state: row.workspace_state },
   };
 }
 
 /** The person's own projects, newest first. Nobody sees anyone else's. */
 export async function listProjects(db: Database, ownerId: string): Promise<Project[]> {
   const rows = await db.query<ProjectRow>(
-    `select ${COLUMNS} from projects where owner_id = $1 order by created_at desc, name`,
+    `select ${columns('p')}, w.id as workspace_id, w.state as workspace_state
+     from projects p join workspaces w on w.project_id = p.id
+     where p.owner_id = $1 order by p.created_at desc, p.name`,
     [ownerId],
   );
   return rows.map(toProject);
 }
 
-/** Creates a project, or says the person already has one with that name. */
+/** Creates a project and its workspace record together, or says the person already has one with that name. */
 export async function createProject(
   db: Database,
   ownerId: string,
   project: NewProject,
 ): Promise<Project | 'duplicate-name'> {
-  // `on conflict do nothing` turns a duplicate name into "no row", with no error to parse.
+  // One statement, so there's never a project without its workspace (Neon's HTTP driver has no
+  // multi-call transactions). `on conflict do nothing` turns a duplicate name into "no row".
   const rows = await db.query<ProjectRow>(
-    `insert into projects (owner_id, name, repo_url) values ($1, $2, $3)
-     on conflict (owner_id, name) do nothing
-     returning ${COLUMNS}`,
+    `with p as (
+       insert into projects (owner_id, name, repo_url) values ($1, $2, $3)
+       on conflict (owner_id, name) do nothing
+       returning *
+     ), w as (
+       insert into workspaces (project_id) select id from p returning id, state
+     )
+     select ${columns('p')}, w.id as workspace_id, w.state as workspace_state from p, w`,
     [ownerId, project.name, project.repoUrl],
   );
   const row = rows[0];

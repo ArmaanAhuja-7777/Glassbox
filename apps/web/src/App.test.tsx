@@ -44,15 +44,26 @@ describe('App', () => {
               signIn: 'available',
               providers: ['github'],
             })
-          : Response.json({ projects: [] }),
+          : input === '/api/usage'
+            ? Response.json({
+                usage: {
+                  periodStart: '2026-10-01T00:00:00.000Z',
+                  resetsAt: '2026-11-01T00:00:00.000Z',
+                  workspaceSeconds: 0,
+                  storageByteHours: 0,
+                },
+              })
+            : Response.json({ projects: [] }),
       );
     render(<App buildInfo={buildInfo} fetcher={signedIn} />);
     expect(await screen.findByRole('heading', { name: 'Projects' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Usage this month' })).toBeTruthy();
     cleanup();
 
     render(<App buildInfo={buildInfo} fetcher={signedOut} />);
     await screen.findByRole('link', { name: 'Sign in with GitHub' });
     expect(screen.queryByRole('heading', { name: 'Projects' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Usage this month' })).toBeNull();
   });
 
   it('links to the component catalogue', () => {

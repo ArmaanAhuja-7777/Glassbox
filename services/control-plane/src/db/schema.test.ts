@@ -48,11 +48,23 @@ const bytes = (length: number) => new Uint8Array(length).fill(7);
 describe('migration runner', () => {
   it('applies every migration once, in order, and records checksums', async () => {
     const first = await migrate(db, loadMigrations());
-    expect(first.applied).toEqual(['0001_initial']);
+    const all = ['0001_initial', '0002_workspace_for_every_project'];
+    expect(first.applied).toEqual(all);
     const second = await migrate(db, loadMigrations());
-    expect(second).toEqual({ applied: [], alreadyApplied: ['0001_initial'] });
+    expect(second).toEqual({ applied: [], alreadyApplied: all });
     const rows = await db.query<{ checksum: string }>('select checksum from schema_migrations');
     expect(rows[0]?.checksum).toBe(checksum(loadMigrations()[0]?.sql ?? ''));
+  });
+
+  it('gives projects made before 0002 their workspace record', async () => {
+    const [initial, ...later] = loadMigrations();
+    if (initial === undefined) throw new Error('no migrations');
+    await migrate(db, [initial]);
+    const projectId = await project(await user());
+    await migrate(db, [initial, ...later]);
+    expect(await db.query('select project_id, state from workspaces')).toEqual([
+      { project_id: projectId, state: 'not_created' },
+    ]);
   });
 
   it('refuses to run when an applied migration was edited', async () => {
